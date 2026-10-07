@@ -1,12 +1,14 @@
 import { useState } from 'react';
 import {
   Button,
+  Image,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
   View,
 } from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
 
 const usuarioEjemplo = {
   name: 'Usuario de prueba',
@@ -23,12 +25,17 @@ export default function ProfileScreen() {
   const [barrioIngresado, setBarrioIngresado] = useState(usuarioEjemplo.zone);
   const [telefono, setTelefono] = useState(usuarioEjemplo.phone);
   const [telefonoIngresado, setTelefonoIngresado] = useState(usuarioEjemplo.phone);
+  const [foto, setFoto] = useState(null);
+  const [fotoIngresada, setFotoIngresada] = useState(null);
+
+  const fotoVisible = editando ? fotoIngresada : foto;
 
   function iniciarEdicion() {
   setNombreIngresado(nombre);
   setBarrioIngresado(barrio);
   setTelefonoIngresado(telefono);
   setError('');
+  setFotoIngresada(foto);
   setEditando(true);
 }
 
@@ -57,8 +64,27 @@ export default function ProfileScreen() {
   setTelefono(telefonoLimpio);
   setError('');
   setEditando(false);
+  setFoto(fotoIngresada);
 }
 
+async function cambiarFoto() {
+  setError('');
+
+  try {
+    const resultado = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.8,
+    });
+
+    if (!resultado.canceled && resultado.assets?.[0]) {
+      setFotoIngresada(resultado.assets[0].uri);
+    }
+  } catch {
+    setError('No se pudo seleccionar la foto. Intentá nuevamente.');
+  }
+}
   return (
     <ScrollView
       style={styles.screen}
@@ -68,12 +94,28 @@ export default function ProfileScreen() {
       <Text style={styles.title}>Mi perfil</Text>
 
       <View style={styles.header}>
-        <View style={styles.avatar}>
-          <Text style={styles.avatarText}>Sin foto</Text>
-        </View>
+  <View style={styles.avatar}>
+    {fotoVisible ? (
+      <Image
+        source={{ uri: fotoVisible }}
+        style={styles.photo}
+      />
+    ) : (
+      <Text style={styles.avatarText}>Sin foto</Text>
+    )}
+  </View>
 
-        <Text style={styles.name}>{nombre}</Text>
-      </View>
+  <Text style={styles.name}>{nombre}</Text>
+
+  {editando && (
+    <View style={styles.photoActions}>
+      <Button
+        title="Cambiar foto"
+        onPress={cambiarFoto}
+      />
+    </View>
+  )}
+</View>
 
       <View style={styles.card}>
         <Text style={styles.label}>Nombre</Text>
@@ -218,4 +260,12 @@ const styles = StyleSheet.create({
   buttons: {
     gap: 12,
   },
+  photo: {
+  width: 100,
+  height: 100,
+  borderRadius: 50,
+},
+photoActions: {
+  marginTop: 12,
+},
 });
