@@ -98,6 +98,18 @@ export default function ProfileScreen({ navigation }) {
         zone: barrio,
         avatarUrl: foto,
         memberSince: '2026-10-01T12:00:00Z',
+        reputation: {
+          completedReturns: 5,
+          positiveReviews: 4,
+          negativeReviews: 1,
+        },
+        badges: [
+          {
+            id: 'vecino-solidario',
+            name: 'Vecino solidario',
+            description: 'Por concretar 5 devoluciones.',
+          },
+        ],
       },
     });
   }
