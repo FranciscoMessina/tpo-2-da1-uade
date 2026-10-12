@@ -16,106 +16,121 @@ const usuarioEjemplo = {
   phone: '',
 };
 
-export default function ProfileScreen() {
+export default function ProfileScreen({ navigation }) {
   const [nombre, setNombre] = useState(usuarioEjemplo.name);
   const [nombreIngresado, setNombreIngresado] = useState(usuarioEjemplo.name);
-  const [editando, setEditando] = useState(false);
-  const [error, setError] = useState('');
   const [barrio, setBarrio] = useState(usuarioEjemplo.zone);
   const [barrioIngresado, setBarrioIngresado] = useState(usuarioEjemplo.zone);
   const [telefono, setTelefono] = useState(usuarioEjemplo.phone);
   const [telefonoIngresado, setTelefonoIngresado] = useState(usuarioEjemplo.phone);
   const [foto, setFoto] = useState(null);
   const [fotoIngresada, setFotoIngresada] = useState(null);
+  const [editando, setEditando] = useState(false);
+  const [error, setError] = useState('');
 
   const fotoVisible = editando ? fotoIngresada : foto;
 
   function iniciarEdicion() {
-  setNombreIngresado(nombre);
-  setBarrioIngresado(barrio);
-  setTelefonoIngresado(telefono);
-  setError('');
-  setFotoIngresada(foto);
-  setEditando(true);
-}
+    setNombreIngresado(nombre);
+    setBarrioIngresado(barrio);
+    setTelefonoIngresado(telefono);
+    setFotoIngresada(foto);
+    setError('');
+    setEditando(true);
+  }
+
+  function cancelarEdicion() {
+    setError('');
+    setEditando(false);
+  }
 
   function guardarCambios() {
-  const nombreLimpio = nombreIngresado.trim();
-  const barrioLimpio = barrioIngresado.trim();
-  const telefonoLimpio = telefonoIngresado.trim();
+    const nombreLimpio = nombreIngresado.trim();
+    const barrioLimpio = barrioIngresado.trim();
+    const telefonoLimpio = telefonoIngresado.trim();
 
-  if (nombreLimpio.length < 2) {
-    setError('El nombre debe tener al menos 2 caracteres.');
-    return;
-  }
-
-  if (barrioLimpio !== '' && barrioLimpio.length < 2) {
-    setError('El barrio debe tener al menos 2 caracteres.');
-    return;
-  }
-
-  if (telefonoLimpio !== '' && telefonoLimpio.length < 6) {
-    setError('El teléfono debe tener al menos 6 caracteres.');
-    return;
-  }
-
-  setNombre(nombreLimpio);
-  setBarrio(barrioLimpio);
-  setTelefono(telefonoLimpio);
-  setError('');
-  setEditando(false);
-  setFoto(fotoIngresada);
-}
-
-async function cambiarFoto() {
-  setError('');
-
-  try {
-    const resultado = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images'],
-      allowsEditing: true,
-      aspect: [1, 1],
-      quality: 0.8,
-    });
-
-    if (!resultado.canceled && resultado.assets?.[0]) {
-      setFotoIngresada(resultado.assets[0].uri);
+    if (nombreLimpio.length < 2) {
+      setError('El nombre debe tener al menos 2 caracteres.');
+      return;
     }
-  } catch {
-    setError('No se pudo seleccionar la foto. Intentá nuevamente.');
+
+    if (barrioLimpio !== '' && barrioLimpio.length < 2) {
+      setError('El barrio debe tener al menos 2 caracteres.');
+      return;
+    }
+
+    if (telefonoLimpio !== '' && telefonoLimpio.length < 6) {
+      setError('El teléfono debe tener al menos 6 caracteres.');
+      return;
+    }
+
+    setNombre(nombreLimpio);
+    setBarrio(barrioLimpio);
+    setTelefono(telefonoLimpio);
+    setFoto(fotoIngresada);
+    setError('');
+    setEditando(false);
   }
-}
+
+  async function cambiarFoto() {
+    setError('');
+
+    try {
+      const resultado = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+
+      if (!resultado.canceled && resultado.assets?.[0]) {
+        setFotoIngresada(resultado.assets[0].uri);
+      }
+    } catch {
+      setError('No se pudo seleccionar la foto. Intentá nuevamente.');
+    }
+  }
+
+  function abrirPerfilPublico() {
+    navigation.navigate('PerfilPublico', {
+      usuario: {
+        name: nombre,
+        zone: barrio,
+        avatarUrl: foto,
+        memberSince: '2026-10-01T12:00:00Z',
+      },
+    });
+  }
+
   return (
     <ScrollView
       style={styles.screen}
       contentContainerStyle={styles.content}
       keyboardShouldPersistTaps="handled"
     >
-      <Text style={styles.title}>Mi perfil</Text>
-
       <View style={styles.header}>
-  <View style={styles.avatar}>
-    {fotoVisible ? (
-      <Image
-        source={{ uri: fotoVisible }}
-        style={styles.photo}
-      />
-    ) : (
-      <Text style={styles.avatarText}>Sin foto</Text>
-    )}
-  </View>
+        <View style={styles.avatar}>
+          {fotoVisible ? (
+            <Image
+              source={{ uri: fotoVisible }}
+              style={styles.photo}
+            />
+          ) : (
+            <Text style={styles.avatarText}>Sin foto</Text>
+          )}
+        </View>
 
-  <Text style={styles.name}>{nombre}</Text>
+        <Text style={styles.name}>{nombre}</Text>
 
-  {editando && (
-    <View style={styles.photoActions}>
-      <Button
-        title="Cambiar foto"
-        onPress={cambiarFoto}
-      />
-    </View>
-  )}
-</View>
+        {editando && (
+          <View style={styles.photoActions}>
+            <Button
+              title="Cambiar foto"
+              onPress={cambiarFoto}
+            />
+          </View>
+        )}
+      </View>
 
       <View style={styles.card}>
         <Text style={styles.label}>Nombre</Text>
@@ -139,37 +154,37 @@ async function cambiarFoto() {
 
         <Text style={styles.label}>Barrio</Text>
 
-{editando ? (
-  <TextInput
-    style={styles.input}
-    value={barrioIngresado}
-    onChangeText={setBarrioIngresado}
-    placeholder="Ingresá tu barrio"
-    autoCapitalize="words"
-    maxLength={100}
-  />
-) : (
-  <Text style={styles.value}>
-    {barrio || 'No informado'}
-  </Text>
-)}
+        {editando ? (
+          <TextInput
+            style={styles.input}
+            value={barrioIngresado}
+            onChangeText={setBarrioIngresado}
+            placeholder="Ingresá tu barrio"
+            autoCapitalize="words"
+            maxLength={100}
+          />
+        ) : (
+          <Text style={styles.value}>
+            {barrio || 'No informado'}
+          </Text>
+        )}
 
-<Text style={styles.label}>Teléfono</Text>
+        <Text style={styles.label}>Teléfono</Text>
 
-{editando ? (
-  <TextInput
-    style={styles.input}
-    value={telefonoIngresado}
-    onChangeText={setTelefonoIngresado}
-    placeholder="Ingresá tu teléfono"
-    keyboardType="phone-pad"
-    maxLength={30}
-  />
-) : (
-  <Text style={styles.value}>
-    {telefono || 'No informado'}
-  </Text>
-)}
+        {editando ? (
+          <TextInput
+            style={styles.input}
+            value={telefonoIngresado}
+            onChangeText={setTelefonoIngresado}
+            placeholder="Ingresá tu teléfono"
+            keyboardType="phone-pad"
+            maxLength={30}
+          />
+        ) : (
+          <Text style={styles.value}>
+            {telefono || 'No informado'}
+          </Text>
+        )}
 
         {editando ? (
           <View style={styles.buttons}>
@@ -177,9 +192,10 @@ async function cambiarFoto() {
               title="Guardar cambios"
               onPress={guardarCambios}
             />
+
             <Button
               title="Cancelar"
-              onPress={() => setEditando(false)}
+              onPress={cancelarEdicion}
               color="#6B7280"
             />
           </View>
@@ -190,6 +206,15 @@ async function cambiarFoto() {
           />
         )}
       </View>
+
+      {!editando && (
+        <View style={styles.publicProfileButton}>
+          <Button
+            title="Ver mi perfil público"
+            onPress={abrirPerfilPublico}
+          />
+        </View>
+      )}
     </ScrollView>
   );
 }
@@ -201,12 +226,6 @@ const styles = StyleSheet.create({
   },
   content: {
     padding: 24,
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#111827',
-    marginBottom: 24,
   },
   header: {
     alignItems: 'center',
@@ -221,6 +240,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginBottom: 12,
   },
+  photo: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+  },
   avatarText: {
     color: '#1D4ED8',
   },
@@ -228,6 +252,10 @@ const styles = StyleSheet.create({
     fontSize: 22,
     fontWeight: 'bold',
     color: '#111827',
+    textAlign: 'center',
+  },
+  photoActions: {
+    marginTop: 12,
   },
   card: {
     backgroundColor: '#FFFFFF',
@@ -244,7 +272,7 @@ const styles = StyleSheet.create({
     color: '#111827',
     marginBottom: 20,
   },
-    input: {
+  input: {
     borderWidth: 1,
     borderColor: '#9CA3AF',
     borderRadius: 8,
@@ -260,12 +288,7 @@ const styles = StyleSheet.create({
   buttons: {
     gap: 12,
   },
-  photo: {
-  width: 100,
-  height: 100,
-  borderRadius: 50,
-},
-photoActions: {
-  marginTop: 12,
-},
+  publicProfileButton: {
+    marginTop: 16,
+  },
 });
