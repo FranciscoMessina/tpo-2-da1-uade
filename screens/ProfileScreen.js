@@ -10,11 +10,26 @@ import {
   View,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
+import ReputationCard from '../components/ReputationCard';
+import BadgesCard from '../components/BadgesCard';
 
 const usuarioEjemplo = {
   name: 'Usuario de prueba',
   zone: 'Centro',
   phone: '',
+  memberSince: '2026-10-01T12:00:00Z',
+  reputation: {
+    completedReturns: 5,
+    positiveReviews: 4,
+    negativeReviews: 1,
+  },
+  badges: [
+    {
+      id: 'vecino-solidario',
+      name: 'Vecino solidario',
+      description: 'Por concretar 5 devoluciones.',
+    },
+  ],
 };
 
 export default function ProfileScreen({ navigation }) {
@@ -108,19 +123,9 @@ export default function ProfileScreen({ navigation }) {
         name: nombre,
         zone: barrio,
         avatarUrl: foto,
-        memberSince: '2026-10-01T12:00:00Z',
-        reputation: {
-          completedReturns: 5,
-          positiveReviews: 4,
-          negativeReviews: 1,
-        },
-        badges: [
-          {
-            id: 'vecino-solidario',
-            name: 'Vecino solidario',
-            description: 'Por concretar 5 devoluciones.',
-          },
-        ],
+        memberSince: usuarioEjemplo.memberSince,
+        reputation: usuarioEjemplo.reputation,
+        badges: usuarioEjemplo.badges,
       },
     });
   }
@@ -268,6 +273,10 @@ export default function ProfileScreen({ navigation }) {
 
       {!editando && (
         <View style={styles.publicProfileButton}>
+          <ReputationCard reputacion={usuarioEjemplo.reputation} />
+
+          <BadgesCard insignias={usuarioEjemplo.badges} />
+
           <Button
             title="Ver mi perfil público"
             onPress={abrirPerfilPublico}
