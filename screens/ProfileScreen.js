@@ -4,6 +4,7 @@ import {
   Image,
   ScrollView,
   StyleSheet,
+  Switch,
   Text,
   TextInput,
   View,
@@ -25,6 +26,9 @@ export default function ProfileScreen({ navigation }) {
   const [telefonoIngresado, setTelefonoIngresado] = useState(usuarioEjemplo.phone);
   const [foto, setFoto] = useState(null);
   const [fotoIngresada, setFotoIngresada] = useState(null);
+  const [compartirTelefono, setCompartirTelefono] = useState(false);
+  const [compartirTelefonoIngresado, setCompartirTelefonoIngresado] =
+    useState(false);
   const [editando, setEditando] = useState(false);
   const [error, setError] = useState('');
 
@@ -35,6 +39,7 @@ export default function ProfileScreen({ navigation }) {
     setBarrioIngresado(barrio);
     setTelefonoIngresado(telefono);
     setFotoIngresada(foto);
+    setCompartirTelefonoIngresado(compartirTelefono);
     setError('');
     setEditando(true);
   }
@@ -64,10 +69,16 @@ export default function ProfileScreen({ navigation }) {
       return;
     }
 
+    if (compartirTelefonoIngresado && telefonoLimpio === '') {
+      setError('Ingresá un teléfono para poder compartirlo.');
+      return;
+    }
+
     setNombre(nombreLimpio);
     setBarrio(barrioLimpio);
     setTelefono(telefonoLimpio);
     setFoto(fotoIngresada);
+    setCompartirTelefono(compartirTelefonoIngresado);
     setError('');
     setEditando(false);
   }
@@ -198,6 +209,42 @@ export default function ProfileScreen({ navigation }) {
           </Text>
         )}
 
+        <View style={styles.privacySection}>
+          <Text style={styles.sectionTitle}>
+            Privacidad del teléfono
+          </Text>
+
+          {editando ? (
+            <View style={styles.switchRow}>
+              <Text style={styles.switchLabel}>
+                Compartir mi teléfono al aceptar un reclamo
+              </Text>
+
+              <Switch
+                value={compartirTelefonoIngresado}
+                onValueChange={setCompartirTelefonoIngresado}
+                trackColor={{ false: '#D1D5DB', true: '#93C5FD' }}
+                thumbColor={
+                  compartirTelefonoIngresado ? '#1D4ED8' : '#F9FAFB'
+                }
+                accessibilityLabel="Compartir mi teléfono al aceptar un reclamo"
+              />
+            </View>
+          ) : (
+            <Text style={styles.preferenceText}>
+              {compartirTelefono
+                ? 'Compartir al aceptar un reclamo'
+                : 'Comunicarme solo por la app'}
+            </Text>
+          )}
+
+          <Text style={styles.privacyHelp}>
+            Esta preferencia indica si querés compartir tu teléfono con la
+            otra parte una vez aceptado un reclamo. Tu teléfono no se muestra
+            en el perfil público.
+          </Text>
+        </View>
+
         {editando ? (
           <View style={styles.buttons}>
             <Button
@@ -296,6 +343,39 @@ const styles = StyleSheet.create({
   error: {
     color: '#DC2626',
     marginBottom: 16,
+  },
+  privacySection: {
+    borderTopWidth: 1,
+    borderTopColor: '#E5E7EB',
+    paddingTop: 16,
+    marginBottom: 24,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#111827',
+    marginBottom: 12,
+  },
+  switchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginBottom: 12,
+  },
+  switchLabel: {
+    flex: 1,
+    fontSize: 16,
+    color: '#111827',
+  },
+  preferenceText: {
+    fontSize: 16,
+    color: '#1D4ED8',
+    marginBottom: 12,
+  },
+  privacyHelp: {
+    fontSize: 14,
+    color: '#6B7280',
+    lineHeight: 20,
   },
   buttons: {
     gap: 12,
