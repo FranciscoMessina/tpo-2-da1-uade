@@ -4,6 +4,7 @@ import {
   Button,
   FlatList,
   Modal,
+  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -21,7 +22,7 @@ import {
 
 const TAMANIO_PAGINA = 3;
 
-export default function SearchResultsScreen({ route }) {
+export default function SearchResultsScreen({ route, navigation }) {
   const {
     alertas,
     recordarBusqueda,
@@ -168,7 +169,15 @@ export default function SearchResultsScreen({ route }) {
           </View>
         }
         renderItem={({ item }) => (
-          <View style={styles.card}>
+          <Pressable
+            style={styles.card}
+            accessibilityRole="button"
+            onPress={() =>
+              navigation.navigate('DetallePublicacion', {
+                publicacionId: item.id,
+              })
+            }
+          >
             <View
               style={styles.photo}
               accessibilityLabel={
@@ -215,7 +224,7 @@ export default function SearchResultsScreen({ route }) {
                 </Text>
               )}
             </View>
-          </View>
+          </Pressable>
         )}
         ListEmptyComponent={
           <View style={styles.empty}>
