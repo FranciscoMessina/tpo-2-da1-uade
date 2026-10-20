@@ -25,7 +25,7 @@ export default function SearchResultsScreen({ route }) {
   const {
     alertas,
     recordarBusqueda,
-    guardarAlerta,
+    crearAlerta,
   } = useSearch();
 
   const [filtros, setFiltros] = useState(route.params.filtros);
@@ -89,11 +89,11 @@ export default function SearchResultsScreen({ route }) {
   }
 
   function guardarBusquedaComoAlerta() {
-    guardarAlerta(filtros);
+    crearAlerta(filtros);
 
     Alert.alert(
-      'Alerta de prueba guardada',
-      'Quedará guardada mientras la app esté abierta. Las notificaciones se conectarán más adelante.'
+      'Alerta guardada',
+      'Podés verla y administrarla desde Alertas. Las notificaciones se conectarán más adelante.'
     );
   }
 
@@ -240,7 +240,7 @@ export default function SearchResultsScreen({ route }) {
             <Button
               title={
                 alertaGuardada
-                  ? 'Alerta guardada en esta sesión'
+                  ? 'Alerta guardada'
                   : 'Guardar búsqueda como alerta'
               }
               disabled={alertaGuardada}

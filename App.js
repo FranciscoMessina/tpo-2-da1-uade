@@ -9,6 +9,7 @@ import ProfileScreen from './screens/ProfileScreen';
 import PublicProfileScreen from './screens/PublicProfileScreen';
 import SearchScreen from './screens/SearchScreen';
 import SearchResultsScreen from './screens/SearchResultsScreen';
+import AlertasScreen from './screens/AlertasScreen';
 import { SearchProvider } from './context/SearchContext';
 
 const Stack = createNativeStackNavigator();
@@ -44,6 +45,12 @@ export default function App() {
                 name="Resultados"
                 component={SearchResultsScreen}
                 options={{ title: 'Resultados' }}
+              />
+
+              <Stack.Screen
+                name="Alertas"
+                component={AlertasScreen}
+                options={{ title: 'Alertas' }}
               />
 
               <Stack.Screen
