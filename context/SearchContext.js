@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { claveBusqueda } from '../data/searchDemo';
+import useAlertas from '../hooks/useAlertas';
 
 const SearchContext = createContext(null);
 const CLAVE_RECIENTES = '@hallado:busquedas-recientes:v1';
@@ -35,7 +36,14 @@ function esBusquedaGuardada(item) {
 
 export function SearchProvider({ children }) {
   const [recientes, setRecientes] = useState([]);
-  const [alertas, setAlertas] = useState([]);
+  const {
+    alertas,
+    loading: alertasLoading,
+    error: alertasError,
+    crearAlerta,
+    eliminarAlerta,
+    activarAlerta,
+  } = useAlertas();
   const [cargando, setCargando] = useState(true);
 
   const puedeGuardar = useRef(false);
@@ -118,28 +126,6 @@ export function SearchProvider({ children }) {
     );
   }
 
-  function guardarAlerta(filtros) {
-    const clave = claveBusqueda(filtros);
-
-    setAlertas((actuales) => {
-      const yaExiste = actuales.some(
-        (item) => item.clave === clave
-      );
-
-      if (yaExiste) {
-        return actuales;
-      }
-
-      return [
-        ...actuales,
-        {
-          clave,
-          filtros: { ...filtros },
-        },
-      ];
-    });
-  }
-
   if (cargando) {
     return (
       <View
@@ -168,8 +154,12 @@ export function SearchProvider({ children }) {
       value={{
         recientes,
         alertas,
+        alertasLoading,
+        alertasError,
+        crearAlerta,
+        eliminarAlerta,
+        activarAlerta,
         recordarBusqueda,
-        guardarAlerta,
       }}
     >
       {children}
