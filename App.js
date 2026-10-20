@@ -11,6 +11,10 @@ import GestionPublicacionScreen from './screens/GestionPublicacionScreen';
 import SearchScreen from './screens/SearchScreen';
 import SearchResultsScreen from './screens/SearchResultsScreen';
 import { SearchProvider } from './context/SearchContext';
+import LoginScreen from './screens/LoginScreen';
+import RegisterScreen from './screens/RegisterScreen';
+import ForgotPasswordScreen from './screens/ForgotPasswordScreen';
+import useAuth, { AuthProvider } from './hooks/useAuth';
 
 const Stack = createNativeStackNavigator();
 
@@ -21,6 +25,16 @@ function PublicProfileRoute({ route }) {
 }
 
 export default function App() {
+  return (
+    <AuthProvider>
+      <AppContenido />
+    </AuthProvider>
+  );
+}
+
+function AppContenido() {
+  const { autenticado } = useAuth();
+
   return (
     <SafeAreaProvider>
       <StatusBar style="dark" />
@@ -34,6 +48,25 @@ export default function App() {
               backgroundColor: '#F3F4F6',
             }}
           >
+            {!autenticado ? (
+              <Stack.Navigator>
+                <Stack.Screen
+                  name="Login"
+                  component={LoginScreen}
+                  options={{ title: 'Ingresar' }}
+                />
+                <Stack.Screen
+                  name="Registro"
+                  component={RegisterScreen}
+                  options={{ title: 'Registro' }}
+                />
+                <Stack.Screen
+                  name="RecuperarContraseña"
+                  component={ForgotPasswordScreen}
+                  options={{ title: 'Recuperar contraseña' }}
+                />
+              </Stack.Navigator>
+            ) : (
             <Stack.Navigator initialRouteName="Buscador">
               <Stack.Screen
                 name="Buscador"
@@ -65,6 +98,7 @@ export default function App() {
                 options={{ title: 'Perfil público' }}
               />
             </Stack.Navigator>
+            )}
           </SafeAreaView>
         </NavigationContainer>
       </SearchProvider>
