@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import {
+  ActivityIndicator,
   Button,
   Image,
   ScrollView,
@@ -12,36 +13,19 @@ import {
 import * as ImagePicker from 'expo-image-picker';
 import ReputationCard from '../components/ReputationCard';
 import BadgesCard from '../components/BadgesCard';
-
-const usuarioEjemplo = {
-  name: 'Usuario de prueba',
-  zone: 'Centro',
-  phone: '',
-  memberSince: '2026-10-01T12:00:00Z',
-  reputation: {
-    completedReturns: 5,
-    positiveReviews: 4,
-    negativeReviews: 1,
-  },
-  badges: [
-    {
-      id: 'vecino-solidario',
-      name: 'Vecino solidario',
-      description: 'Por concretar 5 devoluciones.',
-    },
-  ],
-};
+import usePerfil from '../hooks/usePerfil';
 
 export default function ProfileScreen({ navigation }) {
-  const [nombre, setNombre] = useState(usuarioEjemplo.name);
-  const [nombreIngresado, setNombreIngresado] = useState(usuarioEjemplo.name);
-  const [barrio, setBarrio] = useState(usuarioEjemplo.zone);
-  const [barrioIngresado, setBarrioIngresado] = useState(usuarioEjemplo.zone);
-  const [telefono, setTelefono] = useState(usuarioEjemplo.phone);
-  const [telefonoIngresado, setTelefonoIngresado] = useState(usuarioEjemplo.phone);
-  const [foto, setFoto] = useState(null);
+  const { perfil, loading, error: errorPerfil, guardarPerfil } = usePerfil();
+  const nombre = perfil?.name ?? '';
+  const barrio = perfil?.zone ?? '';
+  const telefono = perfil?.phone ?? '';
+  const foto = perfil?.avatarUrl ?? null;
+  const compartirTelefono = perfil?.sharePhone ?? false;
+  const [nombreIngresado, setNombreIngresado] = useState('');
+  const [barrioIngresado, setBarrioIngresado] = useState('');
+  const [telefonoIngresado, setTelefonoIngresado] = useState('');
   const [fotoIngresada, setFotoIngresada] = useState(null);
-  const [compartirTelefono, setCompartirTelefono] = useState(false);
   const [compartirTelefonoIngresado, setCompartirTelefonoIngresado] =
     useState(false);
   const [editando, setEditando] = useState(false);
@@ -64,7 +48,7 @@ export default function ProfileScreen({ navigation }) {
     setEditando(false);
   }
 
-  function guardarCambios() {
+  async function guardarCambios() {
     const nombreLimpio = nombreIngresado.trim();
     const barrioLimpio = barrioIngresado.trim();
     const telefonoLimpio = telefonoIngresado.trim();
@@ -89,11 +73,19 @@ export default function ProfileScreen({ navigation }) {
       return;
     }
 
-    setNombre(nombreLimpio);
-    setBarrio(barrioLimpio);
-    setTelefono(telefonoLimpio);
-    setFoto(fotoIngresada);
-    setCompartirTelefono(compartirTelefonoIngresado);
+    const ok = await guardarPerfil({
+      name: nombreLimpio,
+      zone: barrioLimpio,
+      phone: telefonoLimpio,
+      avatarUrl: fotoIngresada,
+      sharePhone: compartirTelefonoIngresado,
+    });
+
+    if (!ok) {
+      setError('No se pudo guardar el perfil. Intentá nuevamente.');
+      return;
+    }
+
     setError('');
     setEditando(false);
   }
@@ -119,15 +111,16 @@ export default function ProfileScreen({ navigation }) {
 
   function abrirPerfilPublico() {
     navigation.navigate('PerfilPublico', {
-      usuario: {
-        name: nombre,
-        zone: barrio,
-        avatarUrl: foto,
-        memberSince: usuarioEjemplo.memberSince,
-        reputation: usuarioEjemplo.reputation,
-        badges: usuarioEjemplo.badges,
-      },
+      usuario: { id: perfil.id },
     });
+  }
+
+  if (loading || !perfil) {
+    return (
+      <View style={styles.center}>
+        <ActivityIndicator size="large" color="#1D4ED8" />
+      </View>
+    );
   }
 
   return (
@@ -176,8 +169,8 @@ export default function ProfileScreen({ navigation }) {
           <Text style={styles.value}>{nombre}</Text>
         )}
 
-        {error !== '' && (
-          <Text style={styles.error}>{error}</Text>
+        {(error || errorPerfil) !== '' && (
+          <Text style={styles.error}>{error || errorPerfil}</Text>
         )}
 
         <Text style={styles.label}>Barrio</Text>
@@ -273,14 +266,22 @@ export default function ProfileScreen({ navigation }) {
 
       {!editando && (
         <View style={styles.publicProfileButton}>
-          <ReputationCard reputacion={usuarioEjemplo.reputation} />
+          <ReputationCard reputacion={perfil.reputation} />
 
-          <BadgesCard insignias={usuarioEjemplo.badges} />
+          <BadgesCard insignias={perfil.badges} />
 
           <Button
             title="Ver mi perfil público"
             onPress={abrirPerfilPublico}
           />
+
+          <View style={styles.configButton}>
+            <Button
+              title="Configuración"
+              onPress={() => navigation.navigate('Configuracion')}
+              color="#6B7280"
+            />
+          </View>
         </View>
       )}
     </ScrollView>
@@ -388,6 +389,14 @@ const styles = StyleSheet.create({
   },
   buttons: {
     gap: 12,
+  },
+  center: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  configButton: {
+    marginTop: 12,
   },
   publicProfileButton: {
     marginTop: 16,

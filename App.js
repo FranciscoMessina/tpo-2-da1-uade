@@ -9,6 +9,8 @@ import ProfileScreen from './screens/ProfileScreen';
 import PublicProfileScreen from './screens/PublicProfileScreen';
 import SearchScreen from './screens/SearchScreen';
 import SearchResultsScreen from './screens/SearchResultsScreen';
+import ConfiguracionScreen from './screens/ConfiguracionScreen';
+import BloqueoBiometrico from './components/BloqueoBiometrico';
 import { SearchProvider } from './context/SearchContext';
 
 const Stack = createNativeStackNavigator();
@@ -57,8 +59,15 @@ export default function App() {
                 component={PublicProfileRoute}
                 options={{ title: 'Perfil público' }}
               />
+
+              <Stack.Screen
+                name="Configuracion"
+                component={ConfiguracionScreen}
+                options={{ title: 'Configuración' }}
+              />
             </Stack.Navigator>
           </SafeAreaView>
+          <BloqueoBiometrico />
         </NavigationContainer>
       </SearchProvider>
     </SafeAreaProvider>

@@ -17,6 +17,14 @@
         "monochromeImage": "./assets/android-icon-monochrome.png"
       }
     },
+    "plugins": [
+      [
+        "expo-local-authentication",
+        {
+          "faceIDPermission": "Permitir que $(PRODUCT_NAME) use Face ID para desbloquear la app."
+        }
+      ]
+    ],
     "web": {
       "favicon": "./assets/favicon.png"
     }
