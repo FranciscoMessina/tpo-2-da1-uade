@@ -12,6 +12,7 @@ import {
 import * as ImagePicker from 'expo-image-picker';
 import ReputationCard from '../components/ReputationCard';
 import BadgesCard from '../components/BadgesCard';
+import MisPublicaciones from '../components/MisPublicaciones';
 import useAuth from '../hooks/useAuth';
 
 const usuarioEjemplo = {
@@ -191,7 +192,7 @@ export default function ProfileScreen({ navigation }) {
             onChangeText={setBarrioIngresado}
             placeholder="Ingresá tu barrio"
             autoCapitalize="words"
-            maxLength={100}
+            maxLength={100} 
           />
         ) : (
           <Text style={styles.value}>
@@ -275,6 +276,8 @@ export default function ProfileScreen({ navigation }) {
 
       {!editando && (
         <View style={styles.publicProfileButton}>
+          <MisPublicaciones navigation={navigation} />
+
           <ReputationCard reputacion={usuarioEjemplo.reputation} />
 
           <BadgesCard insignias={usuarioEjemplo.badges} />

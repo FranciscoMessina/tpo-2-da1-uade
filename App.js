@@ -7,6 +7,7 @@ import {
 } from 'react-native-safe-area-context';
 import ProfileScreen from './screens/ProfileScreen';
 import PublicProfileScreen from './screens/PublicProfileScreen';
+import GestionPublicacionScreen from './screens/GestionPublicacionScreen';
 import SearchScreen from './screens/SearchScreen';
 import SearchResultsScreen from './screens/SearchResultsScreen';
 import { SearchProvider } from './context/SearchContext';
@@ -83,6 +84,12 @@ function AppContenido() {
                 name="Perfil"
                 component={ProfileScreen}
                 options={{ title: 'Mi perfil' }}
+              />
+
+              <Stack.Screen
+                name="GestionPublicacion"
+                component={GestionPublicacionScreen}
+                options={{ title: 'Gestionar publicación' }}
               />
 
               <Stack.Screen
