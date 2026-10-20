@@ -9,6 +9,7 @@ import ProfileScreen from './screens/ProfileScreen';
 import PublicProfileScreen from './screens/PublicProfileScreen';
 import SearchScreen from './screens/SearchScreen';
 import SearchResultsScreen from './screens/SearchResultsScreen';
+import PublicationDetailScreen from './screens/PublicationDetailScreen';
 import { SearchProvider } from './context/SearchContext';
 
 const Stack = createNativeStackNavigator();
@@ -56,6 +57,12 @@ export default function App() {
                 name="PerfilPublico"
                 component={PublicProfileRoute}
                 options={{ title: 'Perfil público' }}
+              />
+
+              <Stack.Screen
+                name="DetallePublicacion"
+                component={PublicationDetailScreen}
+                options={{ title: 'Publicación' }}
               />
             </Stack.Navigator>
           </SafeAreaView>
