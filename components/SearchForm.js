@@ -13,6 +13,7 @@ import {
   ZONAS,
   validarFiltros,
 } from '../data/searchDemo';
+import useUbicacionActual from '../hooks/useUbicacionActual';
 
 function Opciones({ opciones, valor, onChange }) {
   return (
@@ -54,6 +55,11 @@ export default function SearchForm({
     ...initialFilters,
   }));
   const [error, setError] = useState('');
+  const {
+    obtener: obtenerUbicacion,
+    cargando: ubicando,
+    error: errorUbicacion,
+  } = useUbicacionActual();
 
   function cambiar(campo, valor) {
     setError('');
@@ -74,17 +80,18 @@ export default function SearchForm({
     }));
   }
 
-  function usarUbicacionEjemplo() {
+  async function usarUbicacionActual() {
     setError('');
 
-    setFiltros((actuales) => ({
-      ...actuales,
-      zona: '',
-      ubicacion: {
-        latitud: -34.6037,
-        longitud: -58.3816,
-      },
-    }));
+    const coords = await obtenerUbicacion();
+
+    if (coords) {
+      setFiltros((actuales) => ({
+        ...actuales,
+        zona: '',
+        ubicacion: coords,
+      }));
+    }
   }
 
   function buscar() {
@@ -166,14 +173,23 @@ export default function SearchForm({
         />
 
         <Button
-          title="Probar ubicación de ejemplo"
-          onPress={usarUbicacionEjemplo}
+          title={ubicando ? 'Obteniendo ubicación…' : 'Usar mi ubicación actual'}
+          disabled={ubicando}
+          onPress={usarUbicacionActual}
         />
+
+        {errorUbicacion !== '' && !filtros.ubicacion && (
+          <Text accessibilityRole="alert" style={styles.error}>
+            {errorUbicacion}
+          </Text>
+        )}
 
         {filtros.ubicacion && (
           <Text style={styles.help}>
-            Ubicación de ejemplo: Centro. Se buscará en todos
-            los barrios.
+            Usando tu ubicación actual (
+            {filtros.ubicacion.latitud.toFixed(4)},{' '}
+            {filtros.ubicacion.longitud.toFixed(4)}). Se buscará
+            en todos los barrios.
           </Text>
         )}
       </View>

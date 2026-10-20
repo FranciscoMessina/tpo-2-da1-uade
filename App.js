@@ -10,6 +10,7 @@ import PublicProfileScreen from './screens/PublicProfileScreen';
 import GestionPublicacionScreen from './screens/GestionPublicacionScreen';
 import SearchScreen from './screens/SearchScreen';
 import SearchResultsScreen from './screens/SearchResultsScreen';
+import CreatePostScreen from './screens/CreatePostScreen';
 import AlertasScreen from './screens/AlertasScreen';
 import PublicationDetailScreen from './screens/PublicationDetailScreen';
 import { SearchProvider } from './context/SearchContext';
@@ -80,6 +81,12 @@ function AppContenido() {
                 name="Resultados"
                 component={SearchResultsScreen}
                 options={{ title: 'Resultados' }}
+              />
+
+              <Stack.Screen
+                name="CrearPublicacion"
+                component={CreatePostScreen}
+                options={{ title: 'Nueva publicación' }}
               />
 
               <Stack.Screen

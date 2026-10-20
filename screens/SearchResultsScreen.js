@@ -83,10 +83,9 @@ export default function SearchResultsScreen({ route, navigation }) {
   }
 
   function publicar() {
-    Alert.alert(
-      'Publicar',
-      'La pantalla de creación de publicaciones se conectará en una próxima etapa.'
-    );
+    navigation.navigate('CrearPublicacion', {
+      tipo: filtros.situacion,
+    });
   }
 
   function guardarBusquedaComoAlerta() {
