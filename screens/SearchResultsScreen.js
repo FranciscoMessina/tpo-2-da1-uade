@@ -21,7 +21,7 @@ import {
 
 const TAMANIO_PAGINA = 3;
 
-export default function SearchResultsScreen({ route }) {
+export default function SearchResultsScreen({ route, navigation }) {
   const {
     alertas,
     recordarBusqueda,
@@ -82,10 +82,9 @@ export default function SearchResultsScreen({ route }) {
   }
 
   function publicar() {
-    Alert.alert(
-      'Publicar',
-      'La pantalla de creación de publicaciones se conectará en una próxima etapa.'
-    );
+    navigation.navigate('CrearPublicacion', {
+      tipo: filtros.situacion,
+    });
   }
 
   function guardarBusquedaComoAlerta() {

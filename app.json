@@ -17,6 +17,14 @@
         "monochromeImage": "./assets/android-icon-monochrome.png"
       }
     },
+    "plugins": [
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Hallado usa tu ubicación para indicar dónde buscar o dónde ocurrió el suceso."
+        }
+      ]
+    ],
     "web": {
       "favicon": "./assets/favicon.png"
     }
