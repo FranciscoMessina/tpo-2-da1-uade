@@ -28,7 +28,8 @@ export default function useUbicacionActual() {
       setEstado('obteniendo');
 
       const posicion = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.Balanced,
+        accuracy: Location.Accuracy.High,
+        mayShowUserSettingsDialog: false,
       });
 
       const resultado = {
