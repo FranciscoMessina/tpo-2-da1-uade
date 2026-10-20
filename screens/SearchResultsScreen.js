@@ -4,6 +4,7 @@ import {
   Button,
   FlatList,
   Modal,
+  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -21,11 +22,11 @@ import {
 
 const TAMANIO_PAGINA = 3;
 
-export default function SearchResultsScreen({ route }) {
+export default function SearchResultsScreen({ route, navigation }) {
   const {
     alertas,
     recordarBusqueda,
-    guardarAlerta,
+    crearAlerta,
   } = useSearch();
 
   const [filtros, setFiltros] = useState(route.params.filtros);
@@ -82,18 +83,17 @@ export default function SearchResultsScreen({ route }) {
   }
 
   function publicar() {
-    Alert.alert(
-      'Publicar',
-      'La pantalla de creación de publicaciones se conectará en una próxima etapa.'
-    );
+    navigation.navigate('CrearPublicacion', {
+      tipo: filtros.situacion,
+    });
   }
 
   function guardarBusquedaComoAlerta() {
-    guardarAlerta(filtros);
+    crearAlerta(filtros);
 
     Alert.alert(
-      'Alerta de prueba guardada',
-      'Quedará guardada mientras la app esté abierta. Las notificaciones se conectarán más adelante.'
+      'Alerta guardada',
+      'Podés verla y administrarla desde Alertas. Las notificaciones se conectarán más adelante.'
     );
   }
 
@@ -168,7 +168,15 @@ export default function SearchResultsScreen({ route }) {
           </View>
         }
         renderItem={({ item }) => (
-          <View style={styles.card}>
+          <Pressable
+            style={styles.card}
+            accessibilityRole="button"
+            onPress={() =>
+              navigation.navigate('DetallePublicacion', {
+                publicacionId: item.id,
+              })
+            }
+          >
             <View
               style={styles.photo}
               accessibilityLabel={
@@ -215,7 +223,7 @@ export default function SearchResultsScreen({ route }) {
                 </Text>
               )}
             </View>
-          </View>
+          </Pressable>
         )}
         ListEmptyComponent={
           <View style={styles.empty}>
@@ -240,7 +248,7 @@ export default function SearchResultsScreen({ route }) {
             <Button
               title={
                 alertaGuardada
-                  ? 'Alerta guardada en esta sesión'
+                  ? 'Alerta guardada'
                   : 'Guardar búsqueda como alerta'
               }
               disabled={alertaGuardada}

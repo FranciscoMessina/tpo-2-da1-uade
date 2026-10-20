@@ -14,8 +14,11 @@ import * as ImagePicker from 'expo-image-picker';
 import ReputationCard from '../components/ReputationCard';
 import BadgesCard from '../components/BadgesCard';
 import usePerfil from '../hooks/usePerfil';
+import MisPublicaciones from '../components/MisPublicaciones';
+import useAuth from '../hooks/useAuth';
 
 export default function ProfileScreen({ navigation }) {
+  const { cerrarSesion, loading: loadingAuth } = useAuth();
   const { perfil, loading, error: errorPerfil, guardarPerfil } = usePerfil();
   const nombre = perfil?.name ?? '';
   const barrio = perfil?.zone ?? '';
@@ -266,6 +269,8 @@ export default function ProfileScreen({ navigation }) {
 
       {!editando && (
         <View style={styles.publicProfileButton}>
+          <MisPublicaciones navigation={navigation} />
+
           <ReputationCard reputacion={perfil.reputation} />
 
           <BadgesCard insignias={perfil.badges} />
@@ -282,6 +287,17 @@ export default function ProfileScreen({ navigation }) {
               color="#6B7280"
             />
           </View>
+        </View>
+      )}
+
+      {!editando && (
+        <View style={styles.configButton}>
+          <Button
+            title={loadingAuth ? 'Cerrando sesión…' : 'Cerrar sesión'}
+            onPress={cerrarSesion}
+            disabled={loadingAuth}
+            color="#DC2626"
+          />
         </View>
       )}
     </ScrollView>

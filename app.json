@@ -23,6 +23,12 @@
         {
           "faceIDPermission": "Permitir que $(PRODUCT_NAME) use Face ID para desbloquear la app."
         }
+      ],
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Hallado usa tu ubicación para indicar dónde buscar o dónde ocurrió el suceso."
+        }
       ]
     ],
     "web": {
