@@ -4,6 +4,7 @@ import {
   Button,
   FlatList,
   Modal,
+  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -167,7 +168,15 @@ export default function SearchResultsScreen({ route, navigation }) {
           </View>
         }
         renderItem={({ item }) => (
-          <View style={styles.card}>
+          <Pressable
+            style={styles.card}
+            accessibilityRole="button"
+            onPress={() =>
+              navigation.navigate('DetallePublicacion', {
+                publicacionId: item.id,
+              })
+            }
+          >
             <View
               style={styles.photo}
               accessibilityLabel={
@@ -214,7 +223,7 @@ export default function SearchResultsScreen({ route, navigation }) {
                 </Text>
               )}
             </View>
-          </View>
+          </Pressable>
         )}
         ListEmptyComponent={
           <View style={styles.empty}>
