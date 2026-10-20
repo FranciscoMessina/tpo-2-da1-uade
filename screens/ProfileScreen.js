@@ -12,6 +12,7 @@ import {
 import * as ImagePicker from 'expo-image-picker';
 import ReputationCard from '../components/ReputationCard';
 import BadgesCard from '../components/BadgesCard';
+import useAuth from '../hooks/useAuth';
 
 const usuarioEjemplo = {
   name: 'Usuario de prueba',
@@ -33,6 +34,7 @@ const usuarioEjemplo = {
 };
 
 export default function ProfileScreen({ navigation }) {
+  const { cerrarSesion, loading: loadingAuth } = useAuth();
   const [nombre, setNombre] = useState(usuarioEjemplo.name);
   const [nombreIngresado, setNombreIngresado] = useState(usuarioEjemplo.name);
   const [barrio, setBarrio] = useState(usuarioEjemplo.zone);
@@ -280,6 +282,17 @@ export default function ProfileScreen({ navigation }) {
           <Button
             title="Ver mi perfil público"
             onPress={abrirPerfilPublico}
+          />
+        </View>
+      )}
+
+      {!editando && (
+        <View style={styles.publicProfileButton}>
+          <Button
+            title={loadingAuth ? 'Cerrando sesión…' : 'Cerrar sesión'}
+            onPress={cerrarSesion}
+            disabled={loadingAuth}
+            color="#DC2626"
           />
         </View>
       )}
