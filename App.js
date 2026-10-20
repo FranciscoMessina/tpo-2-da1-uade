@@ -10,6 +10,8 @@ import PublicProfileScreen from './screens/PublicProfileScreen';
 import GestionPublicacionScreen from './screens/GestionPublicacionScreen';
 import SearchScreen from './screens/SearchScreen';
 import SearchResultsScreen from './screens/SearchResultsScreen';
+import ConfiguracionScreen from './screens/ConfiguracionScreen';
+import BloqueoBiometrico from './components/BloqueoBiometrico';
 import CreatePostScreen from './screens/CreatePostScreen';
 import AlertasScreen from './screens/AlertasScreen';
 import PublicationDetailScreen from './screens/PublicationDetailScreen';
@@ -114,6 +116,12 @@ function AppContenido() {
               />
 
               <Stack.Screen
+                name="Configuracion"
+                component={ConfiguracionScreen}
+                options={{ title: 'Configuración' }}
+              />
+
+              <Stack.Screen
                 name="DetallePublicacion"
                 component={PublicationDetailScreen}
                 options={{ title: 'Publicación' }}
@@ -121,6 +129,7 @@ function AppContenido() {
             </Stack.Navigator>
             )}
           </SafeAreaView>
+          <BloqueoBiometrico />
         </NavigationContainer>
       </SearchProvider>
     </SafeAreaProvider>

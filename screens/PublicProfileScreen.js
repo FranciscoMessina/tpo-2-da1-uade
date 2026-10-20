@@ -1,8 +1,38 @@
-import { Image, ScrollView, StyleSheet, Text, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Image,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import ReputationCard from '../components/ReputationCard';
 import BadgesCard from '../components/BadgesCard';
+import usePerfilPublico from '../hooks/usePerfilPublico';
 
-export default function PublicProfileScreen({ usuario }) {
+// `usuario` puede ser un id (string) o un objeto con `id` (y datos de respaldo).
+export default function PublicProfileScreen({ usuario: param }) {
+  const respaldo = typeof param === 'object' ? param : null;
+  const usuarioId = respaldo ? respaldo.id : param;
+  const { usuario: cargado, loading, error } = usePerfilPublico(usuarioId);
+  const usuario = cargado ?? (respaldo && { ...respaldo, phone: undefined });
+
+  if (loading && !usuario) {
+    return (
+      <View style={styles.center}>
+        <ActivityIndicator size="large" color="#1D4ED8" />
+      </View>
+    );
+  }
+
+  if (!usuario) {
+    return (
+      <View style={styles.center}>
+        <Text style={styles.value}>{error || 'Usuario no encontrado.'}</Text>
+      </View>
+    );
+  }
+
   const fechaIngreso = usuario.memberSince
     ? new Date(usuario.memberSince).toLocaleDateString('es-AR')
     : 'No informada';
@@ -50,6 +80,12 @@ const styles = StyleSheet.create({
     backgroundColor: '#F3F4F6',
   },
   content: {
+    padding: 24,
+  },
+  center: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
     padding: 24,
   },
   header: {
