@@ -7,10 +7,17 @@ import {
 } from 'react-native-safe-area-context';
 import ProfileScreen from './screens/ProfileScreen';
 import PublicProfileScreen from './screens/PublicProfileScreen';
+import GestionPublicacionScreen from './screens/GestionPublicacionScreen';
 import SearchScreen from './screens/SearchScreen';
 import SearchResultsScreen from './screens/SearchResultsScreen';
 import CreatePostScreen from './screens/CreatePostScreen';
+import AlertasScreen from './screens/AlertasScreen';
+import PublicationDetailScreen from './screens/PublicationDetailScreen';
 import { SearchProvider } from './context/SearchContext';
+import LoginScreen from './screens/LoginScreen';
+import RegisterScreen from './screens/RegisterScreen';
+import ForgotPasswordScreen from './screens/ForgotPasswordScreen';
+import useAuth, { AuthProvider } from './hooks/useAuth';
 
 const Stack = createNativeStackNavigator();
 
@@ -21,6 +28,16 @@ function PublicProfileRoute({ route }) {
 }
 
 export default function App() {
+  return (
+    <AuthProvider>
+      <AppContenido />
+    </AuthProvider>
+  );
+}
+
+function AppContenido() {
+  const { autenticado } = useAuth();
+
   return (
     <SafeAreaProvider>
       <StatusBar style="dark" />
@@ -34,6 +51,25 @@ export default function App() {
               backgroundColor: '#F3F4F6',
             }}
           >
+            {!autenticado ? (
+              <Stack.Navigator>
+                <Stack.Screen
+                  name="Login"
+                  component={LoginScreen}
+                  options={{ title: 'Ingresar' }}
+                />
+                <Stack.Screen
+                  name="Registro"
+                  component={RegisterScreen}
+                  options={{ title: 'Registro' }}
+                />
+                <Stack.Screen
+                  name="RecuperarContraseña"
+                  component={ForgotPasswordScreen}
+                  options={{ title: 'Recuperar contraseña' }}
+                />
+              </Stack.Navigator>
+            ) : (
             <Stack.Navigator initialRouteName="Buscador">
               <Stack.Screen
                 name="Buscador"
@@ -54,9 +90,21 @@ export default function App() {
               />
 
               <Stack.Screen
+                name="Alertas"
+                component={AlertasScreen}
+                options={{ title: 'Alertas' }}
+              />
+
+              <Stack.Screen
                 name="Perfil"
                 component={ProfileScreen}
                 options={{ title: 'Mi perfil' }}
+              />
+
+              <Stack.Screen
+                name="GestionPublicacion"
+                component={GestionPublicacionScreen}
+                options={{ title: 'Gestionar publicación' }}
               />
 
               <Stack.Screen
@@ -64,7 +112,14 @@ export default function App() {
                 component={PublicProfileRoute}
                 options={{ title: 'Perfil público' }}
               />
+
+              <Stack.Screen
+                name="DetallePublicacion"
+                component={PublicationDetailScreen}
+                options={{ title: 'Publicación' }}
+              />
             </Stack.Navigator>
+            )}
           </SafeAreaView>
         </NavigationContainer>
       </SearchProvider>

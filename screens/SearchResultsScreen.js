@@ -4,6 +4,7 @@ import {
   Button,
   FlatList,
   Modal,
+  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -25,7 +26,7 @@ export default function SearchResultsScreen({ route, navigation }) {
   const {
     alertas,
     recordarBusqueda,
-    guardarAlerta,
+    crearAlerta,
   } = useSearch();
 
   const [filtros, setFiltros] = useState(route.params.filtros);
@@ -88,11 +89,11 @@ export default function SearchResultsScreen({ route, navigation }) {
   }
 
   function guardarBusquedaComoAlerta() {
-    guardarAlerta(filtros);
+    crearAlerta(filtros);
 
     Alert.alert(
-      'Alerta de prueba guardada',
-      'Quedará guardada mientras la app esté abierta. Las notificaciones se conectarán más adelante.'
+      'Alerta guardada',
+      'Podés verla y administrarla desde Alertas. Las notificaciones se conectarán más adelante.'
     );
   }
 
@@ -167,7 +168,15 @@ export default function SearchResultsScreen({ route, navigation }) {
           </View>
         }
         renderItem={({ item }) => (
-          <View style={styles.card}>
+          <Pressable
+            style={styles.card}
+            accessibilityRole="button"
+            onPress={() =>
+              navigation.navigate('DetallePublicacion', {
+                publicacionId: item.id,
+              })
+            }
+          >
             <View
               style={styles.photo}
               accessibilityLabel={
@@ -214,7 +223,7 @@ export default function SearchResultsScreen({ route, navigation }) {
                 </Text>
               )}
             </View>
-          </View>
+          </Pressable>
         )}
         ListEmptyComponent={
           <View style={styles.empty}>
@@ -239,7 +248,7 @@ export default function SearchResultsScreen({ route, navigation }) {
             <Button
               title={
                 alertaGuardada
-                  ? 'Alerta guardada en esta sesión'
+                  ? 'Alerta guardada'
                   : 'Guardar búsqueda como alerta'
               }
               disabled={alertaGuardada}
