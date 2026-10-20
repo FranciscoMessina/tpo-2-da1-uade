@@ -10,6 +10,7 @@ import PublicProfileScreen from './screens/PublicProfileScreen';
 import GestionPublicacionScreen from './screens/GestionPublicacionScreen';
 import SearchScreen from './screens/SearchScreen';
 import SearchResultsScreen from './screens/SearchResultsScreen';
+import PublicationDetailScreen from './screens/PublicationDetailScreen';
 import { SearchProvider } from './context/SearchContext';
 import LoginScreen from './screens/LoginScreen';
 import RegisterScreen from './screens/RegisterScreen';
@@ -96,6 +97,12 @@ function AppContenido() {
                 name="PerfilPublico"
                 component={PublicProfileRoute}
                 options={{ title: 'Perfil público' }}
+              />
+
+              <Stack.Screen
+                name="DetallePublicacion"
+                component={PublicationDetailScreen}
+                options={{ title: 'Publicación' }}
               />
             </Stack.Navigator>
             )}
