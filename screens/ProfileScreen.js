@@ -19,7 +19,14 @@ import useAuth from '../hooks/useAuth';
 
 export default function ProfileScreen({ navigation }) {
   const { cerrarSesion, loading: loadingAuth } = useAuth();
-  const { perfil, loading, error: errorPerfil, guardarPerfil } = usePerfil();
+  const {
+    perfil,
+    loading,
+    guardando,
+    error: errorPerfil,
+    guardarPerfil,
+    recargarPerfil,
+  } = usePerfil();
   const nombre = perfil?.name ?? '';
   const barrio = perfil?.zone ?? '';
   const telefono = perfil?.phone ?? '';
@@ -76,6 +83,8 @@ export default function ProfileScreen({ navigation }) {
       return;
     }
 
+    setError('');
+
     const ok = await guardarPerfil({
       name: nombreLimpio,
       zone: barrioLimpio,
@@ -84,10 +93,7 @@ export default function ProfileScreen({ navigation }) {
       sharePhone: compartirTelefonoIngresado,
     });
 
-    if (!ok) {
-      setError('No se pudo guardar el perfil. Intentá nuevamente.');
-      return;
-    }
+    if (!ok) return;
 
     setError('');
     setEditando(false);
@@ -118,10 +124,21 @@ export default function ProfileScreen({ navigation }) {
     });
   }
 
-  if (loading || !perfil) {
+  if (loading) {
     return (
       <View style={styles.center}>
         <ActivityIndicator size="large" color="#1D4ED8" />
+      </View>
+    );
+  }
+
+  if (!perfil) {
+    return (
+      <View style={styles.center}>
+        <Text style={styles.error}>
+          {errorPerfil || 'No se pudo cargar el perfil.'}
+        </Text>
+        <Button title="Reintentar" onPress={recargarPerfil} />
       </View>
     );
   }
@@ -151,6 +168,7 @@ export default function ProfileScreen({ navigation }) {
             <Button
               title="Cambiar foto"
               onPress={cambiarFoto}
+              disabled={guardando}
             />
           </View>
         )}
@@ -162,6 +180,7 @@ export default function ProfileScreen({ navigation }) {
         {editando ? (
           <TextInput
             style={styles.input}
+            editable={!guardando}
             value={nombreIngresado}
             onChangeText={setNombreIngresado}
             placeholder="Ingresá tu nombre"
@@ -181,6 +200,7 @@ export default function ProfileScreen({ navigation }) {
         {editando ? (
           <TextInput
             style={styles.input}
+            editable={!guardando}
             value={barrioIngresado}
             onChangeText={setBarrioIngresado}
             placeholder="Ingresá tu barrio"
@@ -198,6 +218,7 @@ export default function ProfileScreen({ navigation }) {
         {editando ? (
           <TextInput
             style={styles.input}
+            editable={!guardando}
             value={telefonoIngresado}
             onChangeText={setTelefonoIngresado}
             placeholder="Ingresá tu teléfono"
@@ -224,6 +245,7 @@ export default function ProfileScreen({ navigation }) {
               <Switch
                 value={compartirTelefonoIngresado}
                 onValueChange={setCompartirTelefonoIngresado}
+                disabled={guardando}
                 trackColor={{ false: '#D1D5DB', true: '#93C5FD' }}
                 thumbColor={
                   compartirTelefonoIngresado ? '#1D4ED8' : '#F9FAFB'
@@ -249,13 +271,15 @@ export default function ProfileScreen({ navigation }) {
         {editando ? (
           <View style={styles.buttons}>
             <Button
-              title="Guardar cambios"
+              title={guardando ? 'Guardando…' : 'Guardar cambios'}
               onPress={guardarCambios}
+              disabled={guardando}
             />
 
             <Button
               title="Cancelar"
               onPress={cancelarEdicion}
+              disabled={guardando}
               color="#6B7280"
             />
           </View>
