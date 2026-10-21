@@ -7,7 +7,7 @@ import {
   useRef,
   useState,
 } from 'react';
-import { api, mensajeErrorApi } from '../services/api';
+import { api, mensajeErrorApi, setupInterceptors } from '../services/api';
 import { borrarToken, guardarToken, leerToken } from '../services/sesion';
 
 export const SEGUNDOS_REENVIO = 30;
@@ -57,6 +57,36 @@ export function AuthProvider({ children }) {
   const [error, setError] = useState('');
   const ocupado = useRef(true);
   const [codigoPendiente, setCodigoPendiente] = useState(null);
+
+  useEffect(() => {
+  let activo = true;
+
+  async function invalidarSesion() {
+    if (!activo) return;
+
+    configurarToken(null);
+    setUsuario(null);
+    setCodigoPendiente(null);
+    setError('Tu sesión venció o dejó de ser válida. Volvé a ingresar.');
+
+    try {
+      await borrarToken();
+    } catch {
+      if (activo) {
+        setError(
+          'La sesión ya no es válida y no pudimos borrar el token guardado.'
+        );
+      }
+    }
+  }
+
+  const quitarInterceptors = setupInterceptors(invalidarSesion);
+
+  return () => {
+    activo = false;
+    quitarInterceptors();
+  };
+}, []);
 
   useEffect(() => {
     let activo = true;
