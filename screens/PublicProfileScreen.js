@@ -1,5 +1,6 @@
 import {
   ActivityIndicator,
+  Button,
   Image,
   ScrollView,
   StyleSheet,
@@ -10,14 +11,11 @@ import ReputationCard from '../components/ReputationCard';
 import BadgesCard from '../components/BadgesCard';
 import usePerfilPublico from '../hooks/usePerfilPublico';
 
-// `usuario` puede ser un id (string) o un objeto con `id` (y datos de respaldo).
 export default function PublicProfileScreen({ usuario: param }) {
-  const respaldo = typeof param === 'object' ? param : null;
-  const usuarioId = respaldo ? respaldo.id : param;
-  const { usuario: cargado, loading, error } = usePerfilPublico(usuarioId);
-  const usuario = cargado ?? (respaldo && { ...respaldo, phone: undefined });
+  const usuarioId = typeof param === 'string' ? param : param?.id;
+  const { usuario, loading, error, recargarPerfil } = usePerfilPublico(usuarioId);
 
-  if (loading && !usuario) {
+  if (loading) {
     return (
       <View style={styles.center}>
         <ActivityIndicator size="large" color="#1D4ED8" />
@@ -29,6 +27,7 @@ export default function PublicProfileScreen({ usuario: param }) {
     return (
       <View style={styles.center}>
         <Text style={styles.value}>{error || 'Usuario no encontrado.'}</Text>
+        <Button title="Reintentar" onPress={recargarPerfil} />
       </View>
     );
   }
@@ -95,7 +94,7 @@ const styles = StyleSheet.create({
   avatar: {
     width: 100,
     height: 100,
-    borderRadius: 50,
+borderRadius: 50,
     backgroundColor: '#DBEAFE',
     alignItems: 'center',
     justifyContent: 'center',
