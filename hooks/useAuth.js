@@ -1,43 +1,27 @@
+import { isAxiosError } from 'axios';
 import {
   createContext,
-  createElement,
   useCallback,
   useContext,
-  useMemo,
+  useEffect,
+  useRef,
   useState,
 } from 'react';
+import { api, mensajeErrorApi, setupInterceptors } from '../services/api';
+import { borrarToken, guardarToken, leerToken } from '../services/sesion';
 
-// ---------------------------------------------------------------------------
-// MOCK: no hay backend. Cada función async de abajo simula una llamada de red.
-// Para conectar el backend real, reemplazá el cuerpo de cada función
-// (marcadas con "REEMPLAZAR POR FETCH") manteniendo la misma firma y el mismo
-// manejo de loading/error. Las pantallas no necesitan cambios.
-// ---------------------------------------------------------------------------
-
-export const CODIGO_VALIDO = '123456'; // código mock válido
-export const CODIGO_EXPIRADO = '000000'; // código mock que simula expiración
-export const SEGUNDOS_REENVIO = 30; // espera entre reenvíos
-const VIGENCIA_CODIGO_MS = 2 * 60 * 1000; // expiración simulada del código
-
-const usuariosMock = [
-  {
-    email: 'demo@hallado.com',
-    contraseña: 'Hallado123',
-    nombre: 'Usuario de prueba',
-  },
-];
-const codigosEmitidos = {}; // email -> timestamp de emisión
-
-const esperar = (ms = 700) => new Promise((r) => setTimeout(r, ms));
+export const SEGUNDOS_REENVIO = 30;
 
 export function emailValido(email) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test((email || '').trim());
 }
 
-// Devuelve un mensaje de error o '' si la contraseña es válida.
 export function validarContraseña(contraseña) {
   if (!contraseña || contraseña.length < 8) {
     return 'La contraseña debe tener al menos 8 caracteres.';
+  }
+  if (contraseña.length > 72) {
+    return 'La contraseña no puede superar los 72 caracteres.';
   }
   if (!/[A-Za-z]/.test(contraseña) || !/\d/.test(contraseña)) {
     return 'La contraseña debe incluir letras y números.';
@@ -46,187 +30,268 @@ export function validarContraseña(contraseña) {
 }
 
 function normalizar(email) {
+  if (!emailValido(email)) throw new Error('Ingresá un email válido.');
   return email.trim().toLowerCase();
 }
 
-function emitirCodigo(email) {
-  codigosEmitidos[normalizar(email)] = Date.now();
+function mensajeError(error) {
+  return isAxiosError(error)
+    ? mensajeErrorApi(error)
+    : error.message || 'Ocurrió un error. Intentá nuevamente.';
 }
 
-function comprobarCodigo(email, codigo) {
-  if (codigo === CODIGO_EXPIRADO) {
-    throw new Error('El código expiró. Pedí uno nuevo.');
-  }
-  const emitido = codigosEmitidos[normalizar(email)];
-  if (emitido && Date.now() - emitido > VIGENCIA_CODIGO_MS) {
-    throw new Error('El código expiró. Pedí uno nuevo.');
-  }
-  if (codigo !== CODIGO_VALIDO) {
-    throw new Error('El código es incorrecto.');
-  }
+function adaptarUsuario(usuario) {
+  return { ...usuario, nombre: usuario.name };
+}
+
+function configurarToken(token) {
+  if (token) api.defaults.headers.common.Authorization = `Bearer ${token}`;
+  else delete api.defaults.headers.common.Authorization;
 }
 
 const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
   const [usuario, setUsuario] = useState(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const ocupado = useRef(true);
+  const [codigoPendiente, setCodigoPendiente] = useState(null);
 
-  // Ejecuta una acción mock: maneja loading/error y devuelve true/false.
+  useEffect(() => {
+  let activo = true;
+
+  async function invalidarSesion() {
+    if (!activo) return;
+
+    configurarToken(null);
+    setUsuario(null);
+    setCodigoPendiente(null);
+    setError('Tu sesión venció o dejó de ser válida. Volvé a ingresar.');
+
+    try {
+      await borrarToken();
+    } catch {
+      if (activo) {
+        setError(
+          'La sesión ya no es válida y no pudimos borrar el token guardado.'
+        );
+      }
+    }
+  }
+
+  const quitarInterceptors = setupInterceptors(invalidarSesion);
+
+  return () => {
+    activo = false;
+    quitarInterceptors();
+  };
+}, []);
+
+  useEffect(() => {
+    let activo = true;
+
+    async function restaurarSesion() {
+      try {
+        const token = await leerToken();
+        if (!activo || !token) return;
+
+        const { data } = await api.get('/me', {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+
+        if (!activo) return;
+        configurarToken(token);
+        setUsuario(adaptarUsuario(data));
+      } catch (e) {
+        if (!activo) return;
+
+        if (e.response?.status === 401) {
+          await borrarToken();
+        } else {
+          setError(mensajeError(e));
+        }
+      } finally {
+        if (activo) {
+          ocupado.current = false;
+          setLoading(false);
+        }
+      }
+    }
+
+    restaurarSesion().catch((e) => {
+      if (activo) setError(mensajeError(e));
+    });
+
+    return () => {
+      activo = false;
+    };
+  }, []);
+
   const ejecutar = useCallback(async (accion) => {
+    if (ocupado.current) return false;
+
+    ocupado.current = true;
     setLoading(true);
     setError('');
+
     try {
-      await esperar();
       await accion();
       return true;
     } catch (e) {
-      setError(e.message || 'Ocurrió un error. Intentá nuevamente.');
+      setError(mensajeError(e));
       return false;
     } finally {
+      ocupado.current = false;
       setLoading(false);
     }
   }, []);
 
   const limpiarError = useCallback(() => setError(''), []);
 
-  const iniciarSesion = useCallback(
-    (email, contraseña) =>
-      ejecutar(async () => {
-        // REEMPLAZAR POR FETCH: POST /auth/login
-        if (!emailValido(email)) throw new Error('Ingresá un email válido.');
-        if (!contraseña) throw new Error('Ingresá tu contraseña.');
-        const u = usuariosMock.find(
-          (x) => x.email === normalizar(email) && x.contraseña === contraseña
-        );
-        if (!u) throw new Error('Email o contraseña incorrectos.');
-        setUsuario({ email: u.email, nombre: u.nombre });
-      }),
-    [ejecutar]
-  );
+  async function aceptarSesion(data) {
+    await guardarToken(data.session.token);
+    configurarToken(data.session.token);
+    setCodigoPendiente(null);
+    setUsuario(adaptarUsuario(data.usuario));
+  }
 
-  const solicitarCodigoRegistro = useCallback(
-    (email) =>
-      ejecutar(async () => {
-        // REEMPLAZAR POR FETCH: POST /auth/registro/codigo
-        if (!emailValido(email)) throw new Error('Ingresá un email válido.');
-        if (usuariosMock.some((x) => x.email === normalizar(email))) {
-          throw new Error('Ya existe una cuenta con ese email.');
+  function datosCodigo(email, codigo, proposito) {
+    const direccion = normalizar(email);
+    const pendiente = codigoPendiente;
+
+    if (
+      !pendiente ||
+      pendiente.email !== direccion ||
+      (proposito && pendiente.purpose !== proposito)
+    ) {
+      throw new Error('Volvé al primer paso y solicitá un código.');
+    }
+
+    if (codigo !== undefined && !/^\d{6}$/.test(codigo)) {
+      throw new Error('El código debe tener 6 dígitos.');
+    }
+
+    return {
+      email: direccion,
+      purpose: pendiente.purpose,
+      code: codigo,
+    };
+  }
+
+  function iniciarSesion(email, contraseña) {
+    return ejecutar(async () => {
+      const direccion = normalizar(email);
+      if (!contraseña) throw new Error('Ingresá tu contraseña.');
+
+      const { data } = await api.post('/auth/login/password', {
+        email: direccion,
+        password: contraseña,
+      });
+
+      await aceptarSesion(data);
+    });
+  }
+
+  function solicitarCodigo(email, purpose) {
+    return ejecutar(async () => {
+      const solicitud = { email: normalizar(email), purpose };
+      await api.post('/auth/otp/request', solicitud);
+      setCodigoPendiente(solicitud);
+    });
+  }
+
+  function solicitarCodigoRegistro(email) {
+    return solicitarCodigo(email, 'registration');
+  }
+
+  function solicitarRecupero(email) {
+    return solicitarCodigo(email, 'set_password');
+  }
+
+  function verificarCodigo(email, codigo) {
+    return ejecutar(async () => {
+      await api.post('/auth/otp/check', datosCodigo(email, codigo));
+    });
+  }
+
+  function reenviarCodigo(email) {
+    return ejecutar(async () => {
+      const { email: direccion, purpose } = datosCodigo(email);
+      await api.post('/auth/otp/resend', {
+        email: direccion,
+        purpose,
+      });
+    });
+  }
+
+  function registrar(email, codigo, contraseña) {
+    return ejecutar(async () => {
+      const mensaje = validarContraseña(contraseña);
+      if (mensaje) throw new Error(mensaje);
+
+      const { data } = await api.post('/auth/otp/verify', {
+        ...datosCodigo(email, codigo, 'registration'),
+        password: contraseña,
+      });
+
+      await aceptarSesion(data);
+    });
+  }
+
+  function restablecerContraseña(email, codigo, contraseña) {
+    return ejecutar(async () => {
+      const mensaje = validarContraseña(contraseña);
+      if (mensaje) throw new Error(mensaje);
+
+      await api.post('/auth/otp/verify', {
+        ...datosCodigo(email, codigo, 'set_password'),
+        password: contraseña,
+      });
+
+      setCodigoPendiente(null);
+    });
+  }
+
+  function cerrarSesion() {
+    return ejecutar(async () => {
+      let aviso = '';
+
+      try {
+        await api.post('/auth/logout');
+      } catch (e) {
+        if (e.response?.status !== 401) {
+          aviso =
+            'Se cerró la sesión en este dispositivo, pero no pudimos revocarla en el servidor.';
         }
-        emitirCodigo(email);
-      }),
-    [ejecutar]
-  );
-
-  const verificarCodigo = useCallback(
-    (email, codigo) =>
-      ejecutar(async () => {
-        // REEMPLAZAR POR FETCH: POST /auth/codigo/verificar
-        if (!/^\d{6}$/.test(codigo || '')) {
-          throw new Error('El código debe tener 6 dígitos.');
-        }
-        comprobarCodigo(email, codigo);
-      }),
-    [ejecutar]
-  );
-
-  const registrar = useCallback(
-    (email, codigo, contraseña) =>
-      ejecutar(async () => {
-        // REEMPLAZAR POR FETCH: POST /auth/registro
-        comprobarCodigo(email, codigo);
-        const msg = validarContraseña(contraseña);
-        if (msg) throw new Error(msg);
-        const nuevo = {
-          email: normalizar(email),
-          contraseña,
-          nombre: normalizar(email).split('@')[0],
-        };
-        usuariosMock.push(nuevo);
-        delete codigosEmitidos[nuevo.email];
-        setUsuario({ email: nuevo.email, nombre: nuevo.nombre });
-      }),
-    [ejecutar]
-  );
-
-  const solicitarRecupero = useCallback(
-    (email) =>
-      ejecutar(async () => {
-        // REEMPLAZAR POR FETCH: POST /auth/recupero
-        if (!emailValido(email)) throw new Error('Ingresá un email válido.');
-        // Por seguridad no se revela si el email existe o no.
-        emitirCodigo(email);
-      }),
-    [ejecutar]
-  );
-
-  const reenviarCodigo = useCallback(
-    (email) =>
-      ejecutar(async () => {
-        // REEMPLAZAR POR FETCH: POST /auth/codigo/reenviar
-        if (!emailValido(email)) throw new Error('Ingresá un email válido.');
-        emitirCodigo(email);
-      }),
-    [ejecutar]
-  );
-
-  const restablecerContraseña = useCallback(
-    (email, codigo, contraseña) =>
-      ejecutar(async () => {
-        // REEMPLAZAR POR FETCH: POST /auth/recupero/restablecer
-        comprobarCodigo(email, codigo);
-        const msg = validarContraseña(contraseña);
-        if (msg) throw new Error(msg);
-        const u = usuariosMock.find((x) => x.email === normalizar(email));
-        if (u) u.contraseña = contraseña;
-        delete codigosEmitidos[normalizar(email)];
-      }),
-    [ejecutar]
-  );
-
-  const cerrarSesion = useCallback(
-    () =>
-      ejecutar(async () => {
-        // REEMPLAZAR POR FETCH: POST /auth/logout
+      } finally {
+        configurarToken(null);
         setUsuario(null);
-      }),
-    [ejecutar]
-  );
+        setCodigoPendiente(null);
+        await borrarToken();
+      }
 
-  const value = useMemo(
-    () => ({
-      usuario,
-      autenticado: usuario !== null,
-      loading,
-      error,
-      limpiarError,
-      iniciarSesion,
-      solicitarCodigoRegistro,
-      verificarCodigo,
-      registrar,
-      solicitarRecupero,
-      reenviarCodigo,
-      restablecerContraseña,
-      cerrarSesion,
-    }),
-    [
-      usuario,
-      loading,
-      error,
-      limpiarError,
-      iniciarSesion,
-      solicitarCodigoRegistro,
-      verificarCodigo,
-      registrar,
-      solicitarRecupero,
-      reenviarCodigo,
-      restablecerContraseña,
-      cerrarSesion,
-    ]
-  );
+      if (aviso) throw new Error(aviso);
+    });
+  }
 
-  return createElement(AuthContext.Provider, { value }, children);
+  const value = {
+    usuario,
+    autenticado: usuario !== null,
+    loading,
+    error,
+    limpiarError,
+    iniciarSesion,
+    solicitarCodigoRegistro,
+    verificarCodigo,
+    registrar,
+    solicitarRecupero,
+    reenviarCodigo,
+    restablecerContraseña,
+    cerrarSesion,
+  };
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
 export default function useAuth() {

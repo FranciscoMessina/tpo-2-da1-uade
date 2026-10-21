@@ -36,7 +36,8 @@
         {
           "locationWhenInUsePermission": "Hallado usa tu ubicación para indicar dónde buscar o dónde ocurrió el suceso."
         }
-      ]
+      ],
+      "expo-secure-store"
     ],
     "web": {
       "favicon": "./assets/favicon.png"
