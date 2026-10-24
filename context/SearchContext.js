@@ -15,6 +15,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { claveBusqueda } from '../data/searchDemo';
 import useAlertas from '../hooks/useAlertas';
 import useAuth from '../hooks/useAuth';
+import useSeguidas from '../hooks/useSeguidas';
 
 const SearchContext = createContext(null);
 const CLAVE_RECIENTES = '@hallado:busquedas-recientes:v1';
@@ -49,6 +50,15 @@ export function SearchProvider({ children }) {
     eliminarAlerta,
     activarAlerta,
   } = useAlertas(usuario?.id);
+  const {
+    publicaciones: seguidas,
+    loading: seguidasLoading,
+    error: seguidasError,
+    guardando: seguidasGuardando,
+    seguir: seguirPublicacion,
+    dejarDeSeguir: dejarDeSeguirPublicacion,
+    recargar: recargarSeguidas,
+  } = useSeguidas(usuario?.id);
   const [cargando, setCargando] = useState(true);
 
   const puedeGuardar = useRef(false);
@@ -168,6 +178,13 @@ export function SearchProvider({ children }) {
         eliminarAlerta,
         activarAlerta,
         recordarBusqueda,
+        seguidas,
+        seguidasLoading,
+        seguidasError,
+        seguidasGuardando,
+        seguirPublicacion,
+        dejarDeSeguirPublicacion,
+        recargarSeguidas,
       }}
     >
       {children}

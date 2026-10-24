@@ -49,6 +49,11 @@ export default function SearchScreen({ navigation }) {
           title="Mis alertas"
           onPress={() => navigation.navigate('Alertas')}
         />
+
+        <Button
+          title="Publicaciones seguidas"
+          onPress={() => navigation.navigate('Seguidas')}
+        />
       </View>
 
       <Text style={styles.demo}>

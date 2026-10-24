@@ -14,6 +14,7 @@ import ConfiguracionScreen from './screens/ConfiguracionScreen';
 import BloqueoBiometrico from './components/BloqueoBiometrico';
 import CreatePostScreen from './screens/CreatePostScreen';
 import AlertasScreen from './screens/AlertasScreen';
+import SeguidasScreen from './screens/SeguidasScreen';
 import PublicationDetailScreen from './screens/PublicationDetailScreen';
 import { SearchProvider } from './context/SearchContext';
 import LoginScreen from './screens/LoginScreen';
@@ -95,6 +96,12 @@ function AppContenido() {
                 name="Alertas"
                 component={AlertasScreen}
                 options={{ title: 'Alertas' }}
+              />
+
+              <Stack.Screen
+                name="Seguidas"
+                component={SeguidasScreen}
+                options={{ title: 'Publicaciones seguidas' }}
               />
 
               <Stack.Screen
