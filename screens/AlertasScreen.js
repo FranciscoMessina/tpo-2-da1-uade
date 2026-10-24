@@ -1,6 +1,9 @@
+import { useCallback } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
 import {
   ActivityIndicator,
   Alert,
+  Button,
   FlatList,
   Pressable,
   StyleSheet,
@@ -16,9 +19,17 @@ export default function AlertasScreen({ navigation }) {
     alertas,
     alertasLoading,
     alertasError,
+    alertasGuardando,
+    recargarAlertas,
     eliminarAlerta,
     activarAlerta,
   } = useSearch();
+
+  useFocusEffect(useCallback(() => {
+    recargarAlertas();
+  }, [recargarAlertas]));
+
+  const bloqueado = alertasLoading || alertasGuardando;
 
   function confirmarEliminar(alerta) {
     Alert.alert(
@@ -39,28 +50,35 @@ export default function AlertasScreen({ navigation }) {
     navigation.navigate('Resultados', { filtros: alerta.filtros });
   }
 
-  if (alertasLoading) {
-    return (
-      <View style={styles.center}>
-        <ActivityIndicator size="large" color="#1D4ED8" />
-      </View>
-    );
-  }
-
   return (
     <FlatList
       style={styles.screen}
       contentContainerStyle={styles.content}
       data={alertas}
+      refreshing={alertasLoading}
+      onRefresh={recargarAlertas}
       keyExtractor={(item) => item.id}
       ListHeaderComponent={
         <View style={styles.header}>
           <Text style={styles.title}>Alertas guardadas</Text>
           <Text style={styles.help}>
-            Tocá una alerta para repetir su búsqueda. Las notificaciones se
-            conectarán más adelante.
+            Tocá una alerta para repetir su búsqueda. Podés pausarla o
+            eliminarla cuando quieras.
           </Text>
-          {alertasError && <Text style={styles.error}>{alertasError}</Text>}
+          {alertasError !== '' && (
+            <Text accessibilityRole="alert" style={styles.error}>{alertasError}</Text>
+          )}
+          <Button
+            title={alertasError ? 'Reintentar' : 'Actualizar alertas'}
+            onPress={recargarAlertas}
+            disabled={bloqueado}
+          />
+          {alertasGuardando && (
+            <View style={styles.switchRow}>
+              <ActivityIndicator color="#1D4ED8" />
+              <Text style={styles.help}>Guardando cambios…</Text>
+            </View>
+          )}
         </View>
       }
       renderItem={({ item }) => (
@@ -79,6 +97,7 @@ export default function AlertasScreen({ navigation }) {
             <View style={styles.switchRow}>
               <Switch
                 value={item.activa}
+                disabled={bloqueado}
                 onValueChange={(valor) => activarAlerta(item.id, valor)}
                 accessibilityLabel="Alerta activa"
               />
@@ -89,6 +108,8 @@ export default function AlertasScreen({ navigation }) {
 
             <Pressable
               accessibilityRole="button"
+              disabled={bloqueado}
+              accessibilityState={{ disabled: bloqueado }}
               onPress={() => confirmarEliminar(item)}
               style={({ pressed }) => pressed && styles.pressed}
             >
@@ -97,12 +118,17 @@ export default function AlertasScreen({ navigation }) {
           </View>
         </View>
       )}
-      ListEmptyComponent={
+      ListEmptyComponent={alertasLoading ? (
+        <View style={styles.empty}>
+          <ActivityIndicator size="large" color="#1D4ED8" />
+          <Text style={styles.help}>Cargando alertas…</Text>
+        </View>
+      ) : alertasError ? null : (
         <View style={styles.empty}>
           <Text style={styles.subtitle}>Todavía no tenés alertas</Text>
           <Text style={styles.help}>
-            Cuando una búsqueda no tenga coincidencias, podés guardarla como
-            alerta desde los resultados.
+            Desde cualquier búsqueda podés guardar una alerta para recibir
+            novedades de publicaciones que coincidan.
           </Text>
           <Pressable
             accessibilityRole="button"
@@ -111,19 +137,13 @@ export default function AlertasScreen({ navigation }) {
             <Text style={styles.repeat}>Ir al buscador →</Text>
           </Pressable>
         </View>
-      }
+      )}
     />
   );
 }
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: '#F3F4F6' },
-  center: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#F3F4F6',
-  },
   content: { padding: 20, gap: 16 },
   header: { gap: 10, marginBottom: 4 },
   title: { fontSize: 26, fontWeight: 'bold', color: '#111827' },
