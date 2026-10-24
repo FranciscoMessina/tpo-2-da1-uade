@@ -23,13 +23,22 @@ export default function AlertasScreen({ navigation }) {
     recargarAlertas,
     eliminarAlerta,
     activarAlerta,
+    novedadesPorAlerta,
+    novedadesLoading,
+    novedadesError,
+    novedadesGuardando,
+    recargarNovedades,
+    marcarAlertaLeida,
   } = useSearch();
 
-  useFocusEffect(useCallback(() => {
+  const actualizar = useCallback(() => {
     recargarAlertas();
-  }, [recargarAlertas]));
+    recargarNovedades();
+  }, [recargarAlertas, recargarNovedades]);
 
-  const bloqueado = alertasLoading || alertasGuardando;
+  useFocusEffect(actualizar);
+
+  const bloqueado = alertasLoading || alertasGuardando || novedadesGuardando;
 
   function confirmarEliminar(alerta) {
     Alert.alert(
@@ -55,8 +64,9 @@ export default function AlertasScreen({ navigation }) {
       style={styles.screen}
       contentContainerStyle={styles.content}
       data={alertas}
-      refreshing={alertasLoading}
-      onRefresh={recargarAlertas}
+      extraData={novedadesPorAlerta}
+      refreshing={alertasLoading || novedadesLoading}
+      onRefresh={actualizar}
       keyExtractor={(item) => item.id}
       ListHeaderComponent={
         <View style={styles.header}>
@@ -65,15 +75,24 @@ export default function AlertasScreen({ navigation }) {
             Tocá una alerta para repetir su búsqueda. Podés pausarla o
             eliminarla cuando quieras.
           </Text>
+          <Text style={styles.help}>
+            Las publicaciones nuevas que coincidan se destacan en cada alerta.
+          </Text>
           {alertasError !== '' && (
             <Text accessibilityRole="alert" style={styles.error}>{alertasError}</Text>
           )}
+          {novedadesError !== '' && (
+            <Text accessibilityRole="alert" style={styles.error}>
+              No se pudieron actualizar las novedades. {novedadesError}
+            </Text>
+          )}
           <Button
-            title={alertasError ? 'Reintentar' : 'Actualizar alertas'}
-            onPress={recargarAlertas}
-            disabled={bloqueado}
+            title={alertasError || novedadesError ? 'Reintentar' : 'Actualizar alertas'}
+            onPress={actualizar}
+            disabled={bloqueado || novedadesLoading}
           />
-          {alertasGuardando && (
+          {novedadesLoading && <Text style={styles.help}>Actualizando novedades…</Text>}
+          {(alertasGuardando || novedadesGuardando) && (
             <View style={styles.switchRow}>
               <ActivityIndicator color="#1D4ED8" />
               <Text style={styles.help}>Guardando cambios…</Text>
@@ -81,43 +100,68 @@ export default function AlertasScreen({ navigation }) {
           )}
         </View>
       }
-      renderItem={({ item }) => (
-        <View style={[styles.card, !item.activa && styles.inactive]}>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={`Ejecutar búsqueda: ${resumenBusqueda(item.filtros)}`}
-            onPress={() => ejecutar(item)}
-            style={({ pressed }) => [styles.body, pressed && styles.pressed]}
-          >
-            <Text style={styles.summary}>{resumenBusqueda(item.filtros)}</Text>
-            <Text style={styles.repeat}>Ver resultados →</Text>
-          </Pressable>
-
-          <View style={styles.actions}>
-            <View style={styles.switchRow}>
-              <Switch
-                value={item.activa}
-                disabled={bloqueado}
-                onValueChange={(valor) => activarAlerta(item.id, valor)}
-                accessibilityLabel="Alerta activa"
-              />
-              <Text style={styles.help}>
-                {item.activa ? 'Activa' : 'Desactivada'}
-              </Text>
-            </View>
-
+      renderItem={({ item }) => {
+        const nuevas = novedadesPorAlerta.get(item.id) || 0;
+        return (
+          <View style={[
+            styles.card,
+            nuevas > 0 && styles.cardNew,
+            !item.activa && styles.inactive,
+          ]}>
             <Pressable
               accessibilityRole="button"
-              disabled={bloqueado}
-              accessibilityState={{ disabled: bloqueado }}
-              onPress={() => confirmarEliminar(item)}
-              style={({ pressed }) => pressed && styles.pressed}
+              accessibilityLabel={`Ejecutar búsqueda: ${resumenBusqueda(item.filtros)}`}
+              onPress={() => ejecutar(item)}
+              style={({ pressed }) => [styles.body, pressed && styles.pressed]}
             >
-              <Text style={styles.delete}>Eliminar</Text>
+              <Text style={styles.summary}>{resumenBusqueda(item.filtros)}</Text>
+              {nuevas > 0 ? (
+                <Text style={styles.badge}>
+                  {nuevas === 1 ? '1 publicación nueva' : `${nuevas} publicaciones nuevas`}
+                </Text>
+              ) : (
+                <Text style={styles.help}>
+                  {novedadesLoading ? 'Consultando novedades…'
+                    : novedadesError ? 'Novedades sin actualizar'
+                      : '0 publicaciones nuevas'}
+                </Text>
+              )}
+              <Text style={styles.repeat}>Ver resultados →</Text>
             </Pressable>
+
+            {nuevas > 0 && (
+              <Button
+                title="Marcar novedades como leídas"
+                onPress={() => marcarAlertaLeida(item.id)}
+                disabled={bloqueado || novedadesLoading}
+              />
+            )}
+            <View style={styles.actions}>
+              <View style={styles.switchRow}>
+                <Switch
+                  value={item.activa}
+                  disabled={bloqueado}
+                  onValueChange={(valor) => activarAlerta(item.id, valor)}
+                  accessibilityLabel="Alerta activa"
+                />
+                <Text style={styles.help}>
+                  {item.activa ? 'Activa' : 'Desactivada'}
+                </Text>
+              </View>
+
+              <Pressable
+                accessibilityRole="button"
+                disabled={bloqueado}
+                accessibilityState={{ disabled: bloqueado }}
+                onPress={() => confirmarEliminar(item)}
+                style={({ pressed }) => pressed && styles.pressed}
+              >
+                <Text style={styles.delete}>Eliminar</Text>
+              </Pressable>
+            </View>
           </View>
-        </View>
-      )}
+        );
+      }}
       ListEmptyComponent={alertasLoading ? (
         <View style={styles.empty}>
           <ActivityIndicator size="large" color="#1D4ED8" />
@@ -160,6 +204,18 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 16,
     gap: 12,
+    borderWidth: 1,
+    borderColor: 'transparent',
+  },
+  cardNew: { borderColor: '#2563EB' },
+  badge: {
+    alignSelf: 'flex-start',
+    color: '#1E40AF',
+    backgroundColor: '#DBEAFE',
+    fontWeight: 'bold',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
   },
   inactive: { opacity: 0.6 },
   body: { gap: 10 },

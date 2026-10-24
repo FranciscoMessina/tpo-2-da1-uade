@@ -16,6 +16,7 @@ import { claveBusqueda } from '../data/searchDemo';
 import useAlertas from '../hooks/useAlertas';
 import useAuth from '../hooks/useAuth';
 import useSeguidas from '../hooks/useSeguidas';
+import useNovedades from '../hooks/useNovedades';
 
 const SearchContext = createContext(null);
 const CLAVE_RECIENTES = '@hallado:busquedas-recientes:v1';
@@ -45,7 +46,6 @@ export function SearchProvider({ children }) {
     error: alertasError,
     guardando: alertasGuardando,
     recargar: recargarAlertas,
-    marcarLeida: marcarAlertaLeida,
     crearAlerta,
     eliminarAlerta,
     activarAlerta,
@@ -59,6 +59,16 @@ export function SearchProvider({ children }) {
     dejarDeSeguir: dejarDeSeguirPublicacion,
     recargar: recargarSeguidas,
   } = useSeguidas(usuario?.id);
+  const {
+    porAlerta: novedadesPorAlerta,
+    porPublicacion: novedadesPorPublicacion,
+    loading: novedadesLoading,
+    error: novedadesError,
+    guardando: novedadesGuardando,
+    recargar: recargarNovedades,
+    marcarAlertaLeida,
+    marcarPublicacionLeida,
+  } = useNovedades(usuario?.id);
   const [cargando, setCargando] = useState(true);
 
   const puedeGuardar = useRef(false);
@@ -185,6 +195,13 @@ export function SearchProvider({ children }) {
         seguirPublicacion,
         dejarDeSeguirPublicacion,
         recargarSeguidas,
+        novedadesPorAlerta,
+        novedadesPorPublicacion,
+        novedadesLoading,
+        novedadesError,
+        novedadesGuardando,
+        recargarNovedades,
+        marcarPublicacionLeida,
       }}
     >
       {children}
