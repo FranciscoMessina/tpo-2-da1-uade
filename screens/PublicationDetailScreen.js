@@ -1,9 +1,11 @@
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
 import {
   ActivityIndicator,
   Alert,
   Button,
   FlatList,
+  Image,
   Modal,
   ScrollView,
   StyleSheet,
@@ -15,14 +17,32 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import ReputationCard from '../components/ReputationCard';
 import usePublicacion from '../hooks/usePublicacion';
+import { mensajeErrorApi } from '../services/api';
 
 const ESTADOS = {
   abierta: { texto: 'Abierta', fondo: '#DCFCE7', color: '#166534' },
-  enReclamo: { texto: 'En reclamo', fondo: '#FEF3C7', color: '#92400E' },
+  en_reclamo: { texto: 'En reclamo', fondo: '#FEF3C7', color: '#92400E' },
   resuelta: { texto: 'Resuelta', fondo: '#E5E7EB', color: '#374151' },
+  vencida: { texto: 'Vencida', fondo: '#FEE2E2', color: '#991B1B' },
+};
+
+const FRANJAS = {
+  manana: 'Mañana (6 a 12 h)',
+  tarde: 'Tarde (12 a 19 h)',
+  noche: 'Noche (19 a 6 h)',
 };
 
 export default function PublicationDetailScreen({ route, navigation }) {
+  return (
+    <DetallePublicacion
+      key={route.params.publicacionId}
+      route={route}
+      navigation={navigation}
+    />
+  );
+}
+
+function DetallePublicacion({ route, navigation }) {
   const { publicacionId } = route.params;
   const {
     publicacion,
@@ -30,6 +50,10 @@ export default function PublicationDetailScreen({ route, navigation }) {
     error,
     esPropia,
     siguiendo,
+    guardandoSeguimiento,
+    errorSeguimiento,
+    recargarSeguimiento,
+    recargar,
     toggleSeguir,
     reclamar,
   } = usePublicacion(publicacionId);
@@ -39,6 +63,10 @@ export default function PublicationDetailScreen({ route, navigation }) {
   const [mostrarReclamo, setMostrarReclamo] = useState(false);
   const [mensaje, setMensaje] = useState('');
   const [enviando, setEnviando] = useState(false);
+
+  useFocusEffect(useCallback(() => {
+    recargar();
+  }, [recargar]));
 
   if (loading) {
     return (
@@ -54,21 +82,26 @@ export default function PublicationDetailScreen({ route, navigation }) {
         <Text style={styles.help}>
           {error || 'No encontramos la publicación.'}
         </Text>
+        <Button title="Reintentar" onPress={recargar} />
       </View>
     );
   }
 
   const encontrado = publicacion.tipo === 'encontrado';
-  const estado = ESTADOS[publicacion.estado];
+  const estado = ESTADOS[publicacion.estado] || {
+    texto: publicacion.estado, fondo: '#E5E7EB', color: '#374151',
+  };
+  const fotos = publicacion.fotos.length ? publicacion.fotos : [null];
 
   async function enviarReclamo() {
     setEnviando(true);
     try {
-      await reclamar(mensaje.trim());
+      const reclamo = await reclamar(mensaje.trim());
+      if (!reclamo) return;
       setMostrarReclamo(false);
       setMensaje('');
-    } catch {
-      Alert.alert('Error', 'No pudimos enviar el reclamo. Probá de nuevo.');
+    } catch (error) {
+      Alert.alert('No se pudo enviar el reclamo', mensajeErrorApi(error));
     } finally {
       setEnviando(false);
     }
@@ -77,7 +110,7 @@ export default function PublicationDetailScreen({ route, navigation }) {
   return (
     <ScrollView style={styles.screen}>
       <FlatList
-        data={publicacion.fotos}
+        data={fotos}
         horizontal
         pagingEnabled
         showsHorizontalScrollIndicator={false}
@@ -90,16 +123,20 @@ export default function PublicationDetailScreen({ route, navigation }) {
             style={[styles.photo, { width }]}
             accessibilityLabel={`Foto de ${publicacion.categoria}`}
           >
-            <Text style={styles.icon}>{publicacion.icono}</Text>
-            <Text style={styles.photoLabel}>
-              {item ? 'Foto' : 'Foto de ejemplo'}
-            </Text>
+            {item ? (
+              <Image source={{ uri: item }} style={styles.image} resizeMode="cover" />
+            ) : (
+              <>
+                <Text style={styles.icon}>📦</Text>
+                <Text style={styles.photoLabel}>Sin fotos</Text>
+              </>
+            )}
           </View>
         )}
       />
 
       <Text style={styles.counter}>
-        Foto {foto + 1} de {publicacion.fotos.length}
+        {publicacion.fotos.length ? `Foto ${foto + 1} de ${publicacion.fotos.length}` : 'Sin fotos adjuntas'}
       </Text>
 
       <View style={styles.content}>
@@ -127,7 +164,7 @@ export default function PublicationDetailScreen({ route, navigation }) {
           </Text>
 
           <Text style={styles.label}>Franja horaria</Text>
-          <Text style={styles.value}>{publicacion.franja}</Text>
+          <Text style={styles.value}>{FRANJAS[publicacion.franja] || publicacion.franja}</Text>
 
           <Text style={styles.label}>Barrio</Text>
           <Text style={styles.value}>{publicacion.barrio}</Text>
@@ -172,16 +209,35 @@ export default function PublicationDetailScreen({ route, navigation }) {
               }
               disabled={
                 publicacion.reclamoEnviado ||
-                publicacion.estado === 'resuelta'
+                publicacion.estado !== 'abierta'
               }
               onPress={() => setMostrarReclamo(true)}
             />
           )}
 
+          {!esPropia && (
+            <Button
+              title={guardandoSeguimiento
+                ? 'Guardando seguimiento…'
+                : siguiendo ? 'Dejar de seguir' : 'Seguir publicación'}
+              color="#6B7280"
+              disabled={guardandoSeguimiento}
+              onPress={toggleSeguir}
+            />
+          )}
+          {errorSeguimiento !== '' && (
+            <>
+              <Text accessibilityRole="alert" style={styles.error}>{errorSeguimiento}</Text>
+              <Button
+                title="Reintentar carga de seguidas"
+                disabled={guardandoSeguimiento}
+                onPress={recargarSeguimiento}
+              />
+            </>
+          )}
           <Button
-            title={siguiendo ? 'Dejar de seguir' : 'Seguir publicación'}
-            color="#6B7280"
-            onPress={toggleSeguir}
+            title="Ver publicaciones seguidas"
+            onPress={() => navigation.navigate('Seguidas')}
           />
         </View>
       </View>
@@ -204,16 +260,18 @@ export default function PublicationDetailScreen({ route, navigation }) {
               style={styles.input}
               value={mensaje}
               onChangeText={setMensaje}
-              placeholder="Mensaje"
+              placeholder="Mensaje (al menos 5 caracteres)"
+              maxLength={1000}
               multiline
             />
             <Button
               title={enviando ? 'Enviando…' : 'Confirmar y enviar'}
-              disabled={enviando || !mensaje.trim()}
+              disabled={enviando || mensaje.trim().length < 5}
               onPress={enviarReclamo}
             />
             <Button
               title="Cancelar"
+              disabled={enviando}
               color="#6B7280"
               onPress={() => setMostrarReclamo(false)}
             />
@@ -241,6 +299,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
   },
+  image: { width: '100%', height: '100%' },
+  error: { fontSize: 15, color: '#991B1B' },
   icon: { fontSize: 64 },
   photoLabel: { color: '#1D4ED8', fontSize: 13 },
   counter: {

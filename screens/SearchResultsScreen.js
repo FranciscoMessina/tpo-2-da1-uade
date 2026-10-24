@@ -23,8 +23,22 @@ import {
 const TAMANIO_PAGINA = 3;
 
 export default function SearchResultsScreen({ route, navigation }) {
+  return (
+    <ResultadosBusqueda
+      key={claveBusqueda(route.params.filtros)}
+      route={route}
+      navigation={navigation}
+    />
+  );
+}
+
+function ResultadosBusqueda({ route, navigation }) {
   const {
     alertas,
+    alertasLoading,
+    alertasGuardando,
+    alertasError,
+    recargarAlertas,
     recordarBusqueda,
     crearAlerta,
   } = useSearch();
@@ -53,7 +67,7 @@ export default function SearchResultsScreen({ route, navigation }) {
   );
 
   const alertaGuardada = alertas.some(
-    (alerta) => alerta.clave === claveBusqueda(filtros)
+    (alerta) => claveBusqueda(alerta.filtros) === claveBusqueda(filtros)
   );
 
   function aplicarFiltros(nuevos) {
@@ -88,12 +102,13 @@ export default function SearchResultsScreen({ route, navigation }) {
     });
   }
 
-  function guardarBusquedaComoAlerta() {
-    crearAlerta(filtros);
+  async function guardarBusquedaComoAlerta() {
+    const guardada = await crearAlerta(filtros);
+    if (!guardada) return;
 
     Alert.alert(
       'Alerta guardada',
-      'Podés verla y administrarla desde Alertas. Las notificaciones se conectarán más adelante.'
+      'Podés verla, pausarla o eliminarla desde Mis alertas.'
     );
   }
 
@@ -119,6 +134,34 @@ export default function SearchResultsScreen({ route, navigation }) {
             <Text style={styles.help}>
               {publicaciones.length} coincidencias · datos de ejemplo
             </Text>
+
+            <Button
+              title={
+                alertaGuardada
+                  ? 'Alerta guardada'
+                  : alertasGuardando
+                    ? 'Guardando alerta…'
+                    : 'Guardar búsqueda como alerta'
+              }
+              disabled={alertaGuardada || alertasGuardando || alertasLoading}
+              onPress={guardarBusquedaComoAlerta}
+            />
+
+            {alertasError !== '' && (
+              <View style={styles.header}>
+                <Text accessibilityRole="alert" style={styles.error}>{alertasError}</Text>
+                <Button
+                  title="Reintentar carga de alertas"
+                  onPress={recargarAlertas}
+                  disabled={alertasLoading || alertasGuardando}
+                />
+              </View>
+            )}
+
+            <Button
+              title="Mis alertas"
+              onPress={() => navigation.navigate('Alertas')}
+            />
 
             <Button
               title="Refinar filtros"
@@ -245,15 +288,7 @@ export default function SearchResultsScreen({ route, navigation }) {
               onPress={publicar}
             />
 
-            <Button
-              title={
-                alertaGuardada
-                  ? 'Alerta guardada'
-                  : 'Guardar búsqueda como alerta'
-              }
-              disabled={alertaGuardada}
-              onPress={guardarBusquedaComoAlerta}
-            />
+
           </View>
         }
         ListFooterComponent={
@@ -332,6 +367,7 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#111827',
   },
+  error: { color: '#991B1B', fontSize: 15 },
   help: {
     fontSize: 15,
     color: '#6B7280',

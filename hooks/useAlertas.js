@@ -1,119 +1,144 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { claveBusqueda } from '../data/searchDemo';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { isAxiosError, isCancel } from 'axios';
+import {
+  obtenerAlertas,
+  crearAlerta as crearEnServidor,
+  actualizarAlerta,
+  eliminarAlerta as eliminarEnServidor,
+  marcarAlertaLeida,
+} from '../services/alertas';
+import { mensajeErrorApi } from '../services/api';
 
-// MOCK DE BACKEND: las alertas se persisten en AsyncStorage.
-// Para conectar el backend real, reemplazar leerAlertas/escribirAlertas
-// (y las acciones de abajo) por llamadas fetch a la API.
-const CLAVE_ALERTAS = '@hallado:alertas:v1';
+async function cargarAlertas(signal) {
+  let pagina = 1;
+  let datos;
+  const alertas = new Map();
 
-async function leerAlertas() {
-  const texto = await AsyncStorage.getItem(CLAVE_ALERTAS);
-  const datos = texto ? JSON.parse(texto) : [];
+  do {
+    datos = await obtenerAlertas({ pagina, signal });
+    datos.items.forEach((alerta) => alertas.set(alerta.id, alerta));
+    pagina += 1;
+  } while (pagina <= datos.totalPages);
 
-  if (!Array.isArray(datos)) {
-    throw new Error('Las alertas guardadas no tienen el formato esperado.');
-  }
-
-  return datos.filter(
-    (a) => typeof a?.id === 'string' && typeof a?.clave === 'string' && a.filtros
-  );
+  return [...alertas.values()];
 }
 
-async function escribirAlertas(lista) {
-  await AsyncStorage.setItem(CLAVE_ALERTAS, JSON.stringify(lista));
+function mensajeError(error) {
+  return isAxiosError(error)
+    ? mensajeErrorApi(error)
+    : error?.message || 'No se pudo completar la operación.';
 }
 
-export default function useAlertas() {
-  const [alertas, setAlertas] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-
-  const actual = useRef([]);
-  const cola = useRef(Promise.resolve());
-  const cargado = useRef(false);
+export default function useAlertas(usuarioId) {
+  const alcance = useMemo(() => ({ usuarioId }), [usuarioId]);
+  const [estado, setEstado] = useState({
+    alcance: null, alertas: [], loading: false, error: '',
+  });
+  const [operacion, setOperacion] = useState({
+    alcance: null, guardando: false,
+  });
+  const [intento, setIntento] = useState(0);
+  const sesionActual = useRef(null);
 
   useEffect(() => {
-    let activo = true;
+    const sesion = { alcance, activa: true, ocupada: false };
+    sesionActual.current = sesion;
+    return () => { sesion.activa = false; };
+  }, [alcance]);
 
-    leerAlertas()
-      .then((lista) => {
-        if (!activo) return;
-        actual.current = lista;
-        cargado.current = true;
-        setAlertas(lista);
+  useEffect(() => {
+    if (!usuarioId) return;
+    let activo = true;
+    const controller = new AbortController();
+
+    cargarAlertas(controller.signal)
+      .then((alertas) => {
+        if (activo) {
+          setEstado({ alcance, alertas, loading: false, error: '' });
+        }
       })
-      .catch(() => {
-        if (activo) setError('No se pudieron cargar las alertas.');
-      })
-      .finally(() => {
-        if (activo) setLoading(false);
+      .catch((error) => {
+        if (!activo || isCancel(error)) return;
+        setEstado((actual) => ({
+          alcance,
+          alertas: actual.alcance === alcance ? actual.alertas : [],
+          loading: false,
+          error: mensajeError(error),
+        }));
       });
 
     return () => {
       activo = false;
+      controller.abort();
     };
-  }, []);
+  }, [usuarioId, alcance, intento]);
 
-  // Aplica un cambio, actualiza el estado y persiste en orden.
-  const aplicar = useCallback((transformar) => {
-    const siguiente = transformar(actual.current);
+  const recargar = useCallback(() => {
+    if (!usuarioId) return;
+    setEstado((actual) => ({
+      alcance,
+      alertas: actual.alcance === alcance ? actual.alertas : [],
+      loading: true,
+      error: '',
+    }));
+    setIntento((actual) => actual + 1);
+  }, [usuarioId, alcance]);
 
-    if (siguiente === actual.current) return;
+  const ejecutar = useCallback(async (accion) => {
+    const sesion = sesionActual.current;
+    if (!usuarioId || !sesion?.activa || sesion.alcance !== alcance || sesion.ocupada) {
+      return false;
+    }
 
-    actual.current = siguiente;
-    setAlertas(siguiente);
-    setError(null);
+    sesion.ocupada = true;
+    setOperacion({ alcance, guardando: true });
+    setEstado((actual) => ({ ...actual, error: '' }));
 
-    if (!cargado.current) return;
-
-    cola.current = cola.current
-      .then(() => escribirAlertas(siguiente))
-      .catch(() => {
-        setError('No se pudieron guardar los cambios de las alertas.');
-      });
-  }, []);
+    try {
+      await accion();
+      if (!sesion.activa) return false;
+      recargar();
+      return true;
+    } catch (error) {
+      if (sesion.activa) {
+        setEstado((actual) => ({
+          alcance,
+          alertas: actual.alcance === alcance ? actual.alertas : [],
+          loading: actual.alcance === alcance && actual.loading,
+          error: mensajeError(error),
+        }));
+      }
+      return false;
+    } finally {
+      sesion.ocupada = false;
+      if (sesion.activa) setOperacion({ alcance, guardando: false });
+    }
+  }, [usuarioId, alcance, recargar]);
 
   const crearAlerta = useCallback(
-    (filtros) => {
-      const clave = claveBusqueda(filtros);
-      const existente = actual.current.find((a) => a.clave === clave);
-
-      if (existente) return existente;
-
-      const nueva = {
-        id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-        clave,
-        filtros: { ...filtros },
-        activa: true,
-        creadaEn: new Date().toISOString(),
-      };
-
-      aplicar((lista) => [nueva, ...lista]);
-      return nueva;
-    },
-    [aplicar]
+    (filtros) => ejecutar(() => crearEnServidor(filtros)), [ejecutar]
   );
-
   const eliminarAlerta = useCallback(
-    (id) => aplicar((lista) => lista.filter((a) => a.id !== id)),
-    [aplicar]
+    (id) => ejecutar(() => eliminarEnServidor(id)), [ejecutar]
+  );
+  const activarAlerta = useCallback(
+    (id, activa = true) => ejecutar(() => actualizarAlerta(id, activa)), [ejecutar]
+  );
+  const marcarLeida = useCallback(
+    (id) => ejecutar(() => marcarAlertaLeida(id)), [ejecutar]
   );
 
-  const activarAlerta = useCallback(
-    (id, activa = true) =>
-      aplicar((lista) =>
-        lista.map((a) => (a.id === id ? { ...a, activa } : a))
-      ),
-    [aplicar]
-  );
+  const vigente = estado.alcance === alcance;
 
   return {
-    alertas,
-    loading,
-    error,
+    alertas: usuarioId && vigente ? estado.alertas : [],
+    loading: !!usuarioId && (!vigente || estado.loading),
+    error: usuarioId && vigente ? estado.error : '',
+    guardando: !!usuarioId && operacion.alcance === alcance && operacion.guardando,
     crearAlerta,
     eliminarAlerta,
     activarAlerta,
+    marcarLeida,
+    recargar,
   };
 }

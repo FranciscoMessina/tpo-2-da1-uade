@@ -14,6 +14,9 @@ import {
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { claveBusqueda } from '../data/searchDemo';
 import useAlertas from '../hooks/useAlertas';
+import useAuth from '../hooks/useAuth';
+import useSeguidas from '../hooks/useSeguidas';
+import useNovedades from '../hooks/useNovedades';
 
 const SearchContext = createContext(null);
 const CLAVE_RECIENTES = '@hallado:busquedas-recientes:v1';
@@ -35,15 +38,37 @@ function esBusquedaGuardada(item) {
 }
 
 export function SearchProvider({ children }) {
+  const { usuario } = useAuth();
   const [recientes, setRecientes] = useState([]);
   const {
     alertas,
     loading: alertasLoading,
     error: alertasError,
+    guardando: alertasGuardando,
+    recargar: recargarAlertas,
     crearAlerta,
     eliminarAlerta,
     activarAlerta,
-  } = useAlertas();
+  } = useAlertas(usuario?.id);
+  const {
+    publicaciones: seguidas,
+    loading: seguidasLoading,
+    error: seguidasError,
+    guardando: seguidasGuardando,
+    seguir: seguirPublicacion,
+    dejarDeSeguir: dejarDeSeguirPublicacion,
+    recargar: recargarSeguidas,
+  } = useSeguidas(usuario?.id);
+  const {
+    porAlerta: novedadesPorAlerta,
+    porPublicacion: novedadesPorPublicacion,
+    loading: novedadesLoading,
+    error: novedadesError,
+    guardando: novedadesGuardando,
+    recargar: recargarNovedades,
+    marcarAlertaLeida,
+    marcarPublicacionLeida,
+  } = useNovedades(usuario?.id);
   const [cargando, setCargando] = useState(true);
 
   const puedeGuardar = useRef(false);
@@ -156,10 +181,27 @@ export function SearchProvider({ children }) {
         alertas,
         alertasLoading,
         alertasError,
+        alertasGuardando,
+        recargarAlertas,
+        marcarAlertaLeida,
         crearAlerta,
         eliminarAlerta,
         activarAlerta,
         recordarBusqueda,
+        seguidas,
+        seguidasLoading,
+        seguidasError,
+        seguidasGuardando,
+        seguirPublicacion,
+        dejarDeSeguirPublicacion,
+        recargarSeguidas,
+        novedadesPorAlerta,
+        novedadesPorPublicacion,
+        novedadesLoading,
+        novedadesError,
+        novedadesGuardando,
+        recargarNovedades,
+        marcarPublicacionLeida,
       }}
     >
       {children}
