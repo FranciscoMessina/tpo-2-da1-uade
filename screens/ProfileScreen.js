@@ -306,6 +306,13 @@ export default function ProfileScreen({ navigation }) {
 
           <View style={styles.configButton}>
             <Button
+              title="Mis reclamos (enviados y recibidos)"
+              onPress={() => navigation.navigate('MisReclamos')}
+            />
+          </View>
+
+          <View style={styles.configButton}>
+            <Button
               title="Configuración"
               onPress={() => navigation.navigate('Configuracion')}
               color="#6B7280"
