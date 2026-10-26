@@ -309,7 +309,7 @@ export function crearPublicacionesEjemplo(
   return ejemplos.flatMap((ejemplo, categoriaIndice) =>
     ZONAS.flatMap((zona, zonaIndice) =>
       ['encontrado', 'perdido'].flatMap((tipo) =>
-        Array.from({ length: 7 }, (_, indice) => {
+        Array.from({ length: 3 }, (_, indice) => {
           const fecha = new Date(
             ahora.getFullYear(),
             ahora.getMonth(),
@@ -318,7 +318,7 @@ export function crearPublicacionesEjemplo(
 
           return {
             ...ejemplo,
-            id: `${categoriaIndice}-${zonaIndice}-${tipo}-${indice}`,
+            id: `demo-${categoriaIndice}-${zonaIndice}-${tipo}-${indice}`,
             tipo,
             barrio: zona.nombre,
             fecha: fechaLocal(fecha),

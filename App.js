@@ -16,6 +16,7 @@ import CreatePostScreen from './screens/CreatePostScreen';
 import AlertasScreen from './screens/AlertasScreen';
 import SeguidasScreen from './screens/SeguidasScreen';
 import PublicationDetailScreen from './screens/PublicationDetailScreen';
+import MisReclamosScreen from './screens/MisReclamosScreen';
 import { SearchProvider } from './context/SearchContext';
 import LoginScreen from './screens/LoginScreen';
 import RegisterScreen from './screens/RegisterScreen';
@@ -102,6 +103,12 @@ function AppContenido() {
                 name="Seguidas"
                 component={SeguidasScreen}
                 options={{ title: 'Publicaciones seguidas' }}
+              />
+
+              <Stack.Screen
+                name="MisReclamos"
+                component={MisReclamosScreen}
+                options={{ title: 'Mis reclamos' }}
               />
 
               <Stack.Screen

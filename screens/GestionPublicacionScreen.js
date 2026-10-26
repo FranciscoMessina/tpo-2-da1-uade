@@ -3,6 +3,7 @@ import {
   ActivityIndicator,
   Alert,
   Button,
+  Image,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -12,12 +13,21 @@ import {
 } from 'react-native';
 import useGestionPublicacion from '../hooks/useGestionPublicacion';
 import { CATEGORIAS } from '../data/searchDemo';
+import { API_URL } from '../services/api';
 
 const NOMBRE_ESTADO = {
   abierta: 'Abierta',
   en_reclamo: 'En reclamo',
   resuelta: 'Resuelta',
 };
+
+function extraerFotoUrl(mensaje) {
+  if (!mensaje) return null;
+  const match = mensaje.match(
+    /Foto (?:del hallazgo|de comprobación):\s*(\/uploads\/[^\s]+)/
+  );
+  return match ? match[1] : null;
+}
 
 export default function GestionPublicacionScreen({ route, navigation }) {
   const publicacionId = route.params?.publicacionId;
@@ -179,40 +189,64 @@ export default function GestionPublicacionScreen({ route, navigation }) {
           <Text style={styles.vacio}>Todavía no recibiste reclamos.</Text>
         )}
 
-        {reclamos.map((r) => (
-          <View key={r.id} style={styles.reclamo}>
-            <Text style={styles.reclamoUsuario}>{r.usuario}</Text>
-            <Text style={styles.reclamoMensaje}>{r.mensaje}</Text>
+        {reclamos.map((r) => {
+          const fotoUrl = extraerFotoUrl(r.mensaje);
+          return (
+            <View key={r.id} style={styles.reclamo}>
+              <View style={styles.reclamoHeader}>
+                <Text style={styles.reclamoUsuario}>{r.usuario}</Text>
+                <Text style={styles.reclamoIntentos}>
+                  Intento {r.intentos || 1} de 3
+                </Text>
+              </View>
+              <Text style={styles.reclamoMensaje}>{r.mensaje}</Text>
 
-            {r.estado === 'aceptado' && (
-              <Text style={styles.ok}>
-                Aceptado.{' '}
-                {r.telefono
-                  ? `Teléfono: ${r.telefono}`
-                  : 'Esta persona prefiere comunicarse solo por la app.'}
-              </Text>
-            )}
-            {r.estado === 'rechazado' && (
-              <Text style={styles.vacio}>Rechazado</Text>
-            )}
+              {fotoUrl && (
+                <Image
+                  source={{ uri: `${API_URL}${fotoUrl}` }}
+                  style={styles.reclamoFoto}
+                  resizeMode="cover"
+                />
+              )}
 
-            {publicacion.estado !== 'resuelta' && r.estado !== 'rechazado' && (
-              <View style={styles.fila}>
-                {r.estado === 'pendiente' && (
+              {r.estado === 'pendiente' && (
+                <Text style={styles.estadoPendiente}>
+                  ⏳ Pendiente (vence automáticamente a las 48 hs)
+                </Text>
+              )}
+              {r.estado === 'aceptado' && (
+                <Text style={styles.ok}>
+                  Aceptado.{' '}
+                  {r.telefono
+                    ? `Teléfono: ${r.telefono}`
+                    : 'Esta persona prefiere comunicarse solo por la app.'}
+                </Text>
+              )}
+              {r.estado === 'rechazado' && (
+                <Text style={styles.vacio}>Rechazado</Text>
+              )}
+              {r.estado === 'vencido' && (
+                <Text style={styles.estadoVencido}>
+                  ⏰ Vencido (venció a las 48 hs sin respuesta)
+                </Text>
+              )}
+
+              {publicacion.estado === 'abierta' && r.estado === 'pendiente' && (
+                <View style={styles.fila}>
                   <Button
                     title="Aceptar"
                     onPress={() => aceptarReclamo(r.id)}
                   />
-                )}
-                <Button
-                  title="Rechazar"
-                  color="#DC2626"
-                  onPress={() => rechazarReclamo(r.id)}
-                />
-              </View>
-            )}
-          </View>
-        ))}
+                  <Button
+                    title="Rechazar"
+                    color="#DC2626"
+                    onPress={() => rechazarReclamo(r.id)}
+                  />
+                </View>
+              )}
+            </View>
+          );
+        })}
 
         {publicacion.estado === 'en_reclamo' && aceptado && (
           <Button
@@ -325,6 +359,35 @@ const styles = StyleSheet.create({
   },
   reclamoUsuario: { fontSize: 16, fontWeight: 'bold', color: '#111827' },
   reclamoMensaje: { fontSize: 15, color: '#374151' },
+  reclamoFoto: {
+    width: '100%',
+    height: 180,
+    borderRadius: 8,
+    marginTop: 8,
+    backgroundColor: '#E5E7EB',
+  },
+  reclamoHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  reclamoIntentos: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#6B7280',
+  },
+  estadoPendiente: {
+    fontSize: 13,
+    fontWeight: 'bold',
+    color: '#D97706',
+    marginTop: 4,
+  },
+  estadoVencido: {
+    fontSize: 13,
+    fontWeight: 'bold',
+    color: '#DC2626',
+    marginTop: 4,
+  },
   fila: { flexDirection: 'row', gap: 12, marginBottom: 12 },
   vacio: { color: '#6B7280' },
   error: { color: '#DC2626', marginTop: 8 },

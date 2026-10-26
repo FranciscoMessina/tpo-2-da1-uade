@@ -54,6 +54,11 @@ export default function SearchScreen({ navigation }) {
           title="Publicaciones seguidas"
           onPress={() => navigation.navigate('Seguidas')}
         />
+
+        <Button
+          title="Mis reclamos"
+          onPress={() => navigation.navigate('MisReclamos')}
+        />
       </View>
 
       <Text style={styles.demo}>
