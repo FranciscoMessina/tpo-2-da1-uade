@@ -18,6 +18,7 @@ import {
   rechazarReclamo,
 } from '../services/publicaciones';
 import { API_URL, mensajeErrorApi } from '../services/api';
+import EncuentroReclamo from '../components/EncuentroReclamo';
 
 const ESTADOS_RECLAMO = {
   pendiente: { texto: 'Pendiente', fondo: '#FEF3C7', color: '#92400E' },
@@ -41,6 +42,7 @@ export default function MisReclamosScreen({ navigation }) {
   const [cargando, setCargando] = useState(true);
   const [procesandoId, setProcesandoId] = useState(null);
   const [error, setError] = useState('');
+  const [actualizacion, setActualizacion] = useState(0);
 
   const cargar = useCallback(async () => {
     setError('');
@@ -51,6 +53,7 @@ export default function MisReclamosScreen({ navigation }) {
       ]);
       setReclamosEnviados(resEnviados.items || []);
       setReclamosRecibidos(resRecibidos.items || []);
+      setActualizacion((n) => n + 1);
     } catch (e) {
       setError(mensajeErrorApi(e));
     } finally {
@@ -202,6 +205,10 @@ export default function MisReclamosScreen({ navigation }) {
                 : 'Esta persona prefiere comunicarse mediante la aplicación.'}
             </Text>
           </View>
+        )}
+
+        {item.estado === 'aceptado' && pub?.estado === 'en_reclamo' && (
+          <EncuentroReclamo reclamoId={item.id} actualizacion={actualizacion} />
         )}
 
         {/* Aviso de vencimiento */}
