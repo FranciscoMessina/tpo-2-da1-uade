@@ -1,5 +1,6 @@
 import { isAxiosError } from 'axios';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
 import { obtenerPerfilPublico } from '../services/perfiles';
 import { mensajeErrorApi } from '../services/api';
 
@@ -12,7 +13,7 @@ export default function usePerfilPublico(usuarioId) {
   });
   const [intento, setIntento] = useState(0);
 
-  useEffect(() => {
+  useFocusEffect(useCallback(() => {
     let activo = true;
 
     obtenerPerfilPublico(usuarioId)
@@ -35,7 +36,7 @@ export default function usePerfilPublico(usuarioId) {
       });
 
     return () => { activo = false; };
-  }, [usuarioId, intento]);
+  }, [usuarioId, intento]));
 
   const recargarPerfil = useCallback(() => {
     setResultado({ id: usuarioId, usuario: null, loading: true, error: '' });
