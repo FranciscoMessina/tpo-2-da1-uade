@@ -1,3 +1,6 @@
+import { buscarPublicacionesConCache } from '../services/publicaciones';
+import { guardarUltimosResultadosBusqueda } from '../services/cacheOffline';
+import { useEffect } from 'react';
 import { useRef, useState } from 'react';
 import {
   Alert,
@@ -50,11 +53,46 @@ function ResultadosBusqueda({ route, navigation }) {
 
   const listaRef = useRef(null);
 
-  const publicaciones = buscarPublicaciones(
-    crearPublicacionesEjemplo(),
-    filtros,
-    orden
+  const [listaPublicaciones, setListaPublicaciones] = useState(() =>
+    buscarPublicaciones(crearPublicacionesEjemplo(), filtros, orden)
   );
+  const [esOffline, setEsOffline] = useState(false);
+  const [cargandoResultados, setCargandoResultados] = useState(false);
+
+  useEffect(() => {
+    let activo = true;
+    setCargandoResultados(true);
+
+    buscarPublicacionesConCache(filtros, orden)
+      .then((res) => {
+        if (!activo) return;
+        if (res.items && res.items.length > 0) {
+          setListaPublicaciones(res.items);
+        } else {
+          const demos = buscarPublicaciones(crearPublicacionesEjemplo(), filtros, orden);
+          setListaPublicaciones(demos);
+          if (!res.esOffline) {
+            guardarUltimosResultadosBusqueda(demos, filtros, orden);
+          }
+        }
+        setEsOffline(Boolean(res.esOffline));
+      })
+      .catch(() => {
+        if (!activo) return;
+        const demos = buscarPublicaciones(crearPublicacionesEjemplo(), filtros, orden);
+        setListaPublicaciones(demos);
+        setEsOffline(true);
+      })
+      .finally(() => {
+        if (activo) setCargandoResultados(false);
+      });
+
+    return () => {
+      activo = false;
+    };
+  }, [filtros, orden]);
+
+  const publicaciones = listaPublicaciones;
 
   const totalPaginas = Math.max(
     1,
@@ -121,6 +159,17 @@ function ResultadosBusqueda({ route, navigation }) {
         contentContainerStyle={styles.content}
         ListHeaderComponent={
           <View style={styles.header}>
+            {esOffline && (
+              <View style={styles.bannerOffline}>
+                <Text style={styles.bannerOfflineIcon}>⚠️</Text>
+                <View style={styles.bannerOfflineTexto}>
+                  <Text style={styles.bannerOfflineTitulo}>Modo sin conexión</Text>
+                  <Text style={styles.bannerOfflineMensaje}>
+                    Mostrando los últimos resultados cargados exitosamente. La información podría no estar actualizada.
+                  </Text>
+                </View>
+              </View>
+            )}
             <Text style={styles.title}>
               {filtros.situacion === 'perdi'
                 ? 'Publicaciones de hallazgos'
@@ -441,5 +490,33 @@ const styles = StyleSheet.create({
   page: {
     color: '#374151',
     fontSize: 14,
+  },
+  bannerOffline: {
+    backgroundColor: '#FEF3C7',
+    borderColor: '#F59E0B',
+    borderWidth: 1,
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  bannerOfflineIcon: {
+    fontSize: 22,
+  },
+  bannerOfflineTexto: {
+    flex: 1,
+  },
+  bannerOfflineTitulo: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: '#92400E',
+    marginBottom: 2,
+  },
+  bannerOfflineMensaje: {
+    fontSize: 13,
+    color: '#78350F',
+    lineHeight: 18,
   },
 });

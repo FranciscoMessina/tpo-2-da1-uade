@@ -1,3 +1,4 @@
+import { ConexionProvider } from './context/ConexionContext';
 import { StatusBar } from 'expo-status-bar';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
@@ -46,6 +47,7 @@ function AppContenido() {
     <SafeAreaProvider>
       <StatusBar style="dark" />
 
+      <ConexionProvider>
       <SearchProvider>
         <NavigationContainer>
           <SafeAreaView
@@ -146,6 +148,7 @@ function AppContenido() {
           <BloqueoBiometrico />
         </NavigationContainer>
       </SearchProvider>
+      </ConexionProvider>
     </SafeAreaProvider>
   );
 }
