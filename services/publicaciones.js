@@ -1,3 +1,10 @@
+import { verificarConexion } from './conexion';
+import {
+  guardarPublicacionConsultada,
+  obtenerPublicacionCacheada,
+  guardarUltimosResultadosBusqueda,
+  obtenerUltimosResultadosBusqueda,
+} from './cacheOffline';
 import { api, API_URL } from './api';
 
 const BASE_URL = API_URL.replace(/\/+$/, '');
@@ -22,12 +29,47 @@ function prepararPublicacion(publicacion) {
 }
 
 export async function obtenerPublicacion(id, { signal = undefined } = {}) {
-  const { data } = await api.get(
-    `/publicaciones/${encodeURIComponent(id)}`,
-    { signal }
-  );
+  // 1. Si no hay conexión o estamos en modo avión, cargar directamente del almacenamiento local
+  const conectado = await verificarConexion();
+  if (!conectado) {
+    const cacheada = await obtenerPublicacionCacheada(id);
+    if (cacheada) {
+      return {
+        ...cacheada,
+        esOffline: true,
+      };
+    }
+    throw new Error(
+      'No hay conexión a internet y esta publicación no fue guardada previamente en el dispositivo.'
+    );
+  }
 
-  return prepararPublicacion(data);
+  // 2. Si hay conexión, consultar la API y actualizar la copia local
+  try {
+    const { data } = await api.get(
+      `/publicaciones/${encodeURIComponent(id)}`,
+      { signal }
+    );
+    const preparada = prepararPublicacion(data);
+    await guardarPublicacionConsultada(preparada);
+    return preparada;
+  } catch (error) {
+    const cacheada = await obtenerPublicacionCacheada(id);
+    if (cacheada) {
+      return {
+        ...cacheada,
+        esOffline: true,
+      };
+    }
+
+    if (!error?.response) {
+      throw new Error(
+        'No hay conexión a internet y esta publicación no fue guardada previamente en el dispositivo.'
+      );
+    }
+
+    throw error;
+  }
 }
 
 export async function obtenerSeguidas({ pagina = 1, signal = undefined } = {}) {
@@ -144,4 +186,64 @@ export async function aceptarReclamo(id) {
 export async function rechazarReclamo(id) {
   const { data } = await api.post(`/reclamos/${encodeURIComponent(id)}/rechazar`);
   return data;
+}
+
+export async function buscarPublicacionesConCache(
+  filtros,
+  orden = 'recientes',
+  { signal = undefined } = {}
+) {
+  try {
+    const params = {
+      situacion: filtros.situacion,
+      categoria: filtros.categoria,
+      zona: filtros.zona || undefined,
+      palabras: filtros.palabras || undefined,
+      periodo: filtros.periodo || 'semana',
+      desde: filtros.periodo === 'rango' ? filtros.desde : undefined,
+      hasta: filtros.periodo === 'rango' ? filtros.hasta : undefined,
+      orden: orden || 'recientes',
+      page: 1,
+      pageSize: 50,
+    };
+
+    if (filtros.ubicacion?.latitud && filtros.ubicacion?.longitud) {
+      params.latitud = filtros.ubicacion.latitud;
+      params.longitud = filtros.ubicacion.longitud;
+    }
+
+    const { data } = await api.get('/publicaciones', { params, signal });
+    const items = (data.items || []).map(prepararPublicacion);
+
+    // Guardar copia de los últimos resultados exitosos en almacenamiento local
+    await guardarUltimosResultadosBusqueda(items, filtros, orden);
+
+    return {
+      items,
+      total: data.total || items.length,
+      esOffline: false,
+    };
+  } catch (error) {
+    // Si falla por red o sin conexión, buscar los últimos resultados exitosos cacheados
+    const guardada = await obtenerUltimosResultadosBusqueda();
+    if (guardada && Array.isArray(guardada.resultados) && guardada.resultados.length > 0) {
+      return {
+        items: guardada.resultados,
+        total: guardada.resultados.length,
+        esOffline: true,
+        fechaGuardado: guardada.fechaGuardado,
+      };
+    }
+
+    if (!error?.response) {
+      return {
+        items: [],
+        total: 0,
+        esOffline: true,
+        sinResultadosPrevios: true,
+      };
+    }
+
+    throw error;
+  }
 }

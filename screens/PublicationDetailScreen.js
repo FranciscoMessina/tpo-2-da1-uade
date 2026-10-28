@@ -1,3 +1,4 @@
+import { useConexion } from '../context/ConexionContext';
 import { useCallback, useState } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import {
@@ -47,6 +48,7 @@ export default function PublicationDetailScreen({ route, navigation }) {
 
 function DetallePublicacion({ route, navigation }) {
   const { publicacionId } = route.params;
+  const { hayConexion } = useConexion();
   const {
     publicacion,
     loading,
@@ -94,6 +96,7 @@ function DetallePublicacion({ route, navigation }) {
     );
   }
 
+  const estaOffline = !hayConexion || publicacion?.esOffline;
   const encontrado = publicacion.tipo === 'encontrado';
   const estado = ESTADOS[publicacion.estado] || {
     texto: publicacion.estado, fondo: '#E5E7EB', color: '#374151',
@@ -201,6 +204,19 @@ function DetallePublicacion({ route, navigation }) {
 
   return (
     <ScrollView style={styles.screen}>
+      {estaOffline && (
+        <View style={styles.bannerOffline}>
+          <Text style={styles.bannerOfflineIcon}>📡</Text>
+          <View style={styles.bannerOfflineTexto}>
+            <Text style={styles.bannerOfflineTitulo}>Modo sin conexión</Text>
+            <Text style={styles.bannerOfflineMensaje}>
+              {publicacion.esOffline
+                ? 'Estás viendo una publicación guardada en tu dispositivo (fotos, detalle y barrio disponibles).'
+                : 'Sin conexión a internet. Las acciones para reclamar, seguir o gestionar están deshabilitadas.'}
+            </Text>
+          </View>
+        </View>
+      )}
       <FlatList
         data={fotos}
         horizontal
@@ -332,31 +348,61 @@ function DetallePublicacion({ route, navigation }) {
           )}
 
           {esPropia ? (
-            <Button
-              title="Gestionar publicación"
-              onPress={() =>
-                navigation.navigate('GestionPublicacion', {
-                  publicacionId,
-                })
-              }
-            />
+            <>
+              <Button
+                title="Gestionar publicación"
+                color={estaOffline ? '#9CA3AF' : '#1D4ED8'}
+                disabled={estaOffline}
+                onPress={() =>
+                  navigation.navigate('GestionPublicacion', {
+                    publicacionId,
+                  })
+                }
+              />
+              {estaOffline && (
+                <View style={styles.avisoAccionOffline}>
+                  <Text style={styles.avisoAccionOfflineTexto}>
+                    ⚠️ Se necesita conexión a internet para gestionar tu publicación.
+                  </Text>
+                </View>
+              )}
+            </>
           ) : (
-            <Button
-              title={tituloBoton}
-              disabled={botonDeshabilitado}
-              onPress={() => setMostrarReclamo(true)}
-            />
+            <>
+              <Button
+                title={tituloBoton}
+                color={botonDeshabilitado || estaOffline ? '#9CA3AF' : '#1D4ED8'}
+                disabled={botonDeshabilitado || estaOffline}
+                onPress={() => setMostrarReclamo(true)}
+              />
+              {estaOffline && !reclamoAceptado && !reclamoPendiente && (
+                <View style={styles.avisoAccionOffline}>
+                  <Text style={styles.avisoAccionOfflineTexto}>
+                    ⚠️ Se necesita conexión para reclamar esta publicación.
+                  </Text>
+                </View>
+              )}
+            </>
           )}
 
           {!esPropia && (
-            <Button
-              title={guardandoSeguimiento
-                ? 'Guardando seguimiento…'
-                : siguiendo ? 'Dejar de seguir' : 'Seguir publicación'}
-              color="#6B7280"
-              disabled={guardandoSeguimiento}
-              onPress={toggleSeguir}
-            />
+            <>
+              <Button
+                title={guardandoSeguimiento
+                  ? 'Guardando seguimiento…'
+                  : siguiendo ? 'Dejar de seguir' : 'Seguir publicación'}
+                color={guardandoSeguimiento || estaOffline ? '#9CA3AF' : '#4B5563'}
+                disabled={guardandoSeguimiento || estaOffline}
+                onPress={toggleSeguir}
+              />
+              {estaOffline && (
+                <View style={styles.avisoAccionOffline}>
+                  <Text style={styles.avisoAccionOfflineTexto}>
+                    ⚠️ Se necesita conexión para seguir o dejar de seguir esta publicación.
+                  </Text>
+                </View>
+              )}
+            </>
           )}
           {errorSeguimiento !== '' && (
             <>
@@ -766,5 +812,49 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: '#1E3A8A',
     lineHeight: 18,
+  },
+  bannerOffline: {
+    backgroundColor: '#FEF3C7',
+    borderColor: '#F59E0B',
+    borderWidth: 1,
+    borderRadius: 12,
+    margin: 16,
+    marginBottom: 8,
+    padding: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  bannerOfflineIcon: {
+    fontSize: 24,
+  },
+  bannerOfflineTexto: {
+    flex: 1,
+  },
+  bannerOfflineTitulo: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: '#92400E',
+    marginBottom: 2,
+  },
+  bannerOfflineMensaje: {
+    fontSize: 13,
+    color: '#78350F',
+    lineHeight: 18,
+  },
+  avisoAccionOffline: {
+    backgroundColor: '#FEF2F2',
+    borderColor: '#F87171',
+    borderWidth: 1,
+    borderRadius: 8,
+    padding: 8,
+    marginTop: 4,
+    marginBottom: 4,
+  },
+  avisoAccionOfflineTexto: {
+    fontSize: 13,
+    color: '#991B1B',
+    fontWeight: '600',
+    textAlign: 'center',
   },
 });

@@ -1,3 +1,4 @@
+import { useConexion } from '../context/ConexionContext';
 import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
@@ -30,6 +31,7 @@ function extraerFotoUrl(mensaje) {
 }
 
 export default function GestionPublicacionScreen({ route, navigation }) {
+  const { hayConexion } = useConexion();
   const publicacionId = route.params?.publicacionId;
   const {
     publicacion,
@@ -113,6 +115,17 @@ export default function GestionPublicacionScreen({ route, navigation }) {
       contentContainerStyle={styles.content}
       keyboardShouldPersistTaps="handled"
     >
+      {!hayConexion && (
+        <View style={styles.bannerOffline}>
+          <Text style={styles.bannerOfflineIcon}>⚠️</Text>
+          <View style={styles.bannerOfflineTexto}>
+            <Text style={styles.bannerOfflineTitulo}>Modo sin conexión</Text>
+            <Text style={styles.bannerOfflineMensaje}>
+              Las acciones de edición, aceptación de reclamos y resolución requieren conexión a internet y se encuentran deshabilitadas.
+            </Text>
+          </View>
+        </View>
+      )}
       <View style={styles.card}>
         <Text style={styles.estado}>
           Estado: {NOMBRE_ESTADO[publicacion.estado]}
@@ -179,7 +192,12 @@ export default function GestionPublicacionScreen({ route, navigation }) {
           maxLength={100}
         />
 
-        <Button title="Guardar cambios" onPress={guardar} />
+        <Button title="Guardar cambios" disabled={!hayConexion} onPress={guardar} />
+        {!hayConexion && (
+          <Text style={styles.avisoAccionOffline}>
+            ⚠️ Se necesita conexión para guardar cambios en la publicación.
+          </Text>
+        )}
       </View>
 
       <View style={styles.card}>
@@ -232,17 +250,27 @@ export default function GestionPublicacionScreen({ route, navigation }) {
               )}
 
               {publicacion.estado === 'abierta' && r.estado === 'pendiente' && (
-                <View style={styles.fila}>
-                  <Button
-                    title="Aceptar"
-                    onPress={() => aceptarReclamo(r.id)}
-                  />
-                  <Button
-                    title="Rechazar"
-                    color="#DC2626"
-                    onPress={() => rechazarReclamo(r.id)}
-                  />
-                </View>
+                <>
+                  <View style={styles.fila}>
+                    <Button
+                      title="Aceptar"
+                      disabled={!hayConexion}
+                      color={!hayConexion ? '#9CA3AF' : '#1D4ED8'}
+                      onPress={() => aceptarReclamo(r.id)}
+                    />
+                    <Button
+                      title="Rechazar"
+                      color={!hayConexion ? '#9CA3AF' : '#DC2626'}
+                      disabled={!hayConexion}
+                      onPress={() => rechazarReclamo(r.id)}
+                    />
+                  </View>
+                  {!hayConexion && (
+                    <Text style={styles.avisoAccionOffline}>
+                      ⚠️ Se necesita conexión para aceptar o rechazar reclamos.
+                    </Text>
+                  )}
+                </>
               )}
             </View>
           );
@@ -251,6 +279,7 @@ export default function GestionPublicacionScreen({ route, navigation }) {
         {publicacion.estado === 'en_reclamo' && aceptado && (
           <Button
             title="Marcar como resuelta (devolución concretada)"
+            disabled={!hayConexion}
             onPress={marcarResuelta}
           />
         )}
@@ -308,6 +337,7 @@ export default function GestionPublicacionScreen({ route, navigation }) {
       <Button
         title="Eliminar publicación"
         color="#DC2626"
+        disabled={!hayConexion}
         onPress={confirmarEliminar}
       />
     </ScrollView>
@@ -392,4 +422,38 @@ const styles = StyleSheet.create({
   vacio: { color: '#6B7280' },
   error: { color: '#DC2626', marginTop: 8 },
   ok: { color: '#047857', marginTop: 4 },
+  bannerOffline: {
+    backgroundColor: '#FEF3C7',
+    borderColor: '#F59E0B',
+    borderWidth: 1,
+    borderRadius: 12,
+    padding: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  bannerOfflineIcon: {
+    fontSize: 22,
+  },
+  bannerOfflineTexto: {
+    flex: 1,
+  },
+  bannerOfflineTitulo: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: '#92400E',
+    marginBottom: 2,
+  },
+  bannerOfflineMensaje: {
+    fontSize: 13,
+    color: '#78350F',
+    lineHeight: 18,
+  },
+  avisoAccionOffline: {
+    fontSize: 13,
+    color: '#991B1B',
+    fontWeight: '600',
+    marginTop: 6,
+    textAlign: 'center',
+  },
 });

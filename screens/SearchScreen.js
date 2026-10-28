@@ -1,3 +1,6 @@
+import { useState, useCallback } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
+import { obtenerConsultadasRecientes } from '../services/cacheOffline';
 import {
   Button,
   Pressable,
@@ -15,6 +18,19 @@ import {
 
 export default function SearchScreen({ navigation }) {
   const { recientes, recordarBusqueda } = useSearch();
+  const [consultadas, setConsultadas] = useState([]);
+
+  useFocusEffect(
+    useCallback(() => {
+      let activo = true;
+      obtenerConsultadasRecientes().then((items) => {
+        if (activo) setConsultadas(items);
+      });
+      return () => {
+        activo = false;
+      };
+    }, [])
+  );
 
   function buscar(filtros) {
     recordarBusqueda(filtros);
@@ -102,6 +118,41 @@ export default function SearchScreen({ navigation }) {
           ))
         )}
       </View>
+
+      {consultadas.length > 0 && (
+        <View style={styles.recent}>
+          <Text style={styles.subtitle}>
+            Publicaciones consultadas (Modo sin conexión)
+          </Text>
+          <Text style={styles.help}>
+            Guardadas en tu dispositivo. Podés volver a verlas aunque no tengas internet.
+          </Text>
+          {consultadas.slice(0, 5).map((item) => (
+            <Pressable
+              key={item.id}
+              accessibilityRole="button"
+              onPress={() =>
+                navigation.navigate('DetallePublicacion', {
+                  publicacionId: item.id,
+                })
+              }
+              style={({ pressed }) => [
+                styles.recentButton,
+                pressed && styles.pressed,
+              ]}
+            >
+              <View style={styles.pubRow}>
+                <Text style={styles.pubTipo}>
+                  {item.tipo === 'encontrado' ? 'ENCONTRADO' : 'PERDIDO'}
+                </Text>
+                <Text style={styles.pubBarrio}>{item.barrio}</Text>
+              </View>
+              <Text style={styles.recentText}>{item.titulo}</Text>
+              <Text style={styles.repeat}>Ver publicación guardada →</Text>
+            </Pressable>
+          ))}
+        </View>
+      )}
     </ScrollView>
   );
 }
@@ -160,5 +211,20 @@ const styles = StyleSheet.create({
   repeat: {
     color: '#1D4ED8',
     fontWeight: 'bold',
+  },
+  pubRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  pubTipo: {
+    fontSize: 12,
+    fontWeight: 'bold',
+    color: '#1D4ED8',
+  },
+  pubBarrio: {
+    fontSize: 12,
+    color: '#6B7280',
+    fontWeight: '600',
   },
 });

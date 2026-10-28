@@ -1,3 +1,9 @@
+import {
+  guardarUltimosReclamos,
+  obtenerUltimosReclamos,
+} from '../services/cacheOffline';
+import { useConexion } from '../context/ConexionContext';
+import { verificarConexion } from '../services/conexion';
 import { useCallback, useState } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import {
@@ -36,6 +42,7 @@ function extraerFotoUrl(mensaje) {
 }
 
 export default function MisReclamosScreen({ navigation }) {
+  const { hayConexion } = useConexion();
   const [tab, setTab] = useState('recibidos'); // 'recibidos' | 'enviados'
   const [reclamosEnviados, setReclamosEnviados] = useState([]);
   const [reclamosRecibidos, setReclamosRecibidos] = useState([]);
@@ -46,16 +53,43 @@ export default function MisReclamosScreen({ navigation }) {
 
   const cargar = useCallback(async () => {
     setError('');
+    const online = await verificarConexion();
+    if (!online) {
+      const cache = await obtenerUltimosReclamos();
+      if (cache && (cache.enviados.length > 0 || cache.recibidos.length > 0)) {
+        setReclamosEnviados(cache.enviados);
+        setReclamosRecibidos(cache.recibidos);
+        setActualizacion((n) => n + 1);
+        setError('');
+      } else {
+        setError('No hay conexión a internet y no hay reclamos guardados previamente en el dispositivo.');
+      }
+      setCargando(false);
+      return;
+    }
+
     try {
       const [resEnviados, resRecibidos] = await Promise.all([
         obtenerMisReclamos({ tipo: 'enviados' }),
         obtenerMisReclamos({ tipo: 'recibidos' }),
       ]);
-      setReclamosEnviados(resEnviados.items || []);
-      setReclamosRecibidos(resRecibidos.items || []);
+      const env = resEnviados.items || [];
+      const rec = resRecibidos.items || [];
+      setReclamosEnviados(env);
+      setReclamosRecibidos(rec);
       setActualizacion((n) => n + 1);
+      // Guardar copia local para visualización sin conexión
+      await guardarUltimosReclamos({ enviados: env, recibidos: rec });
     } catch (e) {
-      setError(mensajeErrorApi(e));
+      const cache = await obtenerUltimosReclamos();
+      if (cache && (cache.enviados.length > 0 || cache.recibidos.length > 0)) {
+        setReclamosEnviados(cache.enviados);
+        setReclamosRecibidos(cache.recibidos);
+        setActualizacion((n) => n + 1);
+        setError('');
+      } else {
+        setError(mensajeErrorApi(e));
+      }
     } finally {
       setCargando(false);
     }
@@ -222,23 +256,33 @@ export default function MisReclamosScreen({ navigation }) {
 
         {/* Acciones para el publicador en reclamos recibidos */}
         {esRecibido && item.estado === 'pendiente' && pub?.estado === 'abierta' && (
-          <View style={styles.accionesFila}>
-            <View style={styles.botonAccion}>
-              <Button
-                title={procesandoId === item.id ? 'Aceptando…' : 'Aceptar'}
-                disabled={procesandoId === item.id}
-                onPress={() => manejarAceptar(item)}
-              />
+          <>
+            <View style={styles.accionesFila}>
+              <View style={styles.botonAccion}>
+                <Button
+                  title={procesandoId === item.id ? 'Aceptando…' : 'Aceptar'}
+                  color={!hayConexion ? '#9CA3AF' : undefined}
+                  disabled={procesandoId === item.id || !hayConexion}
+                  onPress={() => manejarAceptar(item)}
+                />
+              </View>
+              <View style={styles.botonAccion}>
+                <Button
+                  title={procesandoId === item.id ? 'Rechazando…' : 'Rechazar'}
+                  color={!hayConexion ? '#9CA3AF' : '#DC2626'}
+                  disabled={procesandoId === item.id || !hayConexion}
+                  onPress={() => manejarRechazar(item)}
+                />
+              </View>
             </View>
-            <View style={styles.botonAccion}>
-              <Button
-                title={procesandoId === item.id ? 'Rechazando…' : 'Rechazar'}
-                color="#DC2626"
-                disabled={procesandoId === item.id}
-                onPress={() => manejarRechazar(item)}
-              />
-            </View>
-          </View>
+            {!hayConexion && (
+              <View style={styles.avisoAccionOffline}>
+                <Text style={styles.avisoAccionOfflineTexto}>
+                  ⚠️ Se necesita conexión para aceptar o rechazar este reclamo.
+                </Text>
+              </View>
+            )}
+          </>
         )}
 
         {/* Botón para ver publicación si es enviado o ya resuelto */}
@@ -261,6 +305,17 @@ export default function MisReclamosScreen({ navigation }) {
 
   return (
     <View style={styles.screen}>
+      {!hayConexion && (
+        <View style={styles.bannerOffline}>
+          <Text style={styles.bannerOfflineIcon}>⚠️</Text>
+          <View style={styles.bannerOfflineTexto}>
+            <Text style={styles.bannerOfflineTitulo}>Modo sin conexión</Text>
+            <Text style={styles.bannerOfflineMensaje}>
+              Mostrando los últimos reclamos cargados. Se necesita conexión a internet para aceptar o rechazar reclamos.
+            </Text>
+          </View>
+        </View>
+      )}
       {/* Selector de solapas */}
       <View style={styles.tabs}>
         <Pressable
@@ -510,5 +565,48 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     paddingHorizontal: 32,
     lineHeight: 20,
+  },
+  bannerOffline: {
+    backgroundColor: '#FEF3C7',
+    borderColor: '#F59E0B',
+    borderWidth: 1,
+    borderRadius: 12,
+    margin: 16,
+    marginBottom: 0,
+    padding: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  bannerOfflineIcon: {
+    fontSize: 22,
+  },
+  bannerOfflineTexto: {
+    flex: 1,
+  },
+  bannerOfflineTitulo: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: '#92400E',
+    marginBottom: 2,
+  },
+  bannerOfflineMensaje: {
+    fontSize: 13,
+    color: '#78350F',
+    lineHeight: 18,
+  },
+  avisoAccionOffline: {
+    backgroundColor: '#FEF2F2',
+    borderColor: '#F87171',
+    borderWidth: 1,
+    borderRadius: 8,
+    padding: 8,
+    marginTop: 8,
+  },
+  avisoAccionOfflineTexto: {
+    fontSize: 13,
+    color: '#991B1B',
+    fontWeight: '600',
+    textAlign: 'center',
   },
 });
