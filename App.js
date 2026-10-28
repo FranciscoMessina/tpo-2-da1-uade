@@ -18,6 +18,7 @@ import AlertasScreen from './screens/AlertasScreen';
 import SeguidasScreen from './screens/SeguidasScreen';
 import PublicationDetailScreen from './screens/PublicationDetailScreen';
 import MisReclamosScreen from './screens/MisReclamosScreen';
+import HistorialScreen from './screens/HistorialScreen';
 import { SearchProvider } from './context/SearchContext';
 import LoginScreen from './screens/LoginScreen';
 import RegisterScreen from './screens/RegisterScreen';
@@ -111,6 +112,12 @@ function AppContenido() {
                 name="MisReclamos"
                 component={MisReclamosScreen}
                 options={{ title: 'Mis reclamos' }}
+              />
+
+              <Stack.Screen
+                name="Historial"
+                component={HistorialScreen}
+                options={{ title: 'Historial de devoluciones' }}
               />
 
               <Stack.Screen

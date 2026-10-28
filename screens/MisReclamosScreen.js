@@ -25,6 +25,7 @@ import {
 } from '../services/publicaciones';
 import { API_URL, mensajeErrorApi } from '../services/api';
 import EncuentroReclamo from '../components/EncuentroReclamo';
+import { resolverPublicacion } from '../services/historial';
 
 const ESTADOS_RECLAMO = {
   pendiente: { texto: 'Pendiente', fondo: '#FEF3C7', color: '#92400E' },
@@ -155,6 +156,24 @@ export default function MisReclamosScreen({ navigation }) {
     );
   }
 
+  function manejarResolver(reclamo) {
+    Alert.alert('Confirmar devolución', '¿El objeto ya fue devuelto? El caso se cerrará y ambos podrán valorarse durante 7 días.', [
+      { text: 'Cancelar', style: 'cancel' },
+      { text: 'Confirmar', onPress: async () => {
+        setProcesandoId(reclamo.id);
+        try {
+          await resolverPublicacion(reclamo.publicacion.id);
+          await cargar();
+          navigation.navigate('Historial');
+        } catch (e) {
+          Alert.alert('No se pudo confirmar', mensajeErrorApi(e));
+        } finally {
+          setProcesandoId(null);
+        }
+      } },
+    ]);
+  }
+
   const items = tab === 'recibidos' ? reclamosRecibidos : reclamosEnviados;
 
   function renderItem({ item }) {
@@ -243,6 +262,14 @@ export default function MisReclamosScreen({ navigation }) {
 
         {item.estado === 'aceptado' && pub?.estado === 'en_reclamo' && (
           <EncuentroReclamo reclamoId={item.id} actualizacion={actualizacion} />
+        )}
+
+        {esRecibido && item.estado === 'aceptado' && pub?.estado === 'en_reclamo' && (
+          <Button title={procesandoId === item.id ? 'Confirmando…' : 'Confirmar devolución'}
+            disabled={procesandoId !== null} onPress={() => manejarResolver(item)} />
+        )}
+        {item.estado === 'aceptado' && pub?.estado === 'resuelta' && (
+          <Button title="Ver historial y valorar" onPress={() => navigation.navigate('Historial')} />
         )}
 
         {/* Aviso de vencimiento */}

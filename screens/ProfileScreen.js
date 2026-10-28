@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
 import {
   ActivityIndicator,
   Button,
@@ -27,6 +28,8 @@ export default function ProfileScreen({ navigation }) {
     guardarPerfil,
     recargarPerfil,
   } = usePerfil();
+  useFocusEffect(recargarPerfil);
+
   const nombre = perfil?.name ?? '';
   const barrio = perfil?.zone ?? '';
   const telefono = perfil?.phone ?? '';
@@ -309,6 +312,10 @@ export default function ProfileScreen({ navigation }) {
               title="Mis reclamos (enviados y recibidos)"
               onPress={() => navigation.navigate('MisReclamos')}
             />
+          </View>
+
+          <View style={styles.configButton}>
+            <Button title="Historial de devoluciones" onPress={() => navigation.navigate('Historial')} />
           </View>
 
           <View style={styles.configButton}>

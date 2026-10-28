@@ -10,6 +10,7 @@ import {
 import ReputationCard from '../components/ReputationCard';
 import BadgesCard from '../components/BadgesCard';
 import usePerfilPublico from '../hooks/usePerfilPublico';
+import AgradecimientosPublicos from '../components/AgradecimientosPublicos';
 
 export default function PublicProfileScreen({ usuario: param }) {
   const usuarioId = typeof param === 'string' ? param : param?.id;
@@ -69,6 +70,8 @@ export default function PublicProfileScreen({ usuario: param }) {
       <ReputationCard reputacion={usuario.reputation} />
 
       <BadgesCard insignias={usuario.badges ?? []} />
+
+      <AgradecimientosPublicos key={usuario.id} usuarioId={usuario.id} />
     </ScrollView>
   );
 }
