@@ -147,11 +147,15 @@ export default function useNovedades(usuarioId) {
   const marcarPublicacionLeida = useCallback(
     (id) => marcarLeidas('publicacion', 'publicacionId', id), [marcarLeidas]
   );
+  const marcarReclamoLeido = useCallback(
+    (id) => marcarLeidas('mensaje', 'reclamoId', id), [marcarLeidas]
+  );
 
-  const { porAlerta, porPublicacion } = useMemo(() => {
+  const { porAlerta, porPublicacion, porReclamo } = useMemo(() => {
     const coincidencias = new Map();
     const porAlerta = new Map();
     const porPublicacion = new Map();
+    const porReclamo = new Map();
 
     if (estado.alcance === alcance && usuarioId) {
       estado.notificaciones.forEach((item) => {
@@ -163,21 +167,26 @@ export default function useNovedades(usuarioId) {
         if (item.tipo === 'publicacion' && item.publicacionId) {
           porPublicacion.set(item.publicacionId, (porPublicacion.get(item.publicacionId) || 0) + 1);
         }
+        if (item.tipo === 'mensaje' && item.reclamoId) {
+          porReclamo.set(item.reclamoId, (porReclamo.get(item.reclamoId) || 0) + 1);
+        }
       });
       coincidencias.forEach((ids, id) => porAlerta.set(id, ids.size));
     }
-    return { porAlerta, porPublicacion };
+    return { porAlerta, porPublicacion, porReclamo };
   }, [estado, alcance, usuarioId]);
 
   const vigente = estado.alcance === alcance;
   return {
     porAlerta,
     porPublicacion,
+    porReclamo,
     loading: !!usuarioId && (!vigente || estado.loading),
     error: usuarioId && vigente ? estado.error : '',
     guardando: !!usuarioId && operacion.alcance === alcance && operacion.guardando,
     recargar,
     marcarAlertaLeida,
     marcarPublicacionLeida,
+    marcarReclamoLeido,
   };
 }
