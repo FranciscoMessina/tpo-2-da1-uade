@@ -181,7 +181,7 @@ function DetallePublicacion({ route, navigation }) {
         ? {
             respuestaVerificacion: preguntaVerificacion ? respuesta.trim() : '',
             mensaje: preguntaVerificacion
-              ? descripcion.trim() || 'Respondí la pregunta de verificación.'
+              ? (descripcion.trim().length >= 5 ? descripcion.trim() : 'Respondí la pregunta de verificación.')
               : descripcion.trim(),
             fotoUri,
           }
