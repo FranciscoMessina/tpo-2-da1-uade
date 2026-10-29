@@ -93,10 +93,10 @@ export async function dejarDeSeguirPublicacion(id) {
   return data;
 }
 
-export async function subirFotoReclamo(uri) {
+// Las fotos de prueba se suben a un directorio privado: solo las ve el reclamante y el dueño de la publicación
+export async function subirFotoPrueba(uri) {
   if (!uri) return null;
-  if (uri.startsWith(BASE_URL)) return uri.slice(BASE_URL.length);
-  if (uri.startsWith('/uploads/')) return uri;
+  if (uri.startsWith('/uploads/pruebas/')) return uri;
 
   if (!/^(file|content):\/\//i.test(uri)) {
     throw new Error('Seleccioná una foto válida desde el dispositivo.');
@@ -112,48 +112,28 @@ export async function subirFotoReclamo(uri) {
     type: extension === 'jpg' ? 'image/jpeg' : `image/${extension}`,
   });
 
-  const { data } = await api.post('/uploads/images', formulario);
+  const { data } = await api.post('/uploads/pruebas', formulario);
   return data.url;
 }
 
-export async function enviarReclamo(id, datos) {
-  let mensajeFinal = '';
+/**
+ * Envía un reclamo con evidencia estructurada.
+ * datos: { mensaje, respuestaVerificacion?, barrio?, fotoUri? }
+ * La foto (si hay) se sube antes a /uploads/pruebas y se envía como fotoPrueba.
+ */
+export async function enviarReclamo(id, datos = {}) {
+  const fotoPrueba = datos.fotoUri ? await subirFotoPrueba(datos.fotoUri) : null;
 
-  if (typeof datos === 'string') {
-    mensajeFinal = datos.trim();
-  } else if (datos && typeof datos === 'object') {
-    let fotoUrl = null;
-    if (datos.fotoUri) {
-      fotoUrl = await subirFotoReclamo(datos.fotoUri);
-    }
-
-    const partes = [];
-    if (datos.barrio?.trim()) {
-      partes.push(`Barrio donde se encontró: ${datos.barrio.trim()}`);
-    }
-    if (datos.respuesta?.trim()) {
-      partes.push(`Respuesta a verificación: ${datos.respuesta.trim()}`);
-    }
-    if (datos.descripcion?.trim()) {
-      partes.push(`Descripción: ${datos.descripcion.trim()}`);
-    }
-    if (fotoUrl) {
-      partes.push(
-        datos.barrio
-          ? `Foto del hallazgo: ${fotoUrl}`
-          : `Foto de comprobación: ${fotoUrl}`
-      );
-    }
-    if (datos.mensaje?.trim()) {
-      partes.push(`Mensaje: ${datos.mensaje.trim()}`);
-    }
-
-    mensajeFinal = partes.join('\n\n');
+  const cuerpo = { mensaje: (datos.mensaje || '').trim() };
+  if (datos.respuestaVerificacion?.trim()) {
+    cuerpo.respuestaVerificacion = datos.respuestaVerificacion.trim();
   }
+  if (datos.barrio?.trim()) cuerpo.barrio = datos.barrio.trim();
+  if (fotoPrueba) cuerpo.fotoPrueba = fotoPrueba;
 
   const { data } = await api.post(
     `/publicaciones/${encodeURIComponent(id)}/reclamos`,
-    { mensaje: mensajeFinal }
+    cuerpo
   );
 
   return data;
