@@ -160,6 +160,14 @@ data/searchDemo.js    constantes (categorías, zonas, periodos) y validación de
 
 ## Verificación
 
+Correr las pruebas unitarias (Jest con el preset `jest-expo`, no necesitan emulador ni backend):
+
+```powershell
+npm test
+```
+
+Las pruebas están en `__tests__/` y cubren la lógica de `services/`: cola de publicaciones y su procesador (un alta por publicación aunque se corte la red, fotos que no se vuelven a subir), caché offline por cuenta y minimización de datos, borradores, sesión, conexión y búsqueda con caché. Los módulos nativos (AsyncStorage, SecureStore, sistema de archivos) y la API se reemplazan por dobles en `jest.setup.js` y dentro de cada prueba. Para correr una sola: `npm test -- cola` (filtra por nombre de archivo).
+
 Compilar el bundle de Android sin levantar el emulador:
 
 ```powershell

@@ -25,7 +25,21 @@
     "android": "expo start --android -c --port 8082 --device",
     "android:dev": "expo run:android --device --port 8082",
     "ios": "expo run:ios",
-    "web": "expo start --web"
+    "web": "expo start --web",
+    "test": "jest"
   },
-  "private": true
+  "private": true,
+  "devDependencies": {
+    "jest": "~29.7.0",
+    "jest-expo": "~57.0.6"
+  },
+  "jest": {
+    "preset": "jest-expo",
+    "setupFilesAfterEnv": [
+      "<rootDir>/jest.setup.js"
+    ],
+    "testMatch": [
+      "<rootDir>/__tests__/**/*.test.js"
+    ]
+  }
 }
