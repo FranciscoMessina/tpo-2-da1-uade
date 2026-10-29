@@ -1,9 +1,12 @@
 import { useState } from 'react';
 import { Alert, Button, StyleSheet, Text, TextInput, View } from 'react-native';
 import { agradecerDevolucion, valorarDevolucion } from '../services/historial';
+import { verificarConexion } from '../services/conexion';
 import { mensajeErrorApi } from '../services/api';
+import { useConexion } from '../context/ConexionContext';
 
 export default function CasoResuelto({ caso, navigation, onGuardar }) {
+  const { hayConexion } = useConexion();
   const [positiva, setPositiva] = useState(null);
   const [comentario, setComentario] = useState('');
   const [mensaje, setMensaje] = useState('');
@@ -13,6 +16,10 @@ export default function CasoResuelto({ caso, navigation, onGuardar }) {
     if (guardando) return;
     setGuardando(true);
     try {
+      if (!(await verificarConexion())) {
+        Alert.alert('Sin conexión', 'Se necesita conexión a internet para guardar tu respuesta.');
+        return;
+      }
       if (agradecimiento) {
         await agradecerDevolucion(caso.id, mensaje);
       } else {
@@ -54,7 +61,8 @@ export default function CasoResuelto({ caso, navigation, onGuardar }) {
           <TextInput style={styles.input} placeholder="Comentario opcional" accessibilityLabel="Comentario de la valoración"
             value={comentario} onChangeText={setComentario} maxLength={500} multiline editable={!guardando} />
           <Button title={guardando ? 'Guardando…' : 'Enviar valoración'}
-            disabled={guardando || positiva === null} onPress={() => guardar(false)} />
+            color={!hayConexion ? '#9CA3AF' : undefined}
+            disabled={guardando || !hayConexion || positiva === null} onPress={() => guardar(false)} />
         </View>
       ) : <Text>Terminó el plazo de 7 días para valorar.</Text>}
 
@@ -69,7 +77,8 @@ export default function CasoResuelto({ caso, navigation, onGuardar }) {
           <Text>Se verá en el perfil de {caso.contraparte.name}.</Text>
           <TextInput style={styles.input} placeholder="Escribí tu agradecimiento" accessibilityLabel="Agradecimiento público"
             value={mensaje} onChangeText={setMensaje} maxLength={500} multiline editable={!guardando} />
-          <Button title="Publicar agradecimiento" disabled={guardando || !mensaje.trim()}
+          <Button title="Publicar agradecimiento" color={!hayConexion ? '#9CA3AF' : undefined}
+            disabled={guardando || !hayConexion || !mensaje.trim()}
             onPress={() => Alert.alert('Publicar agradecimiento', 'El mensaje será público. ¿Querés publicarlo?', [
               { text: 'Cancelar', style: 'cancel' },
               { text: 'Publicar', onPress: () => guardar(true) },

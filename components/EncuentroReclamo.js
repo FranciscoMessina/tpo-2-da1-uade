@@ -4,8 +4,10 @@ import { ActivityIndicator, Button, Text, View } from 'react-native';
 import PuntoEncuentro from './PuntoEncuentro';
 import { aceptarEncuentro, obtenerEncuentro, proponerEncuentro } from '../services/encuentros';
 import { mensajeErrorApi } from '../services/api';
+import { useConexion } from '../context/ConexionContext';
 
 export default function EncuentroReclamo({ reclamoId, actualizacion }) {
+  const { hayConexion } = useConexion();
   const [datos, setDatos] = useState(null);
   const [cargando, setCargando] = useState(true);
   const [guardando, setGuardando] = useState(false);
@@ -35,6 +37,10 @@ export default function EncuentroReclamo({ reclamoId, actualizacion }) {
 
   async function guardar(direccion) {
     if (!datos || enviando.current) return false;
+    if (!hayConexion) {
+      setError('Se necesita conexión a internet para coordinar el punto de encuentro.');
+      return false;
+    }
     enviando.current = true;
     setGuardando(true);
     setError('');
@@ -69,6 +75,7 @@ export default function EncuentroReclamo({ reclamoId, actualizacion }) {
           puedeProponer={datos.puedeProponer}
           puedeResponder={datos.puedeResponder}
           guardando={guardando}
+          hayConexion={hayConexion}
           onProponer={guardar}
           onAceptar={() => guardar()}
         />
