@@ -6,6 +6,7 @@ import {
   Text,
   View,
 } from 'react-native';
+import PublicacionesPendientes from './PublicacionesPendientes';
 import useMisPublicaciones from '../hooks/useMisPublicaciones';
 import {
   DIAS_AVISO_VENCIMIENTO,
@@ -67,6 +68,9 @@ export default function MisPublicaciones({ navigation }) {
   ).length;
 
   return (
+    <>
+      <PublicacionesPendientes navigation={navigation} />
+
     <View style={styles.card}>
       <Text style={styles.title}>Mis publicaciones</Text>
 
@@ -152,6 +156,7 @@ export default function MisPublicaciones({ navigation }) {
         />
       )}
     </View>
+    </>
   );
 }
 

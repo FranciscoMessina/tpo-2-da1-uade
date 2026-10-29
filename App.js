@@ -1,6 +1,9 @@
 import { ConexionProvider } from './context/ConexionContext';
 import { StatusBar } from 'expo-status-bar';
-import { NavigationContainer } from '@react-navigation/native';
+import {
+  NavigationContainer,
+  createNavigationContainerRef,
+} from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import {
   SafeAreaProvider,
@@ -14,6 +17,9 @@ import SearchResultsScreen from './screens/SearchResultsScreen';
 import ConfiguracionScreen from './screens/ConfiguracionScreen';
 import BloqueoBiometrico from './components/BloqueoBiometrico';
 import CreatePostScreen from './screens/CreatePostScreen';
+import PublicacionesPendientesScreen from './screens/PublicacionesPendientesScreen';
+import AvisoSincronizacion from './components/AvisoSincronizacion';
+import { ColaPublicacionesProvider } from './context/ColaPublicacionesContext';
 import AlertasScreen from './screens/AlertasScreen';
 import SeguidasScreen from './screens/SeguidasScreen';
 import PublicationDetailScreen from './screens/PublicationDetailScreen';
@@ -27,6 +33,11 @@ import ForgotPasswordScreen from './screens/ForgotPasswordScreen';
 import useAuth, { AuthProvider } from './hooks/useAuth';
 
 const Stack = createNativeStackNavigator();
+const navigationRef = createNavigationContainerRef();
+
+function navegar(nombre, params) {
+  if (navigationRef.isReady()) navigationRef.navigate(nombre, params);
+}
 
 function PublicProfileRoute({ route }) {
   return (
@@ -50,8 +61,9 @@ function AppContenido() {
       <StatusBar style="dark" />
 
       <ConexionProvider>
+      <ColaPublicacionesProvider>
       <SearchProvider>
-        <NavigationContainer>
+        <NavigationContainer ref={navigationRef}>
           <SafeAreaView
             edges={['left', 'right', 'bottom']}
             style={{
@@ -95,6 +107,12 @@ function AppContenido() {
                 name="CrearPublicacion"
                 component={CreatePostScreen}
                 options={{ title: 'Nueva publicación' }}
+              />
+
+              <Stack.Screen
+                name="PublicacionesPendientes"
+                component={PublicacionesPendientesScreen}
+                options={{ title: 'Publicaciones pendientes' }}
               />
 
               <Stack.Screen
@@ -158,10 +176,12 @@ function AppContenido() {
               />
             </Stack.Navigator>
             )}
+            <AvisoSincronizacion navegar={navegar} />
           </SafeAreaView>
           <BloqueoBiometrico />
         </NavigationContainer>
       </SearchProvider>
+      </ColaPublicacionesProvider>
       </ConexionProvider>
     </SafeAreaProvider>
   );
