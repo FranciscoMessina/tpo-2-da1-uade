@@ -111,7 +111,8 @@ npm run android      # abre la app en el emulador o dispositivo Android conectad
 
 **Publicaciones**
 
-- Alta de publicaciones de objetos o mascotas, con fotos, categoría, zona y ubicación; en los hallazgos se puede agregar una pregunta de verificación (`CreatePostScreen`, `hooks/useCrearPublicacion.js`, `services/publicaciones.js`). Las fotos se eligen con `expo-image-picker` y la ubicación se obtiene con `expo-location`.
+- Alta de publicaciones de objetos o mascotas, con fotos (galería o cámara), categoría, zona, ubicación y dirección exacta opcional; en los hallazgos son obligatorias una pregunta de verificación y su respuesta privada (`CreatePostScreen`, `components/FormularioPublicacion.js`, `hooks/useCrearPublicacion.js`, `services/publicaciones.js`). Las fotos se eligen con `expo-image-picker` y la ubicación se obtiene con `expo-location`.
+- Borrador automático del alta y cola de publicaciones para enviar después cuando no hay conexión (ver «Conexión y caché offline»).
 - Mis publicaciones, filtradas por estado (`hooks/useMisPublicaciones.js`).
 - Gestión de la publicación propia: editar, eliminar y renovar, con aviso de vencimiento (`GestionPublicacionScreen`, `hooks/useGestionPublicacion.js`).
 - Detalle de publicación (`PublicationDetailScreen`, `hooks/usePublicacion.js`).
@@ -139,12 +140,16 @@ npm run android      # abre la app en el emulador o dispositivo Android conectad
 - Detección de conexión: `services/conexion.js` consulta el backend con `GET /categorias` (timeout de 3 segundos) al iniciar y cada 12 segundos con la app en primer plano. Cuando una petición falla por falta de conectividad, la app lo reporta sin esperar al siguiente sondeo. `context/ConexionContext.js` expone el estado a la interfaz.
 - Caché por cuenta: la caché se guarda bajo una clave propia de cada usuario (`services/cacheOffline.js`). Al cerrar sesión se borra la caché de la cuenta que sale. Al iniciar, se descarta la caché de versiones anteriores, que era compartida entre cuentas.
 - Sin conexión, la app muestra lo último que tiene guardado: resultados de búsqueda, publicaciones consultadas recientemente (hasta 25) y últimos reclamos. Ante un error HTTP con respuesta del servidor, el error se muestra tal cual y no se reemplaza con la caché.
+- Fotos offline: las fotos de las publicaciones consultadas (y la primera de cada resultado guardado) se descargan a una carpeta de la cuenta con `expo-file-system` y se usan sin conexión. Las fotos de prueba de reclamos son privadas y nunca se descargan.
+- Reabrir sin conexión: si al iniciar no se puede validar la sesión por falta de red, se usa el perfil mínimo guardado (id y nombre) para leer la caché, y la sesión se revalida al volver la conexión (`hooks/useAuth.js`, `services/sesion.js`).
+- Borrador y cola: el formulario de alta guarda un borrador por cuenta (`services/borradores.js`). Sin conexión, la publicación se puede guardar para enviar después: la cola (`services/colaPublicaciones.js`, `services/procesadorCola.js`, `context/ColaPublicacionesContext.js`) la envía sola al recuperar la red, sin duplicarla (mismo `clientId`). El estado se ve en el aviso inferior y en «Publicaciones pendientes». La cola y los borradores de una cuenta solo se procesan con esa cuenta logueada.
+- `expo-file-system` es un módulo nativo: después de instalar dependencias hace falta un dev build (`npm run android:dev`).
 
 ## Estructura
 
 ```
 App.js                navegación (pantallas de ingreso y de la app) y proveedores
-context/              ConexionContext (estado de conexión) y SearchContext (búsqueda, alertas, seguidas, novedades)
+context/              ConexionContext (conexión), SearchContext (búsqueda, alertas, seguidas, novedades) y ColaPublicacionesContext (envíos pendientes)
 hooks/                lógica de pantallas y estado (useAuth, useCrearPublicacion, useGestionPublicacion, ...)
 screens/              pantallas
 components/           componentes reutilizables
