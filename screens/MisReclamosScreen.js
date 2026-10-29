@@ -4,7 +4,7 @@ import {
 } from '../services/cacheOffline';
 import { useConexion } from '../context/ConexionContext';
 import { estaConectado, verificarConexion } from '../services/conexion';
-import { useCallback, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import {
   ActivityIndicator,
@@ -51,8 +51,29 @@ export default function MisReclamosScreen({ navigation }) {
   const [procesandoId, setProcesandoId] = useState(null);
   const [error, setError] = useState('');
   const [actualizacion, setActualizacion] = useState(0);
+  const [paginacion, setPaginacion] = useState({
+    enviados: { pagina: 1, totalPaginas: 1, total: 0 },
+    recibidos: { pagina: 1, totalPaginas: 1, total: 0 },
+  });
+  const [cargandoMas, setCargandoMas] = useState(false);
+  const [errorMas, setErrorMas] = useState('');
+  const versionCarga = useRef(0);
+
+  // Paginación completa guardada en caché o con un solo grupo de resultados
+  const paginacionLocal = (lista) => ({
+    pagina: 1,
+    totalPaginas: 1,
+    total: lista.length,
+  });
+  const paginacionServidor = (res, lista) => ({
+    pagina: res.page || 1,
+    totalPaginas: res.totalPages || 1,
+    total: res.total ?? lista.length,
+  });
 
   const cargar = useCallback(async () => {
+    versionCarga.current += 1;
+    setErrorMas('');
     setError('');
     const online = estaConectado();
     if (!online) {
@@ -60,6 +81,10 @@ export default function MisReclamosScreen({ navigation }) {
       if (cache && (cache.enviados.length > 0 || cache.recibidos.length > 0)) {
         setReclamosEnviados(cache.enviados);
         setReclamosRecibidos(cache.recibidos);
+        setPaginacion({
+          enviados: paginacionLocal(cache.enviados),
+          recibidos: paginacionLocal(cache.recibidos),
+        });
         setActualizacion((n) => n + 1);
         setError('');
       } else {
@@ -78,6 +103,10 @@ export default function MisReclamosScreen({ navigation }) {
       const rec = resRecibidos.items || [];
       setReclamosEnviados(env);
       setReclamosRecibidos(rec);
+      setPaginacion({
+        enviados: paginacionServidor(resEnviados, env),
+        recibidos: paginacionServidor(resRecibidos, rec),
+      });
       setActualizacion((n) => n + 1);
       // Guardar copia local para visualización sin conexión
       await guardarUltimosReclamos({ enviados: env, recibidos: rec });
@@ -86,6 +115,10 @@ export default function MisReclamosScreen({ navigation }) {
       if (cache && (cache.enviados.length > 0 || cache.recibidos.length > 0)) {
         setReclamosEnviados(cache.enviados);
         setReclamosRecibidos(cache.recibidos);
+        setPaginacion({
+          enviados: paginacionLocal(cache.enviados),
+          recibidos: paginacionLocal(cache.recibidos),
+        });
         setActualizacion((n) => n + 1);
         setError('');
       } else {
@@ -101,6 +134,41 @@ export default function MisReclamosScreen({ navigation }) {
       cargar();
     }, [cargar])
   );
+
+  // Trae la siguiente página de la bandeja activa y la suma a la lista
+  async function cargarMas() {
+    const bandeja = tab;
+    const { pagina, totalPaginas } = paginacion[bandeja];
+    if (cargandoMas || pagina >= totalPaginas) return;
+
+    const version = versionCarga.current;
+    setCargandoMas(true);
+    setErrorMas('');
+    try {
+      const res = await obtenerMisReclamos({ tipo: bandeja, pagina: pagina + 1 });
+      // Si se recargó la pantalla mientras tanto, esta página ya no corresponde
+      if (version !== versionCarga.current) return;
+
+      const nuevos = res.items || [];
+      const agregar = (previos) => {
+        const ids = new Set(previos.map((r) => r.id));
+        return [...previos, ...nuevos.filter((r) => !ids.has(r.id))];
+      };
+      if (bandeja === 'recibidos') {
+        setReclamosRecibidos(agregar);
+      } else {
+        setReclamosEnviados(agregar);
+      }
+      setPaginacion((previa) => ({
+        ...previa,
+        [bandeja]: paginacionServidor(res, nuevos),
+      }));
+    } catch (e) {
+      if (version === versionCarga.current) setErrorMas(mensajeErrorApi(e));
+    } finally {
+      setCargandoMas(false);
+    }
+  }
 
   function manejarAceptar(reclamo) {
     Alert.alert(
@@ -377,7 +445,7 @@ export default function MisReclamosScreen({ navigation }) {
               tab === 'recibidos' && styles.tabTextoActivo,
             ]}
           >
-            Recibidos ({reclamosRecibidos.length})
+            Recibidos ({paginacion.recibidos.total})
           </Text>
         </Pressable>
 
@@ -391,7 +459,7 @@ export default function MisReclamosScreen({ navigation }) {
               tab === 'enviados' && styles.tabTextoActivo,
             ]}
           >
-            Enviados ({reclamosEnviados.length})
+            Enviados ({paginacion.enviados.total})
           </Text>
         </Pressable>
       </View>
@@ -413,6 +481,20 @@ export default function MisReclamosScreen({ navigation }) {
           renderItem={renderItem}
           refreshControl={
             <RefreshControl refreshing={cargando} onRefresh={cargar} />
+          }
+          ListFooterComponent={
+            paginacion[tab].pagina < paginacion[tab].totalPaginas ? (
+              <View style={styles.cargarMas}>
+                {errorMas !== '' && (
+                  <Text style={styles.errorTexto}>{errorMas}</Text>
+                )}
+                <Button
+                  title={cargandoMas ? 'Cargando…' : 'Cargar más reclamos'}
+                  disabled={cargandoMas || !hayConexion}
+                  onPress={cargarMas}
+                />
+              </View>
+            ) : null
           }
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
@@ -593,6 +675,9 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   verPubContainer: {
+    marginTop: 4,
+  },
+  cargarMas: {
     marginTop: 4,
   },
   emptyContainer: {

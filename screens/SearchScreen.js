@@ -77,10 +77,6 @@ export default function SearchScreen({ navigation }) {
         />
       </View>
 
-      <Text style={styles.demo}>
-        Vista de prueba con publicaciones de ejemplo.
-      </Text>
-
       <SearchForm
         initialFilters={filtrosIniciales()}
         onSubmit={buscar}
@@ -183,12 +179,6 @@ const styles = StyleSheet.create({
     color: '#6B7280',
     fontSize: 16,
     lineHeight: 23,
-  },
-  demo: {
-    color: '#92400E',
-    backgroundColor: '#FEF3C7',
-    padding: 12,
-    borderRadius: 10,
   },
   recent: {
     gap: 12,

@@ -1,11 +1,13 @@
 import { buscarPublicacionesConCache } from '../services/publicaciones';
-import { guardarUltimosResultadosBusqueda } from '../services/cacheOffline';
+import { mensajeErrorApi } from '../services/api';
 import { useEffect } from 'react';
 import { useRef, useState } from 'react';
 import {
+  ActivityIndicator,
   Alert,
   Button,
   FlatList,
+  Image,
   Modal,
   Pressable,
   ScrollView,
@@ -16,14 +18,58 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import SearchForm from '../components/SearchForm';
 import { useSearch } from '../context/SearchContext';
-import {
-  buscarPublicaciones,
-  claveBusqueda,
-  crearPublicacionesEjemplo,
-  resumenBusqueda,
-} from '../data/searchDemo';
+import { claveBusqueda, resumenBusqueda } from '../data/searchDemo';
 
-const TAMANIO_PAGINA = 3;
+const ICONOS_CATEGORIA = {
+  Documentos: '🪪',
+  Llaves: '🔑',
+  Electrónica: '🎧',
+  Mascotas: '🐕',
+  Ropa: '🧥',
+  Otros: '🎒',
+};
+
+function FotoTarjeta({ uri, categoria }) {
+  const [fallo, setFallo] = useState(false);
+  const mostrarFoto = Boolean(uri) && !fallo;
+
+  if (mostrarFoto) {
+    return (
+      <Image
+        source={{ uri }}
+        style={styles.photo}
+        resizeMode="cover"
+        accessibilityLabel={`Foto de ${categoria}`}
+        onError={() => setFallo(true)}
+      />
+    );
+  }
+
+  return (
+    <View
+      style={[styles.photo, styles.photoPlaceholder]}
+      accessibilityLabel={`Sin foto de ${categoria}`}
+    >
+      <Text style={styles.icon}>{ICONOS_CATEGORIA[categoria] || '📦'}</Text>
+
+      <Text style={styles.photoLabel}>
+        {uri ? 'No se pudo cargar la foto' : 'Sin foto'}
+      </Text>
+    </View>
+  );
+}
+
+function fechaHora(iso) {
+  const fecha = new Date(iso);
+  if (Number.isNaN(fecha.getTime())) return '';
+  return fecha.toLocaleString('es-AR', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
 
 export default function SearchResultsScreen({ route, navigation }) {
   return (
@@ -53,56 +99,49 @@ function ResultadosBusqueda({ route, navigation }) {
 
   const listaRef = useRef(null);
 
-  const [listaPublicaciones, setListaPublicaciones] = useState(() =>
-    buscarPublicaciones(crearPublicacionesEjemplo(), filtros, orden)
-  );
-  const [esOffline, setEsOffline] = useState(false);
-  const [cargandoResultados, setCargandoResultados] = useState(false);
+  const [resultado, setResultado] = useState(null);
+  const [errorBusqueda, setErrorBusqueda] = useState('');
+  const [cargandoResultados, setCargandoResultados] = useState(true);
+  const [intento, setIntento] = useState(0);
 
   useEffect(() => {
+    const controlador = new AbortController();
     let activo = true;
     setCargandoResultados(true);
+    setErrorBusqueda('');
 
-    buscarPublicacionesConCache(filtros, orden)
+    buscarPublicacionesConCache(filtros, orden, {
+      pagina,
+      signal: controlador.signal,
+    })
       .then((res) => {
         if (!activo) return;
-        if (res.items && res.items.length > 0) {
-          setListaPublicaciones(res.items);
-        } else {
-          const demos = buscarPublicaciones(crearPublicacionesEjemplo(), filtros, orden);
-          setListaPublicaciones(demos);
-          if (!res.esOffline) {
-            guardarUltimosResultadosBusqueda(demos, filtros, orden);
-          }
+        // Si la cantidad de páginas bajó mientras navegaba, vuelve a la última existente
+        if (!res.esOffline && res.items.length === 0 && res.total > 0 && pagina > res.totalPaginas) {
+          setPagina(res.totalPaginas);
+          return;
         }
-        setEsOffline(Boolean(res.esOffline));
+        setResultado(res);
+        setCargandoResultados(false);
       })
-      .catch(() => {
+      .catch((error) => {
         if (!activo) return;
-        const demos = buscarPublicaciones(crearPublicacionesEjemplo(), filtros, orden);
-        setListaPublicaciones(demos);
-        setEsOffline(true);
-      })
-      .finally(() => {
-        if (activo) setCargandoResultados(false);
+        setResultado(null);
+        setErrorBusqueda(mensajeErrorApi(error));
+        setCargandoResultados(false);
       });
 
     return () => {
       activo = false;
+      controlador.abort();
     };
-  }, [filtros, orden]);
+  }, [filtros, orden, pagina, intento]);
 
-  const publicaciones = listaPublicaciones;
-
-  const totalPaginas = Math.max(
-    1,
-    Math.ceil(publicaciones.length / TAMANIO_PAGINA)
-  );
-
-  const visibles = publicaciones.slice(
-    (pagina - 1) * TAMANIO_PAGINA,
-    pagina * TAMANIO_PAGINA
-  );
+  const publicaciones = cargandoResultados || !resultado ? [] : resultado.items;
+  const esOffline = Boolean(resultado?.esOffline) && !cargandoResultados;
+  const sinConexionSinCache = Boolean(resultado?.sinResultadosPrevios);
+  const totalPaginas = resultado?.totalPaginas ?? 1;
+  const hayResultados = publicaciones.length > 0;
 
   const alertaGuardada = alertas.some(
     (alerta) => claveBusqueda(alerta.filtros) === claveBusqueda(filtros)
@@ -127,6 +166,10 @@ function ResultadosBusqueda({ route, navigation }) {
       offset: 0,
       animated: false,
     });
+  }
+
+  function reintentar() {
+    setIntento((n) => n + 1);
   }
 
   function elegirOrden(nuevo) {
@@ -165,8 +208,22 @@ function ResultadosBusqueda({ route, navigation }) {
                 <View style={styles.bannerOfflineTexto}>
                   <Text style={styles.bannerOfflineTitulo}>Modo sin conexión</Text>
                   <Text style={styles.bannerOfflineMensaje}>
-                    Mostrando los últimos resultados cargados exitosamente. La información podría no estar actualizada.
+                    {sinConexionSinCache
+                      ? 'No hay conexión a internet y no hay resultados guardados en el dispositivo.'
+                      : 'Estos son resultados guardados en el dispositivo, no los de tu búsqueda actual: pueden corresponder a otros filtros y estar desactualizados.'}
                   </Text>
+                  {!sinConexionSinCache && resultado?.filtrosGuardados &&
+                    typeof resultado.filtrosGuardados.palabras === 'string' && (
+                    <Text style={styles.bannerOfflineMensaje}>
+                      Búsqueda guardada: {resumenBusqueda(resultado.filtrosGuardados)}
+                    </Text>
+                  )}
+                  {!sinConexionSinCache && resultado?.fechaGuardado && (
+                    <Text style={styles.bannerOfflineMensaje}>
+                      Guardados el {fechaHora(resultado.fechaGuardado)}
+                    </Text>
+                  )}
+                  <Button title="Reintentar" onPress={reintentar} />
                 </View>
               </View>
             )}
@@ -181,7 +238,13 @@ function ResultadosBusqueda({ route, navigation }) {
             </Text>
 
             <Text style={styles.help}>
-              {publicaciones.length} coincidencias · datos de ejemplo
+              {cargandoResultados
+                ? 'Buscando…'
+                : esOffline
+                  ? `${publicaciones.length} resultados guardados`
+                  : errorBusqueda
+                    ? 'No se pudo completar la búsqueda'
+                    : `${resultado?.total ?? 0} coincidencias`}
             </Text>
 
             <Button
@@ -254,7 +317,7 @@ function ResultadosBusqueda({ route, navigation }) {
             {orden === 'cercanos' && (
               <Text style={styles.help}>
                 Distancia desde{' '}
-                {filtros.zona || 'la ubicación de ejemplo'}.
+                {filtros.zona || 'tu ubicación'}.
               </Text>
             )}
           </View>
@@ -269,18 +332,10 @@ function ResultadosBusqueda({ route, navigation }) {
               })
             }
           >
-            <View
-              style={styles.photo}
-              accessibilityLabel={
-                `Espacio para fotos de ${item.categoria}`
-              }
-            >
-              <Text style={styles.icon}>{item.icono}</Text>
-
-              <Text style={styles.photoLabel}>
-                Foto de ejemplo
-              </Text>
-            </View>
+            <FotoTarjeta
+              uri={item.fotos?.[0]}
+              categoria={item.categoria}
+            />
 
             <View style={styles.details}>
               <Text style={styles.type}>
@@ -302,13 +357,7 @@ function ResultadosBusqueda({ route, navigation }) {
                 {item.fecha.split('-').reverse().join('/')}
               </Text>
 
-              <Text style={styles.coordinates}>
-                Coordenadas de ejemplo:{' '}
-                {item.latitud.toFixed(4)},{' '}
-                {item.longitud.toFixed(4)}
-              </Text>
-
-              {orden === 'cercanos' && (
+              {orden === 'cercanos' && item.distancia != null && (
                 <Text style={styles.distance}>
                   A {item.distancia.toFixed(1)} km del punto
                   de referencia
@@ -318,34 +367,76 @@ function ResultadosBusqueda({ route, navigation }) {
           </Pressable>
         )}
         ListEmptyComponent={
-          <View style={styles.empty}>
-            <Text style={styles.title}>
-              No encontramos coincidencias
-            </Text>
+          cargandoResultados ? (
+            <View style={styles.empty}>
+              <ActivityIndicator size="large" color="#1D4ED8" />
+              <Text style={styles.help}>Buscando publicaciones…</Text>
+            </View>
+          ) : errorBusqueda ? (
+            <View style={styles.empty}>
+              <Text style={styles.title}>
+                No pudimos cargar los resultados
+              </Text>
 
-            <Text style={styles.help}>
-              Podés ajustar los filtros, publicar lo que te
-              pasó o guardar esta búsqueda como alerta.
-            </Text>
+              <Text accessibilityRole="alert" style={styles.error}>
+                {errorBusqueda}
+              </Text>
 
-            <Button
-              title={
-                filtros.situacion === 'perdi'
-                  ? 'Publicar mi pérdida'
-                  : 'Publicar mi hallazgo'
-              }
-              onPress={publicar}
-            />
+              <Button title="Reintentar" onPress={reintentar} />
+            </View>
+          ) : sinConexionSinCache ? (
+            <View style={styles.empty}>
+              <Text style={styles.title}>
+                Sin conexión
+              </Text>
 
+              <Text style={styles.help}>
+                Conectate a internet para ver las publicaciones que
+                coinciden con tu búsqueda.
+              </Text>
 
-          </View>
+              <Button title="Reintentar" onPress={reintentar} />
+            </View>
+          ) : (
+            <View style={styles.empty}>
+              <Text style={styles.title}>
+                No encontramos coincidencias
+              </Text>
+
+              <Text style={styles.help}>
+                Podés ajustar los filtros, publicar lo que te
+                pasó o guardar esta búsqueda como alerta.
+              </Text>
+
+              <Button
+                title={
+                  filtros.situacion === 'perdi'
+                    ? 'Publicar mi pérdida'
+                    : 'Publicar mi hallazgo'
+                }
+                onPress={publicar}
+              />
+
+              <Button
+                title={
+                  alertaGuardada
+                    ? 'Alerta guardada'
+                    : alertasGuardando
+                      ? 'Guardando alerta…'
+                      : 'Guardar búsqueda como alerta'
+                }
+                disabled={alertaGuardada || alertasGuardando || alertasLoading}
+                onPress={guardarBusquedaComoAlerta}
+              />
+            </View>
+          )
         }
         ListFooterComponent={
-          publicaciones.length > 0 ? (
+          hayResultados && !esOffline ? (
             <View style={styles.pagination}>
               <Button
                 title="Anterior"
-                disabled={pagina === 1}
+                disabled={pagina <= 1}
                 onPress={() => cambiarPagina(pagina - 1)}
               />
 
@@ -355,7 +446,7 @@ function ResultadosBusqueda({ route, navigation }) {
 
               <Button
                 title="Siguiente"
-                disabled={pagina === totalPaginas}
+                disabled={pagina >= totalPaginas}
                 onPress={() => cambiarPagina(pagina + 1)}
               />
             </View>
@@ -439,6 +530,8 @@ const styles = StyleSheet.create({
   photo: {
     height: 140,
     backgroundColor: '#DBEAFE',
+  },
+  photoPlaceholder: {
     justifyContent: 'center',
     alignItems: 'center',
     gap: 8,
@@ -463,11 +556,6 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: 'bold',
     color: '#111827',
-  },
-  coordinates: {
-    color: '#6B7280',
-    fontSize: 13,
-    lineHeight: 20,
   },
   distance: {
     color: '#1D4ED8',
