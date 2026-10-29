@@ -8,13 +8,28 @@ import {
   useState,
 } from 'react';
 import { api, mensajeErrorApi, setupInterceptors } from '../services/api';
-import { borrarToken, guardarToken, leerToken } from '../services/sesion';
+import {
+  borrarToken,
+  guardarPerfilMinimo,
+  guardarToken,
+  leerPerfilMinimo,
+  leerToken,
+} from '../services/sesion';
+import {
+  esErrorDeConectividad,
+  reportarFalloConexion,
+  suscribirConexion,
+  verificarConexion,
+} from '../services/conexion';
 import {
   descartarCacheLegada,
   setUsuarioCache,
 } from '../services/cacheOffline';
 
 export const SEGUNDOS_REENVIO = 30;
+
+// Espera máxima de GET /me al restaurar la sesión: sin red conviene decidir rápido
+const TIMEOUT_RESTAURAR_MS = 6000;
 
 export function emailValido(email) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test((email || '').trim());
@@ -61,6 +76,9 @@ export function AuthProvider({ children }) {
   const [error, setError] = useState('');
   const ocupado = useRef(true);
   const [codigoPendiente, setCodigoPendiente] = useState(null);
+  // true cuando la sesión se restauró sin conexión con el perfil guardado, sin validar el token
+  const [sesionOffline, setSesionOffline] = useState(false);
+  const invalidarSesionRef = useRef(null);
 
   useEffect(() => {
   let activo = true;
@@ -71,6 +89,7 @@ export function AuthProvider({ children }) {
     configurarToken(null);
     setUsuarioCache(null);
     setUsuario(null);
+    setSesionOffline(false);
     setCodigoPendiente(null);
     setError('Tu sesión venció o dejó de ser válida. Volvé a ingresar.');
 
@@ -85,10 +104,12 @@ export function AuthProvider({ children }) {
     }
   }
 
+  invalidarSesionRef.current = invalidarSesion;
   const quitarInterceptors = setupInterceptors(invalidarSesion);
 
   return () => {
     activo = false;
+    invalidarSesionRef.current = null;
     quitarInterceptors();
   };
 }, []);
@@ -104,13 +125,34 @@ export function AuthProvider({ children }) {
         const token = await leerToken();
         if (!activo || !token) return;
 
-        const { data } = await api.get('/me', {
-          headers: { Authorization: `Bearer ${token}` },
-        });
+        let data;
+        try {
+          ({ data } = await api.get('/me', {
+            headers: { Authorization: `Bearer ${token}` },
+            timeout: TIMEOUT_RESTAURAR_MS,
+          }));
+        } catch (e) {
+          if (!activo) return;
+
+          // Sin conectividad el token no se descarta: se usa el perfil mínimo del último
+          // inicio exitoso para poder leer la caché y se revalida al volver la red.
+          // Un error HTTP (p. ej. 401) sigue el camino de siempre.
+          const perfil = esErrorDeConectividad(e) ? await leerPerfilMinimo() : null;
+          if (!perfil) throw e;
+          if (!activo) return;
+
+          reportarFalloConexion();
+          configurarToken(token);
+          setUsuarioCache(perfil.id);
+          setSesionOffline(true);
+          setUsuario(adaptarUsuario(perfil));
+          return;
+        }
 
         if (!activo) return;
         configurarToken(token);
         setUsuarioCache(data.id);
+        guardarPerfilMinimo(data);
         setUsuario(adaptarUsuario(data));
       } catch (e) {
         if (!activo) return;
@@ -137,6 +179,52 @@ export function AuthProvider({ children }) {
     };
   }, []);
 
+  // Con la sesión restaurada sin conexión, al volver la red se valida el token con /me:
+  // si sigue vigente se reemplaza el perfil mínimo por el real; si no, se cierra la sesión.
+  useEffect(() => {
+    if (!sesionOffline) return undefined;
+
+    let activo = true;
+    let enCurso = false;
+
+    async function revalidar() {
+      if (enCurso) return;
+      enCurso = true;
+
+      try {
+        const { data } = await api.get('/me');
+        if (!activo) return;
+
+        setUsuarioCache(data.id);
+        guardarPerfilMinimo(data);
+        setUsuario(adaptarUsuario(data));
+        setSesionOffline(false);
+      } catch (e) {
+        if (!activo) return;
+
+        // Un 401 significa que el token ya no vale; cualquier otra falla deja la
+        // sesión sin validar hasta el próximo cambio de conectividad
+        if (e.response?.status === 401) await invalidarSesionRef.current?.();
+        else if (esErrorDeConectividad(e)) reportarFalloConexion();
+      } finally {
+        enCurso = false;
+      }
+    }
+
+    const desuscribir = suscribirConexion((disponible) => {
+      if (disponible) revalidar();
+    });
+    // La conexión pudo volver antes de que este efecto se montara
+    verificarConexion().then((disponible) => {
+      if (disponible && activo) revalidar();
+    });
+
+    return () => {
+      activo = false;
+      desuscribir();
+    };
+  }, [sesionOffline]);
+
   const ejecutar = useCallback(async (accion) => {
     if (ocupado.current) return false;
 
@@ -162,7 +250,9 @@ export function AuthProvider({ children }) {
     await guardarToken(data.session.token);
     configurarToken(data.session.token);
     setUsuarioCache(data.usuario.id);
+    await guardarPerfilMinimo(data.usuario);
     setCodigoPendiente(null);
+    setSesionOffline(false);
     setUsuario(adaptarUsuario(data.usuario));
   }
 
@@ -279,6 +369,7 @@ export function AuthProvider({ children }) {
         // Borra la caché local de la cuenta que sale (publicaciones, resultados y reclamos)
         await setUsuarioCache(null);
         setUsuario(null);
+        setSesionOffline(false);
         setCodigoPendiente(null);
         await borrarToken();
       }
@@ -290,6 +381,7 @@ export function AuthProvider({ children }) {
   const value = {
     usuario,
     autenticado: usuario !== null,
+    sesionOffline,
     loading,
     error,
     limpiarError,

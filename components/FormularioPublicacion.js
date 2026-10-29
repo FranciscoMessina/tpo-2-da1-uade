@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   Alert,
   Button,
@@ -99,6 +99,14 @@ export function valoresDesdePublicacion(publicacion) {
  * `onEnviar(datos)` recibe los datos ya validados (ver `armarCuerpoPublicacion`
  * en services/publicaciones.js) y debe devolver una promesa; el padre decide qué hacer al terminar.
  * En modo «editar» el tipo no se puede cambiar.
+ *
+ * Solo para el alta (opcionales):
+ *  - `onEncolar(datos)`: si hay, sin conexión el botón principal pasa a «Guardar para enviar después»
+ *    (y se ofrece también tras un error de envío) en lugar de quedar bloqueado.
+ *  - `alCambiar(valores)`: se llama con los valores actuales del formulario en cada cambio
+ *    (la pantalla los usa para el borrador automático).
+ *  - `copiarFoto(uri)`: convierte la URI que devuelve el selector en una copia propia de la app.
+ *  - `alQuitarFoto(uri)`: se llama al quitar una foto, para borrar su copia.
  */
 export default function FormularioPublicacion({
   modo = 'crear',
@@ -109,8 +117,13 @@ export default function FormularioPublicacion({
   onEnviar,
   onCancelar = undefined,
   tipoInicial = 'perdi',
+  onEncolar = undefined,
+  alCambiar = undefined,
+  copiarFoto = undefined,
+  alQuitarFoto = undefined,
 }) {
   const editando = modo === 'editar';
+  const puedeEncolar = !editando && typeof onEncolar === 'function';
   const { hayConexion } = useConexion();
 
   const [tipo, setTipo] = useState(valoresIniciales.tipo ?? tipoInicial);
@@ -144,6 +157,41 @@ export default function FormularioPublicacion({
 
   const esHallazgo = tipo === 'encontre';
 
+  // Cada cambio se informa a la pantalla (borrador automático); el callback vive en una
+  // ref para que cambiarlo no dispare el efecto
+  const alCambiarRef = useRef(alCambiar);
+  alCambiarRef.current = alCambiar;
+
+  useEffect(() => {
+    alCambiarRef.current?.({
+      tipo,
+      titulo,
+      categoria,
+      descripcion,
+      barrio,
+      coords,
+      direccionExacta,
+      fecha,
+      franja,
+      fotos,
+      preguntaVerificacion: pregunta,
+      respuestaVerificacion: respuesta,
+    });
+  }, [
+    tipo,
+    titulo,
+    categoria,
+    descripcion,
+    barrio,
+    coords,
+    direccionExacta,
+    fecha,
+    franja,
+    fotos,
+    pregunta,
+    respuesta,
+  ]);
+
   // Los títulos de sección se numeran según las que se muestran
   let numeroSeccion = 0;
   const seccion = (texto) => `${++numeroSeccion}. ${texto}`;
@@ -168,9 +216,15 @@ export default function FormularioPublicacion({
     }
   }
 
-  function agregarUris(uris) {
+  async function agregarUris(uris) {
+    // Las URIs del selector pueden ser temporales: se copian a la app antes de usarlas
+    const elegidas = uris.slice(0, Math.max(0, MAX_FOTOS - fotos.length));
+    const propias = copiarFoto
+      ? await Promise.all(elegidas.map((uri) => copiarFoto(uri)))
+      : elegidas;
+
     setFotos((actuales) =>
-      [...actuales, ...uris.filter((uri) => !actuales.includes(uri))].slice(
+      [...actuales, ...propias.filter((uri) => !actuales.includes(uri))].slice(
         0,
         MAX_FOTOS
       )
@@ -196,7 +250,7 @@ export default function FormularioPublicacion({
       });
 
       if (!resultado.canceled) {
-        agregarUris(resultado.assets.map((asset) => asset.uri));
+        await agregarUris(resultado.assets.map((asset) => asset.uri));
       }
     } catch (e) {
       setErrorFotos('No pudimos abrir la galería.');
@@ -229,7 +283,7 @@ export default function FormularioPublicacion({
       });
 
       if (!resultado.canceled && resultado.assets?.length) {
-        agregarUris([resultado.assets[0].uri]);
+        await agregarUris([resultado.assets[0].uri]);
       }
     } catch (e) {
       setErrorFotos('No pudimos abrir la cámara.');
@@ -238,6 +292,7 @@ export default function FormularioPublicacion({
 
   function quitarFoto(uri) {
     setFotos((actuales) => actuales.filter((f) => f !== uri));
+    alQuitarFoto?.(uri);
   }
 
   function validar() {
@@ -285,22 +340,10 @@ export default function FormularioPublicacion({
     return Object.keys(nuevos).length === 0;
   }
 
-  async function enviar() {
-    if (!validar()) {
-      return;
-    }
-
-    if (!(await verificarConexion())) {
-      Alert.alert(
-        'Sin conexión',
-        'Se necesita conexión a internet para guardar la publicación.'
-      );
-      return;
-    }
-
+  function armarDatos() {
     const zona = ZONAS.find((z) => z.nombre === barrio);
 
-    await onEnviar({
+    return {
       tipo,
       titulo: titulo.trim(),
       categoria,
@@ -317,7 +360,37 @@ export default function FormularioPublicacion({
       fotos,
       preguntaVerificacion: esHallazgo ? pregunta.trim() : '',
       respuestaVerificacion: esHallazgo ? respuesta.trim() : '',
-    });
+    };
+  }
+
+  // Valida el formulario y lo guarda en la cola de envíos pendientes
+  async function guardarParaDespues() {
+    if (!validar()) {
+      return;
+    }
+
+    await onEncolar(armarDatos());
+  }
+
+  async function enviar() {
+    if (!validar()) {
+      return;
+    }
+
+    if (!(await verificarConexion())) {
+      if (puedeEncolar) {
+        await onEncolar(armarDatos());
+        return;
+      }
+
+      Alert.alert(
+        'Sin conexión',
+        'Se necesita conexión a internet para guardar la publicación.'
+      );
+      return;
+    }
+
+    await onEnviar(armarDatos());
   }
 
   const tituloBoton =
@@ -615,16 +688,34 @@ export default function FormularioPublicacion({
 
       {!hayConexion && (
         <Text accessibilityRole="alert" style={styles.avisoOffline}>
-          ⚠️ Sin conexión: se necesita internet para{' '}
-          {editando ? 'guardar los cambios' : 'publicar'}.
+          {puedeEncolar
+            ? '⚠️ Sin conexión: podés guardar la publicación y se enviará sola cuando vuelva la conexión.'
+            : `⚠️ Sin conexión: se necesita internet para ${
+                editando ? 'guardar los cambios' : 'publicar'
+              }.`}
         </Text>
       )}
 
       <Button
-        title={enviando ? 'Guardando…' : tituloBoton}
-        disabled={enviando || !hayConexion}
+        title={
+          enviando
+            ? 'Guardando…'
+            : !hayConexion && puedeEncolar
+              ? 'Guardar para enviar después'
+              : tituloBoton
+        }
+        disabled={enviando || (!hayConexion && !puedeEncolar)}
         onPress={enviar}
       />
+
+      {puedeEncolar && hayConexion && !!errorEnvio && (
+        <Button
+          title="Guardar para enviar después"
+          color="#6B7280"
+          disabled={enviando}
+          onPress={guardarParaDespues}
+        />
+      )}
 
       {onCancelar && (
         <Button
