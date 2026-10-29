@@ -184,10 +184,12 @@ export async function rechazarReclamo(id) {
   return data;
 }
 
+const TAMANIO_PAGINA_BUSQUEDA = 10;
+
 export async function buscarPublicacionesConCache(
   filtros,
   orden = 'recientes',
-  { signal = undefined } = {}
+  { pagina = 1, tamanioPagina = TAMANIO_PAGINA_BUSQUEDA, signal = undefined } = {}
 ) {
   try {
     const params = {
@@ -199,8 +201,8 @@ export async function buscarPublicacionesConCache(
       desde: filtros.periodo === 'rango' ? filtros.desde : undefined,
       hasta: filtros.periodo === 'rango' ? filtros.hasta : undefined,
       orden: orden || 'recientes',
-      page: 1,
-      pageSize: 50,
+      page: pagina,
+      pageSize: tamanioPagina,
     };
 
     if (filtros.ubicacion?.latitud && filtros.ubicacion?.longitud) {
@@ -210,36 +212,54 @@ export async function buscarPublicacionesConCache(
 
     const { data } = await api.get('/publicaciones', { params, signal });
     const items = (data.items || []).map(prepararPublicacion);
+    const total = data.total ?? items.length;
 
-    // Guardar copia de los últimos resultados exitosos en almacenamiento local
-    await guardarUltimosResultadosBusqueda(items, filtros, orden);
+    // Guardar copia de los primeros resultados reales; nunca se pisa con una lista vacía
+    if (pagina === 1 && items.length > 0) {
+      await guardarUltimosResultadosBusqueda(items, filtros, orden);
+    }
 
     return {
       items,
-      total: data.total || items.length,
+      total,
+      pagina: data.page ?? pagina,
+      tamanioPagina: data.pageSize ?? tamanioPagina,
+      totalPaginas: Math.max(1, data.totalPages ?? Math.ceil(total / tamanioPagina)),
       esOffline: false,
     };
   } catch (error) {
     // Solo ante falta de conectividad se muestran los últimos resultados guardados;
-    // un error HTTP con respuesta se propaga como tal
+    // un error HTTP con respuesta (o una búsqueda cancelada) se propaga como tal
     if (!esErrorDeConectividad(error)) throw error;
 
     reportarFalloConexion();
 
     const guardada = await obtenerUltimosResultadosBusqueda();
-    if (guardada && Array.isArray(guardada.resultados) && guardada.resultados.length > 0) {
+    // Descarta publicaciones de ejemplo que pudieron guardarse con versiones anteriores
+    const resultados = Array.isArray(guardada?.resultados)
+      ? guardada.resultados.filter((item) => !String(item?.id).startsWith('demo-'))
+      : [];
+
+    if (resultados.length > 0) {
       return {
-        items: guardada.resultados,
-        total: guardada.resultados.length,
+        items: resultados,
+        total: resultados.length,
+        pagina: 1,
+        tamanioPagina: resultados.length,
+        totalPaginas: 1,
         esOffline: true,
         desdeCache: true,
         fechaGuardado: guardada.fechaGuardado,
+        filtrosGuardados: guardada.filtros || null,
       };
     }
 
     return {
       items: [],
       total: 0,
+      pagina: 1,
+      tamanioPagina,
+      totalPaginas: 1,
       esOffline: true,
       sinResultadosPrevios: true,
     };
