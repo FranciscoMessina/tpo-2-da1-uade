@@ -111,6 +111,10 @@ export default function MisReclamosScreen({ navigation }) {
         {
           text: 'Aceptar',
           onPress: async () => {
+            if (!(await verificarConexion())) {
+              Alert.alert('Sin conexión', 'Se necesita conexión a internet para aceptar este reclamo.');
+              return;
+            }
             setProcesandoId(reclamo.id);
             try {
               await aceptarReclamo(reclamo.id);
@@ -140,6 +144,10 @@ export default function MisReclamosScreen({ navigation }) {
           text: 'Rechazar',
           style: 'destructive',
           onPress: async () => {
+            if (!(await verificarConexion())) {
+              Alert.alert('Sin conexión', 'Se necesita conexión a internet para rechazar este reclamo.');
+              return;
+            }
             setProcesandoId(reclamo.id);
             try {
               await rechazarReclamo(reclamo.id);
@@ -160,6 +168,10 @@ export default function MisReclamosScreen({ navigation }) {
     Alert.alert('Confirmar devolución', '¿El objeto ya fue devuelto? El caso se cerrará y ambos podrán valorarse durante 7 días.', [
       { text: 'Cancelar', style: 'cancel' },
       { text: 'Confirmar', onPress: async () => {
+        if (!(await verificarConexion())) {
+          Alert.alert('Sin conexión', 'Se necesita conexión a internet para confirmar la devolución.');
+          return;
+        }
         setProcesandoId(reclamo.id);
         try {
           await resolverPublicacion(reclamo.publicacion.id);
@@ -265,8 +277,18 @@ export default function MisReclamosScreen({ navigation }) {
         )}
 
         {esRecibido && item.estado === 'aceptado' && pub?.estado === 'en_reclamo' && (
-          <Button title={procesandoId === item.id ? 'Confirmando…' : 'Confirmar devolución'}
-            disabled={procesandoId !== null} onPress={() => manejarResolver(item)} />
+          <>
+            <Button title={procesandoId === item.id ? 'Confirmando…' : 'Confirmar devolución'}
+              color={!hayConexion ? '#9CA3AF' : undefined}
+              disabled={procesandoId !== null || !hayConexion} onPress={() => manejarResolver(item)} />
+            {!hayConexion && (
+              <View style={styles.avisoAccionOffline}>
+                <Text style={styles.avisoAccionOfflineTexto}>
+                  ⚠️ Se necesita conexión para confirmar la devolución.
+                </Text>
+              </View>
+            )}
+          </>
         )}
         {item.estado === 'aceptado' && pub?.estado === 'resuelta' && (
           <Button title="Ver historial y valorar" onPress={() => navigation.navigate('Historial')} />

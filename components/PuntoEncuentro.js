@@ -7,6 +7,7 @@ export default function PuntoEncuentro({
   puedeProponer = false,
   puedeResponder = false,
   guardando = false,
+  hayConexion = true,
   error = '',
   onProponer,
   onAceptar,
@@ -25,6 +26,10 @@ export default function PuntoEncuentro({
   async function proponer() {
     const texto = direccion.trim();
     if (ocupado || !mostrarFormulario || typeof onProponer !== 'function') return;
+    if (!hayConexion) {
+      setErrorLocal('Se necesita conexión a internet para proponer un punto de encuentro.');
+      return;
+    }
     if (!texto) {
       setErrorLocal('Ingresá la dirección del punto de encuentro.');
       return;
@@ -46,6 +51,10 @@ export default function PuntoEncuentro({
 
   async function aceptar() {
     if (ocupado || !responder || typeof onAceptar !== 'function') return;
+    if (!hayConexion) {
+      setErrorLocal('Se necesita conexión a internet para aceptar el punto de encuentro.');
+      return;
+    }
     setErrorLocal('');
     setEnviando(true);
     try {
@@ -109,9 +118,10 @@ export default function PuntoEncuentro({
       {responder && !alternativa && (
         <>
           <Button title={ocupado ? 'Guardando…' : 'Aceptar encuentro'}
-            onPress={aceptar} disabled={ocupado || typeof onAceptar !== 'function'} />
-          <Button title="Sugerir otro lugar" color="#6B7280"
-            disabled={ocupado || typeof onProponer !== 'function'}
+            color={!hayConexion ? '#9CA3AF' : undefined}
+            onPress={aceptar} disabled={ocupado || !hayConexion || typeof onAceptar !== 'function'} />
+          <Button title="Sugerir otro lugar" color={!hayConexion ? '#9CA3AF' : '#6B7280'}
+            disabled={ocupado || !hayConexion || typeof onProponer !== 'function'}
             onPress={() => { setErrorLocal(''); setAlternativa(true); }} />
         </>
       )}
@@ -130,12 +140,17 @@ export default function PuntoEncuentro({
             editable={!ocupado}
           />
           <Button title={ocupado ? 'Enviando…' : 'Enviar propuesta'}
-            onPress={proponer} disabled={ocupado || typeof onProponer !== 'function'} />
+            color={!hayConexion ? '#9CA3AF' : undefined}
+            onPress={proponer} disabled={ocupado || !hayConexion || typeof onProponer !== 'function'} />
           {alternativa && (
             <Button title="Cancelar" color="#6B7280" disabled={ocupado}
               onPress={() => { setAlternativa(false); setDireccion(''); setErrorLocal(''); }} />
           )}
         </>
+      )}
+
+      {!hayConexion && (responder || mostrarFormulario) && (
+        <Text style={styles.error}>⚠️ Se necesita conexión a internet para coordinar el punto de encuentro.</Text>
       )}
 
       {!!(errorLocal || error) && (

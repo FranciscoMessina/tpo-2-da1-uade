@@ -172,6 +172,10 @@ function DetallePublicacion({ route, navigation }) {
   }
 
   async function enviarReclamo() {
+    if (!hayConexion) {
+      Alert.alert('Sin conexión', 'Se necesita conexión a internet para enviar tu reclamo.');
+      return;
+    }
     setEnviando(true);
     try {
       const datosReclamo = encontrado
@@ -496,7 +500,7 @@ function DetallePublicacion({ route, navigation }) {
                 <View style={styles.modalActions}>
                   <Button
                     title={enviando ? 'Enviando reclamo…' : 'Confirmar y enviar reclamo'}
-                    disabled={enviando || respuesta.trim().length < 2}
+                    disabled={enviando || !hayConexion || respuesta.trim().length < 2}
                     onPress={enviarReclamo}
                   />
                   <Button
@@ -590,6 +594,7 @@ function DetallePublicacion({ route, navigation }) {
                     }
                     disabled={
                       enviando ||
+                      !hayConexion ||
                       !fotoUri ||
                       barrio.trim().length < 2
                     }
