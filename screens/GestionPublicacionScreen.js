@@ -1,33 +1,42 @@
 import { useConexion } from '../context/ConexionContext';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
   Button,
-  Image,
-  Pressable,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from 'react-native';
+import FormularioPublicacion, {
+  FRANJAS,
+  valoresDesdePublicacion,
+} from '../components/FormularioPublicacion';
+import EncuentroReclamo from '../components/EncuentroReclamo';
 import useGestionPublicacion from '../hooks/useGestionPublicacion';
-import { CATEGORIAS } from '../data/searchDemo';
-import { API_URL } from '../services/api';
+import { verificarConexion } from '../services/conexion';
+import {
+  NOMBRE_ESTADO_PUBLICACION,
+  diasParaVencer,
+  puedeRenovarse,
+} from '../services/publicaciones';
 
-const NOMBRE_ESTADO = {
-  abierta: 'Abierta',
-  en_reclamo: 'En reclamo',
-  resuelta: 'Resuelta',
-};
+function formatearFecha(iso) {
+  return iso ? new Date(iso).toLocaleDateString('es-AR') : '';
+}
 
-function extraerFotoUrl(mensaje) {
-  if (!mensaje) return null;
-  const match = mensaje.match(
-    /Foto (?:del hallazgo|de comprobación):\s*(\/uploads\/[^\s]+)/
-  );
-  return match ? match[1] : null;
+// Línea de vigencia de la publicación (fecha de vencimiento o de cuándo venció)
+function textoVigencia(publicacion) {
+  if (!publicacion.venceAt || publicacion.estado === 'resuelta') return '';
+  if (publicacion.estado === 'vencida') {
+    return `Venció el ${formatearFecha(publicacion.venceAt)}. Renovala para que vuelva a aparecer en las búsquedas.`;
+  }
+  const dias = diasParaVencer(publicacion.venceAt);
+  return `Vence el ${formatearFecha(publicacion.venceAt)}${
+    dias !== null && dias >= 0 ? ` (${dias === 0 ? 'hoy' : `en ${dias} ${dias === 1 ? 'día' : 'días'}`})` : ''
+  }.`;
 }
 
 export default function GestionPublicacionScreen({ route, navigation }) {
@@ -36,32 +45,26 @@ export default function GestionPublicacionScreen({ route, navigation }) {
   const {
     publicacion,
     reclamos,
-    valoracion,
+    totalReclamos,
+    hayMasReclamos,
     loading,
+    refrescando,
+    cargandoMas,
     error,
+    procesando,
+    recargar,
+    cargarMasReclamos,
     guardarCambios,
+    eliminar,
+    renovar,
     aceptarReclamo,
     rechazarReclamo,
-    marcarResuelta,
-    valorar,
-    eliminar,
+    confirmarDevolucion,
   } = useGestionPublicacion(publicacionId);
 
-  const [form, setForm] = useState(null);
+  const [editando, setEditando] = useState(false);
+  const [errorEdicion, setErrorEdicion] = useState('');
   const [mensaje, setMensaje] = useState('');
-  const [positiva, setPositiva] = useState(true);
-  const [comentario, setComentario] = useState('');
-
-  useEffect(() => {
-    if (publicacion && !form) {
-      setForm({
-        titulo: publicacion.titulo,
-        descripcion: publicacion.descripcion,
-        categoria: publicacion.categoria,
-        barrio: publicacion.barrio,
-      });
-    }
-  }, [publicacion, form]);
 
   if (loading && !publicacion) {
     return (
@@ -71,49 +74,167 @@ export default function GestionPublicacionScreen({ route, navigation }) {
     );
   }
 
-  if (!publicacion || !form) {
+  if (!publicacion) {
     return (
       <View style={styles.centrado}>
         <Text style={styles.error}>
           {error || 'No se encontró la publicación.'}
         </Text>
+        <Button title="Reintentar" onPress={recargar} />
       </View>
     );
   }
 
-  const cambiar = (campo) => (valor) =>
-    setForm((anterior) => ({ ...anterior, [campo]: valor }));
+  const ocupado = procesando !== null;
+  const encontrado = publicacion.tipo === 'encontrado';
+  // «Vencida» es una publicación abierta cuyo plazo pasó: se puede editar, renovar o dar de baja
+  const editable = ['abierta', 'vencida'].includes(publicacion.estado);
+  const vigencia = textoVigencia(publicacion);
+  const aceptado = reclamos.find((r) => r.estado === 'aceptado');
 
-  async function guardar() {
-    const r = await guardarCambios(form);
-    setMensaje(r.ok ? 'Cambios guardados.' : '');
+  // Antes de cada cambio se comprueba que el backend responda; si no, se avisa y no se envía
+  async function conConexion(textoSinConexion, accion) {
+    if (!(await verificarConexion())) {
+      Alert.alert('Sin conexión', textoSinConexion);
+      return null;
+    }
+    return accion();
+  }
+
+  async function guardar(datos) {
+    setErrorEdicion('');
+    setMensaje('');
+
+    const r = await conConexion(
+      'Se necesita conexión a internet para guardar los cambios.',
+      () => guardarCambios(datos)
+    );
+
+    if (!r) return;
+    if (r.ok) {
+      setEditando(false);
+      setMensaje('Cambios guardados.');
+    } else {
+      setErrorEdicion(r.error);
+    }
   }
 
   function confirmarEliminar() {
     Alert.alert(
       'Eliminar publicación',
-      'Esta acción no se puede deshacer. ¿Querés eliminarla?',
+      'Se dará de baja y los reclamos pendientes se cancelarán. Esta acción no se puede deshacer. ¿Querés eliminarla?',
       [
         { text: 'Cancelar', style: 'cancel' },
         {
           text: 'Eliminar',
           style: 'destructive',
           onPress: async () => {
-            const r = await eliminar();
+            const r = await conConexion(
+              'Se necesita conexión a internet para eliminar la publicación.',
+              eliminar
+            );
+            if (!r) return;
             if (r.ok) navigation.goBack();
+            else Alert.alert('No se pudo eliminar', r.error);
           },
         },
       ]
     );
   }
 
-  const aceptado = reclamos.find((r) => r.estado === 'aceptado');
+  async function manejarRenovar() {
+    setMensaje('');
+    const r = await conConexion(
+      'Se necesita conexión a internet para renovar la publicación.',
+      renovar
+    );
+    if (!r) return;
+    if (r.ok) setMensaje('Publicación renovada por 30 días más.');
+    else Alert.alert('No se pudo renovar', r.error);
+  }
+
+  function manejarAceptar(reclamo) {
+    Alert.alert(
+      'Aceptar reclamo',
+      `¿Querés aceptar el reclamo de ${reclamo.usuario}? La publicación pasará a estado "En reclamo" para coordinar la devolución.`,
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Aceptar',
+          onPress: async () => {
+            const r = await conConexion(
+              'Se necesita conexión a internet para aceptar este reclamo.',
+              () => aceptarReclamo(reclamo.id)
+            );
+            if (!r) return;
+            if (r.ok) {
+              Alert.alert(
+                'Reclamo aceptado',
+                'El reclamo fue aceptado. Podés coordinar la entrega con la otra persona.'
+              );
+            } else {
+              Alert.alert('No se pudo aceptar', r.error);
+            }
+          },
+        },
+      ]
+    );
+  }
+
+  function manejarRechazar(reclamo) {
+    Alert.alert(
+      'Rechazar reclamo',
+      `¿Querés rechazar el reclamo de ${reclamo.usuario}?`,
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Rechazar',
+          style: 'destructive',
+          onPress: async () => {
+            const r = await conConexion(
+              'Se necesita conexión a internet para rechazar este reclamo.',
+              () => rechazarReclamo(reclamo.id)
+            );
+            if (!r) return;
+            if (r.ok) Alert.alert('Reclamo rechazado', 'El reclamo fue rechazado.');
+            else Alert.alert('No se pudo rechazar', r.error);
+          },
+        },
+      ]
+    );
+  }
+
+  function manejarResolver() {
+    Alert.alert(
+      'Confirmar devolución',
+      '¿El objeto ya fue devuelto? El caso se cerrará y ambos podrán valorarse durante 7 días.',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Confirmar',
+          onPress: async () => {
+            const r = await conConexion(
+              'Se necesita conexión a internet para confirmar la devolución.',
+              confirmarDevolucion
+            );
+            if (!r) return;
+            // La valoración y el agradecimiento se hacen desde el historial de devoluciones
+            if (r.ok) navigation.navigate('Historial');
+            else Alert.alert('No se pudo confirmar', r.error);
+          },
+        },
+      ]
+    );
+  }
 
   return (
     <ScrollView
       style={styles.screen}
       contentContainerStyle={styles.content}
       keyboardShouldPersistTaps="handled"
+      refreshControl={
+        <RefreshControl refreshing={refrescando} onRefresh={recargar} />
+      }
     >
       {!hayConexion && (
         <View style={styles.bannerOffline}>
@@ -121,225 +242,247 @@ export default function GestionPublicacionScreen({ route, navigation }) {
           <View style={styles.bannerOfflineTexto}>
             <Text style={styles.bannerOfflineTitulo}>Modo sin conexión</Text>
             <Text style={styles.bannerOfflineMensaje}>
-              Las acciones de edición, aceptación de reclamos y resolución requieren conexión a internet y se encuentran deshabilitadas.
+              Las acciones de edición, renovación, baja, aceptación de reclamos y resolución requieren conexión a internet y se encuentran deshabilitadas.
             </Text>
           </View>
         </View>
       )}
+
       <View style={styles.card}>
+        <Text style={styles.tipo}>
+          {encontrado ? 'ENCONTRADO' : 'PERDIDO'}
+        </Text>
+        <Text style={styles.nombre}>{publicacion.titulo}</Text>
         <Text style={styles.estado}>
-          Estado: {NOMBRE_ESTADO[publicacion.estado]}
+          Estado: {NOMBRE_ESTADO_PUBLICACION[publicacion.estado] || publicacion.estado}
+        </Text>
+        {vigencia !== '' && (
+          <Text
+            style={
+              publicacion.estado === 'vencida' || puedeRenovarse(publicacion)
+                ? styles.avisoVencimiento
+                : styles.dato
+            }
+          >
+            {vigencia}
+          </Text>
+        )}
+
+        <Text style={styles.dato}>
+          {publicacion.categoria} · {publicacion.barrio} ·{' '}
+          {publicacion.fecha.split('-').reverse().join('/')} ·{' '}
+          {FRANJAS.find((f) => f.valor === publicacion.franja)?.nombre ||
+            publicacion.franja}
         </Text>
 
-        {publicacion.direccionExacta && (
-          <Text style={styles.direccion}>
-            Dirección exacta: {publicacion.direccionExacta}
-          </Text>
+        <Text style={styles.dato}>
+          Dirección exacta:{' '}
+          {publicacion.direccionExacta || 'no cargaste una dirección exacta'}
+        </Text>
+
+        {encontrado && !!publicacion.preguntaVerificacion && (
+          <>
+            <Text style={styles.dato}>
+              Pregunta de verificación: {publicacion.preguntaVerificacion}
+            </Text>
+            <Text style={styles.dato}>
+              Tu respuesta (privada): {publicacion.respuestaVerificacion}
+            </Text>
+          </>
         )}
 
         {error !== '' && <Text style={styles.error}>{error}</Text>}
         {mensaje !== '' && <Text style={styles.ok}>{mensaje}</Text>}
-      </View>
 
-      <View style={styles.card}>
-        <Text style={styles.titulo}>Editar publicación</Text>
-
-        <Text style={styles.label}>Título</Text>
-        <TextInput
-          style={styles.input}
-          value={form.titulo}
-          onChangeText={cambiar('titulo')}
-          maxLength={100}
-        />
-
-        <Text style={styles.label}>Descripción</Text>
-        <TextInput
-          style={[styles.input, styles.multilinea]}
-          value={form.descripcion}
-          onChangeText={cambiar('descripcion')}
-          multiline
-          maxLength={500}
-        />
-
-        <Text style={styles.label}>Categoría</Text>
-        <View style={styles.chips}>
-          {CATEGORIAS.map((cat) => (
-            <Pressable
-              key={cat}
-              onPress={() => cambiar('categoria')(cat)}
-              style={[styles.chip, form.categoria === cat && styles.chipActivo]}
-              accessibilityRole="button"
-              accessibilityState={{ selected: form.categoria === cat }}
-            >
-              <Text
-                style={[
-                  styles.chipTexto,
-                  form.categoria === cat && styles.chipTextoActivo,
-                ]}
-              >
-                {cat}
+        {puedeRenovarse(publicacion) && (
+          <View style={styles.accion}>
+            <Button
+              title={procesando === 'renovar' ? 'Renovando…' : 'Renovar por 30 días'}
+              color={!hayConexion ? '#9CA3AF' : undefined}
+              disabled={ocupado || !hayConexion}
+              onPress={manejarRenovar}
+            />
+            {!hayConexion && (
+              <Text style={styles.avisoAccionOffline}>
+                ⚠️ Se necesita conexión para renovar la publicación.
               </Text>
-            </Pressable>
-          ))}
-        </View>
-
-        <Text style={styles.label}>Barrio</Text>
-        <TextInput
-          style={styles.input}
-          value={form.barrio}
-          onChangeText={cambiar('barrio')}
-          autoCapitalize="words"
-          maxLength={100}
-        />
-
-        <Button title="Guardar cambios" disabled={!hayConexion} onPress={guardar} />
-        {!hayConexion && (
-          <Text style={styles.avisoAccionOffline}>
-            ⚠️ Se necesita conexión para guardar cambios en la publicación.
-          </Text>
+            )}
+          </View>
         )}
       </View>
 
+      {editable &&
+        (editando ? (
+          <View style={styles.formulario}>
+            <FormularioPublicacion
+              modo="editar"
+              valoresIniciales={valoresDesdePublicacion(publicacion)}
+              enviando={procesando === 'guardar'}
+              errorEnvio={errorEdicion}
+              textoEnviar="Guardar cambios"
+              onEnviar={guardar}
+              onCancelar={() => {
+                setErrorEdicion('');
+                setEditando(false);
+              }}
+            />
+          </View>
+        ) : (
+          <View style={styles.card}>
+            <Button
+              title="Editar publicación"
+              color={!hayConexion ? '#9CA3AF' : undefined}
+              disabled={ocupado || !hayConexion}
+              onPress={() => {
+                setMensaje('');
+                setErrorEdicion('');
+                setEditando(true);
+              }}
+            />
+            {!hayConexion && (
+              <Text style={styles.avisoAccionOffline}>
+                ⚠️ Se necesita conexión para editar la publicación.
+              </Text>
+            )}
+          </View>
+        ))}
+
       <View style={styles.card}>
-        <Text style={styles.titulo}>Reclamos recibidos</Text>
+        <Text style={styles.titulo}>Reclamos recibidos ({totalReclamos})</Text>
 
         {reclamos.length === 0 && (
           <Text style={styles.vacio}>Todavía no recibiste reclamos.</Text>
         )}
 
-        {reclamos.map((r) => {
-          const fotoUrl = extraerFotoUrl(r.mensaje);
-          return (
-            <View key={r.id} style={styles.reclamo}>
-              <View style={styles.reclamoHeader}>
-                <Text style={styles.reclamoUsuario}>{r.usuario}</Text>
-                <Text style={styles.reclamoIntentos}>
-                  Intento {r.intentos || 1} de 3
-                </Text>
-              </View>
-              <Text style={styles.reclamoMensaje}>{r.mensaje}</Text>
-
-              {fotoUrl && (
-                <Image
-                  source={{ uri: `${API_URL}${fotoUrl}` }}
-                  style={styles.reclamoFoto}
-                  resizeMode="cover"
-                />
-              )}
-
-              {r.estado === 'pendiente' && (
-                <Text style={styles.estadoPendiente}>
-                  ⏳ Pendiente (vence automáticamente a las 48 hs)
-                </Text>
-              )}
-              {r.estado === 'aceptado' && (
-                <Text style={styles.ok}>
-                  Aceptado.{' '}
-                  {r.telefono
-                    ? `Teléfono: ${r.telefono}`
-                    : 'Esta persona prefiere comunicarse solo por la app.'}
-                </Text>
-              )}
-              {r.estado === 'rechazado' && (
-                <Text style={styles.vacio}>Rechazado</Text>
-              )}
-              {r.estado === 'vencido' && (
-                <Text style={styles.estadoVencido}>
-                  ⏰ Vencido (venció a las 48 hs sin respuesta)
-                </Text>
-              )}
-
-              {publicacion.estado === 'abierta' && r.estado === 'pendiente' && (
-                <>
-                  <View style={styles.fila}>
-                    <Button
-                      title="Aceptar"
-                      disabled={!hayConexion}
-                      color={!hayConexion ? '#9CA3AF' : '#1D4ED8'}
-                      onPress={() => aceptarReclamo(r.id)}
-                    />
-                    <Button
-                      title="Rechazar"
-                      color={!hayConexion ? '#9CA3AF' : '#DC2626'}
-                      disabled={!hayConexion}
-                      onPress={() => rechazarReclamo(r.id)}
-                    />
-                  </View>
-                  {!hayConexion && (
-                    <Text style={styles.avisoAccionOffline}>
-                      ⚠️ Se necesita conexión para aceptar o rechazar reclamos.
-                    </Text>
-                  )}
-                </>
-              )}
+        {reclamos.map((r) => (
+          <View key={r.id} style={styles.reclamo}>
+            <View style={styles.reclamoHeader}>
+              <Text style={styles.reclamoUsuario}>{r.usuario}</Text>
+              <Text style={styles.reclamoIntentos}>
+                Intento {r.intentos || 1} de {r.maxIntentos || 3}
+              </Text>
             </View>
-          );
-        })}
+            <Text style={styles.reclamoMensaje}>{r.mensaje}</Text>
+
+            {/* TODO evidencia */}
+
+            {r.estado === 'pendiente' && (
+              <Text style={styles.estadoPendiente}>
+                ⏳ Pendiente (vence automáticamente a las 48 hs)
+              </Text>
+            )}
+            {r.estado === 'aceptado' && (
+              <Text style={styles.ok}>
+                Aceptado.{' '}
+                {r.telefono
+                  ? `Teléfono: ${r.telefono}`
+                  : 'Esta persona prefiere comunicarse solo por la app.'}
+              </Text>
+            )}
+            {r.estado === 'rechazado' && (
+              <Text style={styles.vacio}>Rechazado</Text>
+            )}
+            {r.estado === 'cancelado' && (
+              <Text style={styles.vacio}>Cancelado</Text>
+            )}
+            {r.estado === 'vencido' && (
+              <Text style={styles.estadoVencido}>
+                ⏰ Vencido (venció a las 48 hs sin respuesta)
+              </Text>
+            )}
+
+            {r.estado === 'aceptado' && publicacion.estado === 'en_reclamo' && (
+              <EncuentroReclamo reclamoId={r.id} actualizacion={r.actualizadaEn} />
+            )}
+
+            {r.estado === 'aceptado' && (
+              <Button
+                title="Mensajes"
+                onPress={() =>
+                  navigation.navigate('ConversacionReclamo', {
+                    reclamoId: r.id,
+                    contraparte: r.usuario,
+                    tituloPublicacion: publicacion.titulo,
+                  })
+                }
+              />
+            )}
+
+            {publicacion.estado === 'abierta' && r.estado === 'pendiente' && (
+              <>
+                <View style={styles.fila}>
+                  <Button
+                    title={procesando === r.id ? 'Procesando…' : 'Aceptar'}
+                    disabled={ocupado || !hayConexion}
+                    color={!hayConexion ? '#9CA3AF' : '#1D4ED8'}
+                    onPress={() => manejarAceptar(r)}
+                  />
+                  <Button
+                    title="Rechazar"
+                    color={!hayConexion ? '#9CA3AF' : '#DC2626'}
+                    disabled={ocupado || !hayConexion}
+                    onPress={() => manejarRechazar(r)}
+                  />
+                </View>
+                {!hayConexion && (
+                  <Text style={styles.avisoAccionOffline}>
+                    ⚠️ Se necesita conexión para aceptar o rechazar reclamos.
+                  </Text>
+                )}
+              </>
+            )}
+          </View>
+        ))}
+
+        {hayMasReclamos && (
+          <Button
+            title={cargandoMas ? 'Cargando…' : 'Cargar más reclamos'}
+            disabled={cargandoMas || !hayConexion}
+            onPress={cargarMasReclamos}
+          />
+        )}
 
         {publicacion.estado === 'en_reclamo' && aceptado && (
-          <Button
-            title="Marcar como resuelta (devolución concretada)"
-            disabled={!hayConexion}
-            onPress={marcarResuelta}
-          />
+          <View style={styles.accion}>
+            <Button
+              title={procesando === 'resolver' ? 'Confirmando…' : 'Confirmar devolución'}
+              color={!hayConexion ? '#9CA3AF' : undefined}
+              disabled={ocupado || !hayConexion}
+              onPress={manejarResolver}
+            />
+            {!hayConexion && (
+              <Text style={styles.avisoAccionOffline}>
+                ⚠️ Se necesita conexión para confirmar la devolución.
+              </Text>
+            )}
+          </View>
         )}
       </View>
 
       {publicacion.estado === 'resuelta' && (
         <View style={styles.card}>
-          <Text style={styles.titulo}>
-            Valorar a {aceptado ? aceptado.usuario : 'la otra parte'}
+          <Text style={styles.titulo}>Devolución concretada</Text>
+          <Text style={styles.vacio}>
+            Desde el historial podés valorar a la otra persona dentro de los 7
+            días posteriores a la devolución.
           </Text>
-
-          {valoracion ? (
-            <Text style={styles.ok}>
-              Enviaste una valoración {valoracion.positiva ? 'positiva' : 'negativa'}.
-            </Text>
-          ) : (
-            <>
-              <View style={styles.fila}>
-                <Pressable
-                  onPress={() => setPositiva(true)}
-                  style={[styles.chip, positiva && styles.chipActivo]}
-                >
-                  <Text style={[styles.chipTexto, positiva && styles.chipTextoActivo]}>
-                    Positiva
-                  </Text>
-                </Pressable>
-                <Pressable
-                  onPress={() => setPositiva(false)}
-                  style={[styles.chip, !positiva && styles.chipNegativo]}
-                >
-                  <Text style={[styles.chipTexto, !positiva && styles.chipTextoActivo]}>
-                    Negativa
-                  </Text>
-                </Pressable>
-              </View>
-
-              <TextInput
-                style={[styles.input, styles.multilinea]}
-                value={comentario}
-                onChangeText={setComentario}
-                placeholder="Comentario (opcional)"
-                multiline
-                maxLength={300}
-              />
-
-              <Button
-                title="Enviar valoración"
-                onPress={() => valorar({ positiva, comentario })}
-              />
-            </>
-          )}
+          <View style={styles.accion}>
+            <Button
+              title="Ver historial y valorar"
+              onPress={() => navigation.navigate('Historial')}
+            />
+          </View>
         </View>
       )}
 
-      <Button
-        title="Eliminar publicación"
-        color="#DC2626"
-        disabled={!hayConexion}
-        onPress={confirmarEliminar}
-      />
+      {editable && (
+        <Button
+          title="Eliminar publicación"
+          color={!hayConexion ? '#9CA3AF' : '#DC2626'}
+          disabled={ocupado || !hayConexion}
+          onPress={confirmarEliminar}
+        />
+      )}
     </ScrollView>
   );
 }
@@ -353,34 +496,17 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: '#F3F4F6',
     padding: 24,
+    gap: 12,
   },
-  card: { backgroundColor: '#FFFFFF', borderRadius: 16, padding: 20 },
+  card: { backgroundColor: '#FFFFFF', borderRadius: 16, padding: 20, gap: 6 },
+  formulario: { gap: 16 },
   titulo: { fontSize: 18, fontWeight: 'bold', color: '#111827', marginBottom: 12 },
-  estado: { fontSize: 16, fontWeight: 'bold', color: '#1D4ED8' },
-  direccion: { fontSize: 16, color: '#111827', marginTop: 8 },
-  label: { fontSize: 14, color: '#6B7280', marginBottom: 4 },
-  input: {
-    borderWidth: 1,
-    borderColor: '#9CA3AF',
-    borderRadius: 8,
-    padding: 12,
-    fontSize: 18,
-    color: '#111827',
-    marginBottom: 20,
-  },
-  multilinea: { minHeight: 80, textAlignVertical: 'top' },
-  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 20 },
-  chip: {
-    borderWidth: 1,
-    borderColor: '#9CA3AF',
-    borderRadius: 16,
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-  },
-  chipActivo: { backgroundColor: '#1D4ED8', borderColor: '#1D4ED8' },
-  chipNegativo: { backgroundColor: '#DC2626', borderColor: '#DC2626' },
-  chipTexto: { color: '#111827' },
-  chipTextoActivo: { color: '#FFFFFF' },
+  tipo: { fontSize: 13, fontWeight: 'bold', color: '#6B7280' },
+  nombre: { fontSize: 20, fontWeight: 'bold', color: '#111827' },
+  estado: { fontSize: 16, fontWeight: 'bold', color: '#1D4ED8', marginTop: 4 },
+  dato: { fontSize: 15, color: '#374151', marginTop: 4 },
+  avisoVencimiento: { fontSize: 15, color: '#B45309', fontWeight: '600', marginTop: 4 },
+  accion: { marginTop: 12 },
   reclamo: {
     borderTopWidth: 1,
     borderTopColor: '#E5E7EB',
@@ -389,13 +515,6 @@ const styles = StyleSheet.create({
   },
   reclamoUsuario: { fontSize: 16, fontWeight: 'bold', color: '#111827' },
   reclamoMensaje: { fontSize: 15, color: '#374151' },
-  reclamoFoto: {
-    width: '100%',
-    height: 180,
-    borderRadius: 8,
-    marginTop: 8,
-    backgroundColor: '#E5E7EB',
-  },
   reclamoHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
