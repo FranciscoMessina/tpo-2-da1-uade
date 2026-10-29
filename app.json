@@ -37,6 +37,13 @@
           "locationWhenInUsePermission": "Hallado usa tu ubicación para indicar dónde buscar o dónde ocurrió el suceso."
         }
       ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Hallado usa tus fotos para adjuntarlas a publicaciones y reclamos.",
+          "cameraPermission": "Hallado usa la cámara para sacar fotos de los objetos que publicás."
+        }
+      ],
       "expo-secure-store"
     ],
     "web": {
