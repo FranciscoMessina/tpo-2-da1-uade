@@ -12,7 +12,6 @@ import {
   Alert,
   Button,
   FlatList,
-  Image,
   Pressable,
   RefreshControl,
   StyleSheet,
@@ -24,8 +23,9 @@ import {
   aceptarReclamo,
   rechazarReclamo,
 } from '../services/publicaciones';
-import { API_URL, mensajeErrorApi } from '../services/api';
+import { mensajeErrorApi } from '../services/api';
 import EncuentroReclamo from '../components/EncuentroReclamo';
+import EvidenciaReclamo from '../components/EvidenciaReclamo';
 import { resolverPublicacion } from '../services/historial';
 
 const ESTADOS_RECLAMO = {
@@ -34,14 +34,6 @@ const ESTADOS_RECLAMO = {
   rechazado: { texto: 'Rechazado', fondo: '#E5E7EB', color: '#374151' },
   vencido: { texto: 'Vencido (48 hs)', fondo: '#FEE2E2', color: '#991B1B' },
 };
-
-function extraerFotoUrl(mensaje) {
-  if (!mensaje) return null;
-  const match = mensaje.match(
-    /Foto (?:del hallazgo|de comprobación):\s*(\/uploads\/[^\s]+)/
-  );
-  return match ? match[1] : null;
-}
 
 export default function MisReclamosScreen({ navigation }) {
   const { hayConexion } = useConexion();
@@ -264,7 +256,6 @@ export default function MisReclamosScreen({ navigation }) {
       fondo: '#E5E7EB',
       color: '#374151',
     };
-    const fotoAdjunta = extraerFotoUrl(item.mensaje);
     const pub = item.publicacion;
     const esRecibido = tab === 'recibidos';
 
@@ -319,17 +310,12 @@ export default function MisReclamosScreen({ navigation }) {
           Intento {item.intentos || 1} de {item.maxIntentos || 3}
         </Text>
 
-        {/* Mensaje del reclamo */}
-        <Text style={styles.mensaje}>{item.mensaje}</Text>
-
-        {/* Foto adjunta en el reclamo */}
-        {fotoAdjunta && (
-          <Image
-            source={{ uri: `${API_URL}${fotoAdjunta}` }}
-            style={styles.fotoAdjunta}
-            resizeMode="cover"
-          />
-        )}
+        {/* Mensaje y evidencia del reclamo (respuesta, barrio y foto de prueba) */}
+        <EvidenciaReclamo
+          reclamo={item}
+          publicacion={pub}
+          esDuenio={esRecibido}
+        />
 
         {/* Teléfono compartido en caso de aceptación */}
         {item.estado === 'aceptado' && (
@@ -644,20 +630,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#6B7280',
     fontWeight: '600',
-  },
-  mensaje: {
-    fontSize: 14,
-    color: '#374151',
-    lineHeight: 20,
-    backgroundColor: '#F9FAFB',
-    padding: 12,
-    borderRadius: 8,
-  },
-  fotoAdjunta: {
-    width: '100%',
-    height: 180,
-    borderRadius: 10,
-    backgroundColor: '#E5E7EB',
   },
   infoBoxAceptado: {
     backgroundColor: '#DCFCE7',

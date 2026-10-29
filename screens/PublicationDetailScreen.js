@@ -98,6 +98,7 @@ function DetallePublicacion({ route, navigation }) {
 
   const estaOffline = !hayConexion || publicacion?.esOffline;
   const encontrado = publicacion.tipo === 'encontrado';
+  const vencida = publicacion.estado === 'vencida';
   const estado = ESTADOS[publicacion.estado] || {
     texto: publicacion.estado, fondo: '#E5E7EB', color: '#374151',
   };
@@ -121,6 +122,9 @@ function DetallePublicacion({ route, navigation }) {
   } else if (reclamoAceptado) {
     tituloBoton = 'Reclamo aceptado';
     botonDeshabilitado = true;
+  } else if (vencida) {
+    tituloBoton = 'Publicación vencida';
+    botonDeshabilitado = true;
   } else if (sinIntentos) {
     tituloBoton = 'Límite de 3 intentos alcanzado';
     botonDeshabilitado = true;
@@ -130,17 +134,11 @@ function DetallePublicacion({ route, navigation }) {
       : `Lo encontré (Reintentar intento ${proximoIntento} de 3)`;
   }
 
-  const preguntaVerificacion =
-    publicacion.preguntaVerificacion ||
-    (publicacion.categoria === 'Llaves'
-      ? '¿De qué color es el llavero o qué marca tienen las llaves?'
-      : publicacion.categoria === 'Documentos'
-        ? '¿A qué nombre está o qué número/fecha figura en el documento?'
-        : publicacion.categoria === 'Mascotas'
-          ? '¿Qué características particulares, nombre o collar tiene la mascota?'
-          : publicacion.categoria === 'Electrónica'
-            ? '¿Qué marca, modelo o detalle distintivo tiene el equipo?'
-            : '¿Podés describir algún detalle o marca particular no visible en las fotos?');
+  // Pregunta real del autor; las publicaciones viejas no la tienen y piden detalles distintivos
+  const preguntaVerificacion = publicacion.preguntaVerificacion?.trim() || null;
+  const respuestaValida = preguntaVerificacion
+    ? respuesta.trim().length >= 2
+    : descripcion.trim().length >= 5;
 
   async function elegirFoto() {
     try {
@@ -178,16 +176,19 @@ function DetallePublicacion({ route, navigation }) {
     }
     setEnviando(true);
     try {
+      // «Es mío» responde la pregunta del autor; «Lo encontré» envía foto y barrio como evidencia
       const datosReclamo = encontrado
         ? {
-            respuesta: respuesta.trim(),
-            descripcion: descripcion.trim(),
+            respuestaVerificacion: preguntaVerificacion ? respuesta.trim() : '',
+            mensaje: preguntaVerificacion
+              ? (descripcion.trim().length >= 5 ? descripcion.trim() : 'Respondí la pregunta de verificación.')
+              : descripcion.trim(),
             fotoUri,
           }
         : {
             barrio: barrio.trim(),
             fotoUri,
-            mensaje: mensaje.trim(),
+            mensaje: mensaje.trim() || `Encontré tu objeto en ${barrio.trim()}.`,
           };
 
       const reclamo = await reclamar(datosReclamo);
@@ -201,6 +202,12 @@ function DetallePublicacion({ route, navigation }) {
       );
     } catch (error) {
       Alert.alert('No se pudo enviar el reclamo', mensajeErrorApi(error));
+      // Si la publicación venció o cambió de estado mientras tanto, se refresca el detalle
+      const codigo = error?.response?.data?.error?.code;
+      if (codigo === 'PUBLICATION_EXPIRED' || codigo === 'PUBLICATION_NOT_OPEN') {
+        cerrarModal();
+        recargar();
+      }
     } finally {
       setEnviando(false);
     }
@@ -301,6 +308,17 @@ function DetallePublicacion({ route, navigation }) {
         />
 
         <View style={styles.actions}>
+          {!esPropia && vencida && (
+            <View style={styles.statusCardVencido}>
+              <Text style={styles.statusTitleVencido}>
+                ⏰ Publicación vencida
+              </Text>
+              <Text style={styles.statusText}>
+                Esta publicación venció y ya no acepta reclamos ni avisos.
+              </Text>
+            </View>
+          )}
+
           {!esPropia && reclamoPendiente && (
             <View style={styles.statusCardPendiente}>
               <Text style={styles.statusTitlePendiente}>
@@ -379,7 +397,7 @@ function DetallePublicacion({ route, navigation }) {
                 disabled={botonDeshabilitado || estaOffline}
                 onPress={() => setMostrarReclamo(true)}
               />
-              {estaOffline && !reclamoAceptado && !reclamoPendiente && (
+              {estaOffline && !reclamoAceptado && !reclamoPendiente && !vencida && (
                 <View style={styles.avisoAccionOffline}>
                   <Text style={styles.avisoAccionOfflineTexto}>
                     ⚠️ Se necesita conexión para reclamar esta publicación.
@@ -395,8 +413,8 @@ function DetallePublicacion({ route, navigation }) {
                 title={guardandoSeguimiento
                   ? 'Guardando seguimiento…'
                   : siguiendo ? 'Dejar de seguir' : 'Seguir publicación'}
-                color={guardandoSeguimiento || estaOffline ? '#9CA3AF' : '#4B5563'}
-                disabled={guardandoSeguimiento || estaOffline}
+                color={guardandoSeguimiento || estaOffline || (vencida && !siguiendo) ? '#9CA3AF' : '#4B5563'}
+                disabled={guardandoSeguimiento || estaOffline || (vencida && !siguiendo)}
                 onPress={toggleSeguir}
               />
               {estaOffline && (
@@ -454,26 +472,38 @@ function DetallePublicacion({ route, navigation }) {
 
             {encontrado ? (
               <>
-                <Text style={styles.help}>
-                  Para acreditar que el objeto es tuyo, respondé la pregunta de verificación definida por quien lo encontró.
-                </Text>
+                {preguntaVerificacion ? (
+                  <>
+                    <Text style={styles.help}>
+                      Para acreditar que el objeto es tuyo, respondé la pregunta de verificación definida por quien lo encontró.
+                    </Text>
 
-                <View style={styles.questionCard}>
-                  <Text style={styles.questionLabel}>Pregunta de verificación</Text>
-                  <Text style={styles.questionText}>{preguntaVerificacion}</Text>
-                </View>
+                    <View style={styles.questionCard}>
+                      <Text style={styles.questionLabel}>Pregunta de verificación</Text>
+                      <Text style={styles.questionText}>{preguntaVerificacion}</Text>
+                    </View>
 
-                <Text style={styles.fieldLabel}>Tu respuesta (obligatoria):</Text>
-                <TextInput
-                  style={[styles.input, styles.inputShort]}
-                  value={respuesta}
-                  onChangeText={setRespuesta}
-                  placeholder="Escribí tu respuesta…"
-                  maxLength={300}
-                  multiline
-                />
+                    <Text style={styles.fieldLabel}>Tu respuesta (obligatoria):</Text>
+                    <TextInput
+                      style={[styles.input, styles.inputShort]}
+                      value={respuesta}
+                      onChangeText={setRespuesta}
+                      placeholder="Escribí tu respuesta…"
+                      maxLength={200}
+                      multiline
+                    />
 
-                <Text style={styles.fieldLabel}>Descripción adicional (opcional):</Text>
+                    <Text style={styles.fieldLabel}>Mensaje adicional (opcional):</Text>
+                  </>
+                ) : (
+                  <>
+                    <Text style={styles.help}>
+                      Esta publicación no tiene pregunta de verificación. Para acreditar que el objeto es tuyo, describí detalles distintivos que solo vos conozcas.
+                    </Text>
+
+                    <Text style={styles.fieldLabel}>Detalles distintivos (obligatorio):</Text>
+                  </>
+                )}
                 <TextInput
                   style={styles.input}
                   value={descripcion}
@@ -500,7 +530,7 @@ function DetallePublicacion({ route, navigation }) {
                 <View style={styles.modalActions}>
                   <Button
                     title={enviando ? 'Enviando reclamo…' : 'Confirmar y enviar reclamo'}
-                    disabled={enviando || !hayConexion || respuesta.trim().length < 2}
+                    disabled={enviando || !hayConexion || !respuestaValida}
                     onPress={enviarReclamo}
                   />
                   <Button
@@ -518,7 +548,7 @@ function DetallePublicacion({ route, navigation }) {
                 </Text>
 
                 <Text style={styles.fieldLabel}>
-                  Barrio donde lo encontraste (obligatorio):
+                  Barrio donde lo encontraste (obligatorio, elegí uno de la lista):
                 </Text>
                 <View style={styles.chipContainer}>
                   {ZONAS.map((z) => (
@@ -541,13 +571,6 @@ function DetallePublicacion({ route, navigation }) {
                     </Pressable>
                   ))}
                 </View>
-                <TextInput
-                  style={[styles.input, styles.inputShort]}
-                  value={barrio}
-                  onChangeText={setBarrio}
-                  placeholder="Escribí o seleccioná el barrio…"
-                  maxLength={50}
-                />
 
                 <Text style={styles.fieldLabel}>
                   Foto del objeto encontrado (obligatoria):
@@ -596,7 +619,7 @@ function DetallePublicacion({ route, navigation }) {
                       enviando ||
                       !hayConexion ||
                       !fotoUri ||
-                      barrio.trim().length < 2
+                      !barrio
                     }
                     onPress={enviarReclamo}
                   />
