@@ -3,7 +3,7 @@ import {
   obtenerUltimosReclamos,
 } from '../services/cacheOffline';
 import { useConexion } from '../context/ConexionContext';
-import { estaConectado } from '../services/conexion';
+import { estaConectado, verificarConexion } from '../services/conexion';
 import { useCallback, useState } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import {
