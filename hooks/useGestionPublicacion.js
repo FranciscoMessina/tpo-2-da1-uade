@@ -1,190 +1,189 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
+import { mensajeErrorApi } from '../services/api';
 import {
-  tablaPublicaciones,
-  tablaReclamos,
-  tablaValoraciones,
-} from '../data/misPublicacionesDemo';
+  esErrorDeConectividad,
+  reportarFalloConexion,
+} from '../services/conexion';
+import {
+  aceptarReclamo as aceptarReclamoApi,
+  editarPublicacion,
+  eliminarPublicacion,
+  mensajeErrorPublicacion,
+  obtenerPublicacionPropia,
+  obtenerReclamosDePublicacion,
+  rechazarReclamo as rechazarReclamoApi,
+  renovarPublicacion,
+} from '../services/publicaciones';
+import { resolverPublicacion } from '../services/historial';
 
-const espera = () => new Promise((resolver) => setTimeout(resolver, 250));
-
-// Gestión de una publicación propia.
-// BACKEND: las funciones marcadas con "BACKEND" simulan una llamada de red; reemplazar
-// la lógica sobre las tablas mock por el fetch correspondiente.
-// La dirección exacta y el teléfono del reclamante solo se exponen cuando hay un
-// reclamo aceptado (el backend debería aplicar esa regla).
+// Gestión de una publicación propia sobre la API: detalle (con la respuesta de verificación),
+// reclamos recibidos, edición, renovación, baja y resolución.
+// Las acciones devuelven { ok, error } y mientras corre una `procesando` indica cuál
+// (la clave de la acción o el id del reclamo).
 export default function useGestionPublicacion(publicacionId) {
   const [publicacion, setPublicacion] = useState(null);
   const [reclamos, setReclamos] = useState([]);
-  const [valoracion, setValoracion] = useState(null);
+  const [paginacion, setPaginacion] = useState({ pagina: 1, totalPaginas: 1, total: 0 });
   const [loading, setLoading] = useState(true);
+  const [refrescando, setRefrescando] = useState(false);
+  const [cargandoMas, setCargandoMas] = useState(false);
   const [error, setError] = useState('');
+  const [procesando, setProcesando] = useState(null);
+  const version = useRef(0);
+  const conDatos = useRef(false);
+  const enCurso = useRef(false);
+  const fotosSubidas = useRef(new Map());
 
-  const sincronizar = useCallback(() => {
-    const p = tablaPublicaciones.find((x) => x.id === publicacionId);
-    if (!p) {
-      setPublicacion(null);
-      setReclamos([]);
+  // `recarga` mantiene visible lo que ya se cargó (pull to refresh, volver a la pantalla, tras una acción)
+  const cargar = useCallback(async ({ recarga = false } = {}) => {
+    if (!publicacionId) {
+      setError('No se indicó la publicación.');
+      setLoading(false);
       return;
     }
-    const rs = tablaReclamos.filter((r) => r.publicacionId === publicacionId);
-    const hayAceptado = rs.some((r) => r.estado === 'aceptado');
 
-    setPublicacion({
-      ...p,
-      direccionExacta: hayAceptado ? p.direccionExacta : null,
-    });
-    setReclamos(
-      rs.map((r) => ({
-        ...r,
-        telefono:
-          r.estado === 'aceptado' && r.permiteTelefono ? r.telefono : null,
-      }))
-    );
-    setValoracion(
-      tablaValoraciones.find((v) => v.publicacionId === publicacionId) || null
-    );
+    const actual = ++version.current;
+    if (recarga) setRefrescando(true);
+    else if (!conDatos.current) setLoading(true);
+    setError('');
+
+    try {
+      const [detalle, recibidos] = await Promise.all([
+        obtenerPublicacionPropia(publicacionId),
+        obtenerReclamosDePublicacion(publicacionId),
+      ]);
+      if (actual !== version.current) return;
+
+      conDatos.current = true;
+      setPublicacion(detalle);
+      setReclamos(recibidos.items || []);
+      setPaginacion({
+        pagina: recibidos.page || 1,
+        totalPaginas: recibidos.totalPages || 1,
+        total: recibidos.total ?? (recibidos.items || []).length,
+      });
+    } catch (e) {
+      if (actual !== version.current) return;
+      if (esErrorDeConectividad(e)) reportarFalloConexion();
+      setError(mensajeErrorApi(e));
+    } finally {
+      if (actual === version.current) {
+        setLoading(false);
+        setRefrescando(false);
+      }
+    }
   }, [publicacionId]);
 
-  useEffect(() => {
-    let activo = true;
-    setLoading(true);
-    setError('');
+  useFocusEffect(
+    useCallback(() => {
+      cargar({ recarga: conDatos.current });
+    }, [cargar])
+  );
 
-    // BACKEND: GET /publicaciones/:id y GET /publicaciones/:id/reclamos
-    espera().then(() => {
-      if (!activo) return;
-      if (!tablaPublicaciones.some((x) => x.id === publicacionId)) {
-        setError('No se encontró la publicación.');
-      } else {
-        sincronizar();
-      }
-      setLoading(false);
-    });
+  const recargar = useCallback(() => cargar({ recarga: conDatos.current }), [cargar]);
 
-    return () => {
-      activo = false;
-    };
-  }, [publicacionId, sincronizar]);
+  const cargarMasReclamos = useCallback(async () => {
+    if (cargandoMas || paginacion.pagina >= paginacion.totalPaginas) return;
 
-  async function ejecutar(accion) {
-    setError('');
+    const actual = version.current;
+    setCargandoMas(true);
+
     try {
-      await espera();
-      accion();
-      sincronizar();
-      return { ok: true };
+      const res = await obtenerReclamosDePublicacion(publicacionId, {
+        pagina: paginacion.pagina + 1,
+      });
+      if (actual !== version.current) return;
+
+      setReclamos((previos) => {
+        const ids = new Set(previos.map((r) => r.id));
+        return [...previos, ...(res.items || []).filter((r) => !ids.has(r.id))];
+      });
+      setPaginacion({
+        pagina: res.page || paginacion.pagina + 1,
+        totalPaginas: res.totalPages || paginacion.totalPaginas,
+        total: res.total ?? paginacion.total,
+      });
     } catch (e) {
-      const mensaje = e.message || 'No se pudo completar la acción.';
-      setError(mensaje);
-      return { ok: false, error: mensaje };
+      if (actual === version.current) setError(mensajeErrorApi(e));
+    } finally {
+      setCargandoMas(false);
+    }
+  }, [cargandoMas, paginacion, publicacionId]);
+
+  // Ejecuta una acción de escritura de a una por vez; el estado se vuelve a pedir al servidor al terminar
+  async function ejecutar(clave, accion, { recargarAlTerminar = true } = {}) {
+    if (enCurso.current) {
+      return { ok: false, error: 'Hay otra operación en curso. Esperá un momento.' };
+    }
+    enCurso.current = true;
+    setProcesando(clave);
+
+    try {
+      const resultado = await accion();
+      if (recargarAlTerminar) await cargar({ recarga: true });
+      return { ok: true, datos: resultado };
+    } catch (e) {
+      if (esErrorDeConectividad(e)) reportarFalloConexion();
+      return { ok: false, error: mensajeErrorPublicacion(e) };
+    } finally {
+      enCurso.current = false;
+      setProcesando(null);
     }
   }
 
-  const original = () => tablaPublicaciones.find((x) => x.id === publicacionId);
+  // PATCH /publicaciones/:id (solo mientras esté abierta); `datos` viene del formulario
+  const guardarCambios = (datos) =>
+    ejecutar(
+      'guardar',
+      async () => {
+        const actualizada = await editarPublicacion(publicacionId, datos, {
+          fotosSubidas: fotosSubidas.current,
+        });
+        setPublicacion(actualizada);
+        return actualizada;
+      },
+      { recargarAlTerminar: false }
+    );
 
-  // BACKEND: PATCH /publicaciones/:id
-  const guardarCambios = (cambios) =>
-    ejecutar(() => {
-      const titulo = (cambios.titulo ?? '').trim();
-      if (titulo.length < 3) {
-        throw new Error('El título debe tener al menos 3 caracteres.');
-      }
-      if (!(cambios.categoria ?? '').trim()) {
-        throw new Error('Elegí una categoría.');
-      }
-      Object.assign(original(), {
-        titulo,
-        descripcion: (cambios.descripcion ?? '').trim(),
-        categoria: cambios.categoria,
-        barrio: (cambios.barrio ?? '').trim(),
-      });
-    });
-
-  // BACKEND: POST /reclamos/:id/aceptar (el backend pasa el estado a en_reclamo)
-  const aceptarReclamo = (reclamoId) =>
-    ejecutar(() => {
-      const r = tablaReclamos.find((x) => x.id === reclamoId);
-      if (!r) throw new Error('Reclamo inexistente.');
-      if (original().estado === 'resuelta') {
-        throw new Error('La publicación ya está resuelta.');
-      }
-      tablaReclamos.forEach((x) => {
-        if (x.publicacionId === publicacionId && x.estado === 'aceptado') {
-          x.estado = 'pendiente';
-        }
-      });
-      r.estado = 'aceptado';
-      original().estado = 'en_reclamo';
-    });
-
-  // BACKEND: POST /reclamos/:id/rechazar
-  const rechazarReclamo = (reclamoId) =>
-    ejecutar(() => {
-      const r = tablaReclamos.find((x) => x.id === reclamoId);
-      if (!r) throw new Error('Reclamo inexistente.');
-      const eraAceptado = r.estado === 'aceptado';
-      r.estado = 'rechazado';
-      if (eraAceptado && original().estado === 'en_reclamo') {
-        original().estado = 'abierta';
-      }
-    });
-
-  // BACKEND: POST /publicaciones/:id/resolver
-  const marcarResuelta = () =>
-    ejecutar(() => {
-      const hayAceptado = tablaReclamos.some(
-        (r) => r.publicacionId === publicacionId && r.estado === 'aceptado'
-      );
-      if (!hayAceptado) {
-        throw new Error('Para resolver, primero aceptá un reclamo.');
-      }
-      original().estado = 'resuelta';
-    });
-
-  // Alimenta la reputación de la otra parte: { positiva: boolean, comentario }.
-  // BACKEND: POST /usuarios/:id/valoraciones
-  const valorar = ({ positiva, comentario }) =>
-    ejecutar(() => {
-      if (original().estado !== 'resuelta') {
-        throw new Error('Solo podés valorar tras concretar la devolución.');
-      }
-      if (tablaValoraciones.some((v) => v.publicacionId === publicacionId)) {
-        throw new Error('Ya valoraste esta devolución.');
-      }
-      const r = tablaReclamos.find(
-        (x) => x.publicacionId === publicacionId && x.estado === 'aceptado'
-      );
-      tablaValoraciones.push({
-        publicacionId,
-        aUsuario: r?.usuario,
-        positiva: Boolean(positiva),
-        comentario: (comentario ?? '').trim(),
-      });
-    });
-
-  // BACKEND: DELETE /publicaciones/:id
+  // DELETE /publicaciones/:id (baja lógica)
   const eliminar = () =>
-    ejecutar(() => {
-      const i = tablaPublicaciones.findIndex((x) => x.id === publicacionId);
-      if (i >= 0) tablaPublicaciones.splice(i, 1);
-      for (let j = tablaReclamos.length - 1; j >= 0; j--) {
-        if (tablaReclamos[j].publicacionId === publicacionId) {
-          tablaReclamos.splice(j, 1);
-        }
-      }
+    ejecutar('eliminar', () => eliminarPublicacion(publicacionId), {
+      recargarAlTerminar: false,
     });
+
+  // POST /publicaciones/:id/renovar
+  const renovar = () => ejecutar('renovar', () => renovarPublicacion(publicacionId));
+
+  // POST /reclamos/:id/aceptar (la publicación pasa a «en reclamo»)
+  const aceptarReclamo = (reclamoId) =>
+    ejecutar(reclamoId, () => aceptarReclamoApi(reclamoId));
+
+  // POST /reclamos/:id/rechazar
+  const rechazarReclamo = (reclamoId) =>
+    ejecutar(reclamoId, () => rechazarReclamoApi(reclamoId));
+
+  // POST /publicaciones/:id/resolver (confirma la devolución; las valoraciones están en el historial)
+  const confirmarDevolucion = () =>
+    ejecutar('resolver', () => resolverPublicacion(publicacionId));
 
   return {
     publicacion,
     reclamos,
-    valoracion,
+    totalReclamos: paginacion.total,
+    hayMasReclamos: paginacion.pagina < paginacion.totalPaginas,
     loading,
+    refrescando,
+    cargandoMas,
     error,
+    procesando,
+    recargar,
+    cargarMasReclamos,
     guardarCambios,
+    eliminar,
+    renovar,
     aceptarReclamo,
     rechazarReclamo,
-    marcarResuelta,
-    valorar,
-    eliminar,
+    confirmarDevolucion,
   };
 }
