@@ -1,6 +1,10 @@
 import { create } from 'axios';
 
-export const API_URL = 'http://10.0.2.2:3000';
+// Expo reemplaza process.env.EXPO_PUBLIC_API_URL al empaquetar (ver .env.example).
+// Si no está definida, se usa el backend del emulador Android.
+export const API_URL = (
+  (process.env.EXPO_PUBLIC_API_URL ?? '').trim() || 'http://10.0.2.2:3000'
+).replace(/\/+$/, '');
 
 export const api = create({
   baseURL: API_URL,
