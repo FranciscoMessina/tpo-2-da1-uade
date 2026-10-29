@@ -1,4 +1,13 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { API_URL } from './api';
+import {
+  aplicarFotosLocales,
+  borrarDirectorio,
+  conservarLocales,
+  conservarSoloArchivos,
+  descargarVariasALocal,
+  existeArchivo,
+} from './archivosLocales';
 
 // Las claves de la versión anterior eran globales (compartidas entre cuentas).
 // Ya no se leen: se descartan al iniciar porque no se sabe a qué cuenta pertenecen.
@@ -7,6 +16,9 @@ const PREFIJO_LEGADO = '@hallado:cache_';
 // Claves actuales: una "carpeta" por usuario autenticado.
 const PREFIJO_CACHE = '@hallado:cache/';
 const MAX_CONSULTADAS = 25;
+
+// De cada resultado de búsqueda guardado se descarga solo la primera foto (la de la tarjeta)
+const FOTOS_POR_RESULTADO_BUSQUEDA = 1;
 
 // Usuario al que pertenece la caché en este momento. Lo fija useAuth con
 // setUsuarioCache; sin usuario activo la caché no lee ni escribe nada.
@@ -35,14 +47,28 @@ function encolar(tarea) {
   return resultado;
 }
 
+// Carpetas de fotos descargadas de la caché: una por publicación consultada y una
+// compartida por los resultados de la última búsqueda.
+function carpetaFotosPublicacion(uid, id) {
+  return ['cache', uid, 'fotos', `pub-${id}`];
+}
+
+function carpetaFotosBusqueda(uid) {
+  return ['cache', uid, 'fotos', 'busqueda'];
+}
+
 /**
- * Punto de extensión para los archivos locales asociados a una entrada de caché
- * (p. ej. las fotos descargadas). Se invoca con las entradas que se van a
- * descartar, ya sea por expulsión del índice o por limpieza de la cuenta,
- * para que borren sus recursos junto con la entrada. Hoy no hay ninguno.
+ * Borra los archivos locales asociados a las entradas de caché que se van a descartar
+ * (las fotos descargadas de cada publicación), ya sea por expulsión del índice
+ * o por limpieza de la cuenta.
  */
-// eslint-disable-next-line no-unused-vars
-async function liberarRecursosLocales(entradas) {}
+async function liberarRecursosLocales(uid, entradas) {
+  entradas.forEach((entrada) => {
+    if (entrada?.id !== undefined) {
+      borrarDirectorio(...carpetaFotosPublicacion(uid, entrada.id));
+    }
+  });
+}
 
 /**
  * Quita de una publicación los datos privados que no corresponde conservar
@@ -116,13 +142,17 @@ export function limpiarCacheUsuario(id = usuarioActivo) {
     try {
       const claves = await AsyncStorage.getAllKeys();
       const propias = claves.filter((k) => k.startsWith(prefijoUsuario(uid)));
-      if (propias.length === 0) return;
 
-      const rawLista = await AsyncStorage.getItem(clave(uid, 'consultadas'));
-      const lista = rawLista ? JSON.parse(rawLista) : [];
-      await liberarRecursosLocales(Array.isArray(lista) ? lista : []);
+      if (propias.length > 0) {
+        const rawLista = await AsyncStorage.getItem(clave(uid, 'consultadas'));
+        const lista = rawLista ? JSON.parse(rawLista) : [];
+        await liberarRecursosLocales(uid, Array.isArray(lista) ? lista : []);
 
-      await AsyncStorage.multiRemove(propias);
+        await AsyncStorage.multiRemove(propias);
+      }
+
+      // Aun sin claves, se borra toda la carpeta de fotos de la cuenta
+      borrarDirectorio('cache', uid);
     } catch {
       // Falla silenciosa: no debe impedir el cierre de sesión
     }
@@ -160,10 +190,17 @@ export async function guardarPublicacionConsultada(publicacion) {
 
       const id = String(publicacion.id);
       const segura = minimizarPublicacion(publicacion);
-      const { esOffline, desdeCache, ...base } = segura;
+      const { esOffline, desdeCache, fotosLocales: _descartadas, ...base } = segura;
+
+      // Las fotos ya descargadas siguen valiendo mientras la publicación conserve esas URLs
+      const rawPrevia = await AsyncStorage.getItem(clavePublicacion(uid, id));
+      const previa = rawPrevia ? JSON.parse(rawPrevia) : null;
+      const fotosLocales = conservarLocales(previa?.fotosLocales, segura.fotos);
+
       const pubAGuardar = {
         ...base,
         id,
+        fotosLocales,
         fechaGuardado: new Date().toISOString(),
       };
 
@@ -191,6 +228,7 @@ export async function guardarPublicacionConsultada(publicacion) {
         estado: segura.estado || 'abierta',
         fecha: segura.fecha || '',
         fotos: Array.isArray(segura.fotos) ? segura.fotos : [],
+        fotosLocales,
         publicador: segura.publicador || null,
         fechaGuardado: new Date().toISOString(),
       };
@@ -207,7 +245,7 @@ export async function guardarPublicacionConsultada(publicacion) {
       // 3. Borrar las copias individuales de las expulsadas del índice,
       //    para que el almacenamiento también quede acotado
       if (expulsadas.length > 0) {
-        await liberarRecursosLocales(expulsadas);
+        await liberarRecursosLocales(uid, expulsadas);
         await AsyncStorage.multiRemove(
           expulsadas.map((item) => clavePublicacion(uid, item.id))
         );
@@ -215,7 +253,76 @@ export async function guardarPublicacionConsultada(publicacion) {
     });
   } catch {
     // Si falla el guardado en almacenamiento local, no bloquea la navegación
+    return;
   }
+
+  // Las fotos se bajan en segundo plano: no demoran la navegación ni el guardado
+  descargarFotosPublicacion(uid, String(publicacion.id), publicacion.fotos);
+}
+
+// Publicaciones cuyas fotos se están descargando ahora, para no repetir el trabajo
+const descargasPublicacion = new Set();
+
+function descargarFotosPublicacion(uid, id, fotos) {
+  const clavePub = `${uid}/${id}`;
+  if (descargasPublicacion.has(clavePub)) return;
+  descargasPublicacion.add(clavePub);
+
+  (async () => {
+    const carpeta = carpetaFotosPublicacion(uid, id);
+    const locales = await descargarVariasALocal(fotos, API_URL, carpeta);
+    if (Object.keys(locales).length === 0) return;
+
+    await encolar(async () => {
+      // Si la cuenta salió o la entrada fue expulsada mientras se descargaba, no queda nada
+      const raw = await AsyncStorage.getItem(clavePublicacion(uid, id));
+      if (usuarioActivo !== uid || !raw) {
+        borrarDirectorio(...carpeta);
+        return;
+      }
+
+      const entrada = JSON.parse(raw);
+      const fotosLocales = conservarLocales(
+        { ...entrada.fotosLocales, ...locales },
+        entrada.fotos
+      );
+      await AsyncStorage.setItem(
+        clavePublicacion(uid, id),
+        JSON.stringify({ ...entrada, fotosLocales })
+      );
+
+      // El resumen del índice de consultadas lleva la misma referencia
+      const rawLista = await AsyncStorage.getItem(clave(uid, 'consultadas'));
+      const lista = rawLista ? JSON.parse(rawLista) : [];
+      if (Array.isArray(lista)) {
+        const actualizada = lista.map((item) =>
+          String(item.id) === id ? { ...item, fotosLocales } : item
+        );
+        await AsyncStorage.setItem(
+          clave(uid, 'consultadas'),
+          JSON.stringify(actualizada)
+        );
+      }
+
+      // Se descartan las fotos de la carpeta que la publicación ya no usa
+      conservarSoloArchivos(carpeta, Object.values(fotosLocales));
+    });
+  })()
+    .catch(() => {
+      // Sin fotos locales la publicación se ve igual, solo con las URLs
+    })
+    .finally(() => {
+      descargasPublicacion.delete(clavePub);
+    });
+}
+
+// Sin conexión, las fotos se leen de la copia local cuando existe; si el archivo
+// ya no está (p. ej. el sistema lo borró) se deja la URL original.
+function conFotosLocales(entrada) {
+  return {
+    ...entrada,
+    fotos: aplicarFotosLocales(entrada.fotos, entrada.fotosLocales, existeArchivo),
+  };
 }
 
 /**
@@ -228,8 +335,7 @@ export async function obtenerPublicacionCacheada(id) {
     const raw = await AsyncStorage.getItem(clavePublicacion(uid, id));
     if (usuarioActivo !== uid) return null;
     if (raw) {
-      const parsed = JSON.parse(raw);
-      return { ...parsed, esOffline: true, desdeCache: true };
+      return conFotosLocales({ ...JSON.parse(raw), esOffline: true, desdeCache: true });
     }
 
     // Si no está por clave directa, buscar en la lista de consultadas
@@ -241,7 +347,7 @@ export async function obtenerPublicacionCacheada(id) {
         ? lista.find((item) => String(item.id) === String(id))
         : null;
       if (encontrada) {
-        return { ...encontrada, esOffline: true, desdeCache: true };
+        return conFotosLocales({ ...encontrada, esOffline: true, desdeCache: true });
       }
     }
 
@@ -261,7 +367,7 @@ export async function obtenerConsultadasRecientes() {
     const raw = await AsyncStorage.getItem(clave(uid, 'consultadas'));
     if (!raw || usuarioActivo !== uid) return [];
     const lista = JSON.parse(raw);
-    return Array.isArray(lista) ? lista : [];
+    return Array.isArray(lista) ? lista.map(conFotosLocales) : [];
   } catch {
     return [];
   }
@@ -280,17 +386,74 @@ export async function guardarUltimosResultadosBusqueda(resultados, filtros, orde
     await encolar(async () => {
       if (usuarioActivo !== uid) return;
 
+      // Las primeras fotos ya descargadas se conservan si el resultado sigue en la lista
+      const rawPrevia = await AsyncStorage.getItem(clave(uid, 'busqueda'));
+      const previa = rawPrevia ? JSON.parse(rawPrevia) : null;
+
       const datos = {
         resultados: resultados.map(minimizarPublicacion),
         filtros: filtros || null,
         orden: orden || 'recientes',
+        fotosLocales: conservarLocales(
+          previa?.fotosLocales,
+          primerasFotos(resultados)
+        ),
         fechaGuardado: new Date().toISOString(),
       };
       await AsyncStorage.setItem(clave(uid, 'busqueda'), JSON.stringify(datos));
     });
   } catch {
     // Falla silenciosa de guardado en caché
+    return;
   }
+
+  descargarFotosBusqueda(uid, resultados);
+}
+
+function primerasFotos(resultados) {
+  return resultados.flatMap((r) =>
+    Array.isArray(r?.fotos) ? r.fotos.slice(0, FOTOS_POR_RESULTADO_BUSQUEDA) : []
+  );
+}
+
+// Cada búsqueda guardada reemplaza a la anterior: un contador evita que una
+// descarga vieja pise el resultado de una más nueva.
+let generacionBusqueda = 0;
+
+function descargarFotosBusqueda(uid, resultados) {
+  const generacion = ++generacionBusqueda;
+  const carpeta = carpetaFotosBusqueda(uid);
+  const urls = primerasFotos(resultados);
+
+  (async () => {
+    const locales = await descargarVariasALocal(urls, API_URL, carpeta);
+    if (generacion !== generacionBusqueda) return;
+
+    await encolar(async () => {
+      if (usuarioActivo !== uid) {
+        borrarDirectorio(...carpeta);
+        return;
+      }
+
+      const raw = await AsyncStorage.getItem(clave(uid, 'busqueda'));
+      if (!raw || generacion !== generacionBusqueda) return;
+
+      const datos = JSON.parse(raw);
+      const fotosLocales = conservarLocales(
+        { ...datos.fotosLocales, ...locales },
+        urls
+      );
+      await AsyncStorage.setItem(
+        clave(uid, 'busqueda'),
+        JSON.stringify({ ...datos, fotosLocales })
+      );
+
+      // Las fotos de búsquedas anteriores ya no hacen falta
+      conservarSoloArchivos(carpeta, Object.values(fotosLocales));
+    });
+  })().catch(() => {
+    // Sin fotos locales los resultados se ven igual, con el ícono de la categoría
+  });
 }
 
 /**
@@ -302,7 +465,17 @@ export async function obtenerUltimosResultadosBusqueda() {
   try {
     const raw = await AsyncStorage.getItem(clave(uid, 'busqueda'));
     if (!raw || usuarioActivo !== uid) return null;
-    return JSON.parse(raw);
+
+    const datos = JSON.parse(raw);
+    if (!Array.isArray(datos.resultados)) return datos;
+
+    return {
+      ...datos,
+      resultados: datos.resultados.map((resultado) => ({
+        ...resultado,
+        fotos: aplicarFotosLocales(resultado?.fotos, datos.fotosLocales, existeArchivo),
+      })),
+    };
   } catch {
     return null;
   }
