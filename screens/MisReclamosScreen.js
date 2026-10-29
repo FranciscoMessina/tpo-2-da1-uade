@@ -3,6 +3,7 @@ import {
   obtenerUltimosReclamos,
 } from '../services/cacheOffline';
 import { useConexion } from '../context/ConexionContext';
+import { useSearch } from '../context/SearchContext';
 import { estaConectado, verificarConexion } from '../services/conexion';
 import { useCallback, useRef, useState } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
@@ -44,6 +45,7 @@ function extraerFotoUrl(mensaje) {
 
 export default function MisReclamosScreen({ navigation }) {
   const { hayConexion } = useConexion();
+  const { novedadesPorReclamo } = useSearch();
   const [tab, setTab] = useState('recibidos'); // 'recibidos' | 'enviados'
   const [reclamosEnviados, setReclamosEnviados] = useState([]);
   const [reclamosRecibidos, setReclamosRecibidos] = useState([]);
@@ -342,6 +344,17 @@ export default function MisReclamosScreen({ navigation }) {
 
         {item.estado === 'aceptado' && pub?.estado === 'en_reclamo' && (
           <EncuentroReclamo reclamoId={item.id} actualizacion={actualizacion} />
+        )}
+
+        {item.estado === 'aceptado' && (
+          <Button
+            title={novedadesPorReclamo.get(item.id) ? `Mensajes (${novedadesPorReclamo.get(item.id)} sin leer)` : 'Mensajes'}
+            onPress={() => navigation.navigate('ConversacionReclamo', {
+              reclamoId: item.id,
+              contraparte: esRecibido ? item.usuario : pub?.publicador?.name,
+              tituloPublicacion: pub?.titulo,
+            })}
+          />
         )}
 
         {esRecibido && item.estado === 'aceptado' && pub?.estado === 'en_reclamo' && (

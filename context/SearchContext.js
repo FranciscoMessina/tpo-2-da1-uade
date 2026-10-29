@@ -62,12 +62,14 @@ export function SearchProvider({ children }) {
   const {
     porAlerta: novedadesPorAlerta,
     porPublicacion: novedadesPorPublicacion,
+    porReclamo: novedadesPorReclamo,
     loading: novedadesLoading,
     error: novedadesError,
     guardando: novedadesGuardando,
     recargar: recargarNovedades,
     marcarAlertaLeida,
     marcarPublicacionLeida,
+    marcarReclamoLeido,
   } = useNovedades(usuario?.id);
   const [cargando, setCargando] = useState(true);
 
@@ -197,11 +199,13 @@ export function SearchProvider({ children }) {
         recargarSeguidas,
         novedadesPorAlerta,
         novedadesPorPublicacion,
+        novedadesPorReclamo,
         novedadesLoading,
         novedadesError,
         novedadesGuardando,
         recargarNovedades,
         marcarPublicacionLeida,
+        marcarReclamoLeido,
       }}
     >
       {children}
