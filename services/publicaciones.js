@@ -320,7 +320,7 @@ export function generarClientId() {
  * Sube una foto de publicación a /uploads/images y devuelve su URL relativa.
  * Si ya es una foto del servidor (URL absoluta o /uploads/...) no vuelve a subirla.
  */
-export async function subirFotoPublicacion(uri) {
+export async function subirFotoPublicacion(uri, { signal = undefined } = {}) {
   if (!uri) return null;
   if (uri.startsWith(BASE_URL)) return uri.slice(BASE_URL.length);
   if (uri.startsWith('/uploads/')) return uri;
@@ -341,6 +341,7 @@ export async function subirFotoPublicacion(uri) {
 
   const { data } = await api.post('/uploads/images', formulario, {
     timeout: TIMEOUT_SUBIDA_MS,
+    signal,
   });
   return data.url;
 }
@@ -348,13 +349,19 @@ export async function subirFotoPublicacion(uri) {
 /**
  * Sube las fotos de a una y devuelve sus URLs en el mismo orden.
  * `fotosSubidas` (Map uri -> url) permite no repetir subidas cuando se reintenta el envío.
+ * `alSubirFoto(uri, url)` avisa cada vez que una foto termina de subirse (para persistir el avance).
  */
-async function subirFotos(uris = [], fotosSubidas = new Map()) {
+async function subirFotos(
+  uris = [],
+  fotosSubidas = new Map(),
+  { signal = undefined, alSubirFoto = undefined } = {}
+) {
   const urls = [];
 
   for (const uri of uris) {
     if (!fotosSubidas.has(uri)) {
-      fotosSubidas.set(uri, await subirFotoPublicacion(uri));
+      fotosSubidas.set(uri, await subirFotoPublicacion(uri, { signal }));
+      await alSubirFoto?.(uri, fotosSubidas.get(uri));
     }
     urls.push(fotosSubidas.get(uri));
   }
@@ -397,13 +404,19 @@ export function armarCuerpoPublicacion(datos, fotos) {
  */
 export async function crearPublicacion(
   datos,
-  { clientId = generarClientId(), fotosSubidas = undefined } = {}
+  {
+    clientId = generarClientId(),
+    fotosSubidas = undefined,
+    signal = undefined,
+    alSubirFoto = undefined,
+  } = {}
 ) {
-  const fotos = await subirFotos(datos.fotos, fotosSubidas);
-  const { data } = await api.post('/publicaciones', {
-    ...armarCuerpoPublicacion(datos, fotos),
-    clientId,
-  });
+  const fotos = await subirFotos(datos.fotos, fotosSubidas, { signal, alSubirFoto });
+  const { data } = await api.post(
+    '/publicaciones',
+    { ...armarCuerpoPublicacion(datos, fotos), clientId },
+    { signal }
+  );
 
   return prepararPublicacion(data);
 }
