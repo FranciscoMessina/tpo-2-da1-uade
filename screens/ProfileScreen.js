@@ -4,6 +4,7 @@ import {
   ActivityIndicator,
   Button,
   Image,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Switch,
@@ -151,6 +152,9 @@ export default function ProfileScreen({ navigation }) {
       style={styles.screen}
       contentContainerStyle={styles.content}
       keyboardShouldPersistTaps="handled"
+      refreshControl={
+        <RefreshControl refreshing={false} onRefresh={recargarPerfil} />
+      }
     >
       <View style={styles.header}>
         <View style={styles.avatar}>
