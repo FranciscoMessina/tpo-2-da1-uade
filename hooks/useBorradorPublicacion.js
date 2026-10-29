@@ -29,6 +29,7 @@ export default function useBorradorPublicacion(uid, { obtenerEnvio } = {}) {
   const decidido = useRef(false);
   const terminado = useRef(false);
   const pendiente = useRef(null);
+  const ultimos = useRef(null);
   const temporizador = useRef(null);
   const envioRef = useRef(obtenerEnvio);
   envioRef.current = obtenerEnvio;
@@ -67,6 +68,7 @@ export default function useBorradorPublicacion(uid, { obtenerEnvio } = {}) {
       if (terminado.current || !decidido.current) return;
 
       pendiente.current = valores;
+      ultimos.current = valores;
       clearTimeout(temporizador.current);
       temporizador.current = setTimeout(persistir, ESPERA_GUARDADO_MS);
     },
@@ -75,7 +77,7 @@ export default function useBorradorPublicacion(uid, { obtenerEnvio } = {}) {
 
   // Fuerza el guardado del último estado conocido (p. ej. tras subir una foto al servidor)
   const guardarAhora = useCallback(() => {
-    if (!pendiente.current) return Promise.resolve();
+    pendiente.current = ultimos.current;
     return persistir();
   }, [persistir]);
 
@@ -101,6 +103,7 @@ export default function useBorradorPublicacion(uid, { obtenerEnvio } = {}) {
   const descartar = useCallback(async () => {
     decidido.current = true;
     pendiente.current = null;
+    ultimos.current = null;
     clearTimeout(temporizador.current);
     setExistente(null);
     await descartarBorrador(uid);
@@ -109,6 +112,7 @@ export default function useBorradorPublicacion(uid, { obtenerEnvio } = {}) {
   const finalizar = useCallback(async () => {
     terminado.current = true;
     pendiente.current = null;
+    ultimos.current = null;
     clearTimeout(temporizador.current);
     await descartarBorrador(uid);
   }, [uid]);

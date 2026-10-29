@@ -267,6 +267,30 @@ export function resumenCola(cola) {
   };
 }
 
+/** Resumen de una línea del estado de la cola (null si está vacía). */
+export function textoResumenCola(resumen) {
+  if (!resumen || resumen.total === 0) return null;
+
+  const plural = (n, singular, plural) => `${n} ${n === 1 ? singular : plural}`;
+  const partes = [];
+  if (resumen.enviando > 0) partes.push(`Enviando ${plural(resumen.enviando, 'publicación', 'publicaciones')}`);
+  if (resumen.pendientes > 0) partes.push(`${plural(resumen.pendientes, 'publicación pendiente', 'publicaciones pendientes')} de envío`);
+  if (resumen.conError > 0) partes.push(`${plural(resumen.conError, 'publicación', 'publicaciones')} con error`);
+  return partes.join(' · ');
+}
+
+/** Texto de estado de un ítem para mostrar al usuario. */
+export function describirEstado(item, hayConexion = true) {
+  if (item.estado === ESTADOS.ENVIANDO) return 'Enviando…';
+  if (item.estado === ESTADOS.ERROR) {
+    return `No se pudo enviar: ${item.ultimoError || 'la publicación fue rechazada.'}`;
+  }
+  if (!hayConexion) return 'Esperando conexión para enviarse.';
+  return item.intentos > 0
+    ? 'El envío falló y se reintentará automáticamente.'
+    : 'Pendiente de envío.';
+}
+
 /**
  * Fotos locales del ítem que todavía no se subieron y cuyo archivo ya no existe
  * (`existe` se inyecta para poder probarlo).
