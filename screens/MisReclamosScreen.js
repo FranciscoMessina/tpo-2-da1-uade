@@ -3,7 +3,7 @@ import {
   obtenerUltimosReclamos,
 } from '../services/cacheOffline';
 import { useConexion } from '../context/ConexionContext';
-import { verificarConexion } from '../services/conexion';
+import { estaConectado } from '../services/conexion';
 import { useCallback, useState } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import {
@@ -54,7 +54,7 @@ export default function MisReclamosScreen({ navigation }) {
 
   const cargar = useCallback(async () => {
     setError('');
-    const online = await verificarConexion();
+    const online = estaConectado();
     if (!online) {
       const cache = await obtenerUltimosReclamos();
       if (cache && (cache.enviados.length > 0 || cache.recibidos.length > 0)) {
