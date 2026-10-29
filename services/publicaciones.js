@@ -9,7 +9,8 @@ import {
   guardarUltimosResultadosBusqueda,
   obtenerUltimosResultadosBusqueda,
 } from './cacheOffline';
-import { api, API_URL } from './api';
+import { isAxiosError } from 'axios';
+import { api, API_URL, mensajeErrorApi } from './api';
 
 const BASE_URL = API_URL.replace(/\/+$/, '');
 
@@ -246,14 +247,9 @@ export async function buscarPublicacionesConCache(
   }
 }
 
-
-
 // ---------------------------------------------------------------------------
 // Alta, listado y gestión de publicaciones propias
 // ---------------------------------------------------------------------------
-
-import { isAxiosError } from 'axios';
-import { mensajeErrorApi } from './api';
 
 // Cuántos días antes del vencimiento se avisa y se ofrece renovar
 export const DIAS_AVISO_VENCIMIENTO = 5;

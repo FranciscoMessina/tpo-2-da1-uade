@@ -15,6 +15,7 @@ import FormularioPublicacion, {
   valoresDesdePublicacion,
 } from '../components/FormularioPublicacion';
 import EncuentroReclamo from '../components/EncuentroReclamo';
+import EvidenciaReclamo from '../components/EvidenciaReclamo';
 import useGestionPublicacion from '../hooks/useGestionPublicacion';
 import { verificarConexion } from '../services/conexion';
 import {
@@ -362,9 +363,7 @@ export default function GestionPublicacionScreen({ route, navigation }) {
                 Intento {r.intentos || 1} de {r.maxIntentos || 3}
               </Text>
             </View>
-            <Text style={styles.reclamoMensaje}>{r.mensaje}</Text>
-
-            {/* TODO evidencia */}
+            <EvidenciaReclamo reclamo={r} publicacion={publicacion} esDuenio />
 
             {r.estado === 'pendiente' && (
               <Text style={styles.estadoPendiente}>
@@ -514,7 +513,6 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   reclamoUsuario: { fontSize: 16, fontWeight: 'bold', color: '#111827' },
-  reclamoMensaje: { fontSize: 15, color: '#374151' },
   reclamoHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
