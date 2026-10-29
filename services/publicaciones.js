@@ -1,4 +1,8 @@
-import { verificarConexion } from './conexion';
+import {
+  esErrorDeConectividad,
+  estaConectado,
+  reportarFalloConexion,
+} from './conexion';
 import {
   guardarPublicacionConsultada,
   obtenerPublicacionCacheada,
@@ -29,22 +33,15 @@ function prepararPublicacion(publicacion) {
 }
 
 export async function obtenerPublicacion(id, { signal = undefined } = {}) {
-  // 1. Si no hay conexión o estamos en modo avión, cargar directamente del almacenamiento local
-  const conectado = await verificarConexion();
-  if (!conectado) {
+  // 1. Si sabemos que el backend no está alcanzable (estado compartido), usar la copia local si existe
+  if (!estaConectado()) {
     const cacheada = await obtenerPublicacionCacheada(id);
     if (cacheada) {
-      return {
-        ...cacheada,
-        esOffline: true,
-      };
+      return { ...cacheada, desdeCache: true, esOffline: true };
     }
-    throw new Error(
-      'No hay conexión a internet y esta publicación no fue guardada previamente en el dispositivo.'
-    );
   }
 
-  // 2. Si hay conexión, consultar la API y actualizar la copia local
+  // 2. Consultar la API y actualizar la copia local
   try {
     const { data } = await api.get(
       `/publicaciones/${encodeURIComponent(id)}`,
@@ -54,21 +51,20 @@ export async function obtenerPublicacion(id, { signal = undefined } = {}) {
     await guardarPublicacionConsultada(preparada);
     return preparada;
   } catch (error) {
+    // Solo la falta de conectividad habilita la copia local; un 404, 401/403
+    // u otro error HTTP se propaga tal cual (publicación eliminada, sin permiso, etc.)
+    if (!esErrorDeConectividad(error)) throw error;
+
+    reportarFalloConexion();
+
     const cacheada = await obtenerPublicacionCacheada(id);
     if (cacheada) {
-      return {
-        ...cacheada,
-        esOffline: true,
-      };
+      return { ...cacheada, desdeCache: true, esOffline: true };
     }
 
-    if (!error?.response) {
-      throw new Error(
-        'No hay conexión a internet y esta publicación no fue guardada previamente en el dispositivo.'
-      );
-    }
-
-    throw error;
+    throw new Error(
+      'No hay conexión a internet y esta publicación no fue guardada previamente en el dispositivo.'
+    );
   }
 }
 
@@ -224,26 +220,28 @@ export async function buscarPublicacionesConCache(
       esOffline: false,
     };
   } catch (error) {
-    // Si falla por red o sin conexión, buscar los últimos resultados exitosos cacheados
+    // Solo ante falta de conectividad se muestran los últimos resultados guardados;
+    // un error HTTP con respuesta se propaga como tal
+    if (!esErrorDeConectividad(error)) throw error;
+
+    reportarFalloConexion();
+
     const guardada = await obtenerUltimosResultadosBusqueda();
     if (guardada && Array.isArray(guardada.resultados) && guardada.resultados.length > 0) {
       return {
         items: guardada.resultados,
         total: guardada.resultados.length,
         esOffline: true,
+        desdeCache: true,
         fechaGuardado: guardada.fechaGuardado,
       };
     }
 
-    if (!error?.response) {
-      return {
-        items: [],
-        total: 0,
-        esOffline: true,
-        sinResultadosPrevios: true,
-      };
-    }
-
-    throw error;
+    return {
+      items: [],
+      total: 0,
+      esOffline: true,
+      sinResultadosPrevios: true,
+    };
   }
 }
