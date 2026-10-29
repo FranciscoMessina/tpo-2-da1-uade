@@ -1,11 +1,16 @@
 import {
   createContext,
-  useCallback,
   useContext,
   useEffect,
+  useMemo,
   useState,
 } from 'react';
-import { verificarConexion } from '../services/conexion';
+import {
+  estaConectado,
+  iniciarSondeo,
+  suscribirConexion,
+  verificarConexion,
+} from '../services/conexion';
 
 const ConexionContext = createContext({
   hayConexion: true,
@@ -13,28 +18,26 @@ const ConexionContext = createContext({
 });
 
 export function ConexionProvider({ children }) {
-  const [hayConexion, setHayConexion] = useState(true);
-
-  const comprobar = useCallback(async () => {
-    const conectado = await verificarConexion();
-    setHayConexion(conectado);
-    return conectado;
-  }, []);
+  const [hayConexion, setHayConexion] = useState(estaConectado);
 
   useEffect(() => {
-    comprobar();
-    // Verificación periódica cada 2.5 segundos para reflejar Modo Avión inmediatamente
-    const intervalo = setInterval(comprobar, 2500);
-    return () => clearInterval(intervalo);
-  }, [comprobar]);
+    // Refleja el estado compartido del módulo y sondea solo con la app en primer plano
+    setHayConexion(estaConectado());
+    const desuscribir = suscribirConexion(setHayConexion);
+    const detenerSondeo = iniciarSondeo();
+    return () => {
+      desuscribir();
+      detenerSondeo();
+    };
+  }, []);
+
+  const value = useMemo(
+    () => ({ hayConexion, comprobarConexion: verificarConexion }),
+    [hayConexion]
+  );
 
   return (
-    <ConexionContext.Provider
-      value={{
-        hayConexion,
-        comprobarConexion: comprobar,
-      }}
-    >
+    <ConexionContext.Provider value={value}>
       {children}
     </ConexionContext.Provider>
   );

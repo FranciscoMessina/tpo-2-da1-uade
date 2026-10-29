@@ -9,6 +9,10 @@ import {
 } from 'react';
 import { api, mensajeErrorApi, setupInterceptors } from '../services/api';
 import { borrarToken, guardarToken, leerToken } from '../services/sesion';
+import {
+  descartarCacheLegada,
+  setUsuarioCache,
+} from '../services/cacheOffline';
 
 export const SEGUNDOS_REENVIO = 30;
 
@@ -65,6 +69,7 @@ export function AuthProvider({ children }) {
     if (!activo) return;
 
     configurarToken(null);
+    setUsuarioCache(null);
     setUsuario(null);
     setCodigoPendiente(null);
     setError('Tu sesión venció o dejó de ser válida. Volvé a ingresar.');
@@ -92,6 +97,9 @@ export function AuthProvider({ children }) {
     let activo = true;
 
     async function restaurarSesion() {
+      // Descarta la caché global de versiones anteriores (no pertenece a ninguna cuenta)
+      descartarCacheLegada();
+
       try {
         const token = await leerToken();
         if (!activo || !token) return;
@@ -102,6 +110,7 @@ export function AuthProvider({ children }) {
 
         if (!activo) return;
         configurarToken(token);
+        setUsuarioCache(data.id);
         setUsuario(adaptarUsuario(data));
       } catch (e) {
         if (!activo) return;
@@ -152,6 +161,7 @@ export function AuthProvider({ children }) {
   async function aceptarSesion(data) {
     await guardarToken(data.session.token);
     configurarToken(data.session.token);
+    setUsuarioCache(data.usuario.id);
     setCodigoPendiente(null);
     setUsuario(adaptarUsuario(data.usuario));
   }
@@ -266,6 +276,8 @@ export function AuthProvider({ children }) {
         }
       } finally {
         configurarToken(null);
+        // Borra la caché local de la cuenta que sale (publicaciones, resultados y reclamos)
+        await setUsuarioCache(null);
         setUsuario(null);
         setCodigoPendiente(null);
         await borrarToken();
