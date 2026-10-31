@@ -197,7 +197,7 @@ function ResultadosBusqueda({ route, navigation }) {
     <View style={styles.screen}>
       <FlatList
         ref={listaRef}
-        data={visibles}
+        data={publicaciones}
         keyExtractor={(item) => item.id}
         contentContainerStyle={styles.content}
         ListHeaderComponent={

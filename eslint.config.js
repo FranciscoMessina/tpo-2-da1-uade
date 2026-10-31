@@ -51,11 +51,6 @@ const deudaPreexistente = [
     regla: 'react/no-unescaped-entities',
     archivos: ['components/AvisoSincronizacion.js', 'screens/CreatePostScreen.js'],
   },
-  {
-    // BUG REAL: SearchResultsScreen.js usa `visibles` (línea ~200) sin definirla.
-    regla: 'no-undef',
-    archivos: ['screens/SearchResultsScreen.js'],
-  },
 ];
 
 module.exports = defineConfig([
