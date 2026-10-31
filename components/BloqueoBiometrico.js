@@ -25,7 +25,7 @@ export default function BloqueoBiometrico() {
 
 const styles = StyleSheet.create({
   overlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: '#F3F4F6',
     alignItems: 'center',
     justifyContent: 'center',
