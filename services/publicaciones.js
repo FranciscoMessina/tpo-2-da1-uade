@@ -11,6 +11,7 @@ import {
 } from './cacheOffline';
 import { isAxiosError } from 'axios';
 import { api, API_URL, mensajeErrorApi } from './api';
+import { radioEfectivo } from '../data/searchDemo';
 
 const BASE_URL = API_URL.replace(/\/+$/, '');
 
@@ -186,9 +187,14 @@ export async function buscarPublicacionesConCache(
       pageSize: tamanioPagina,
     };
 
-    if (filtros.ubicacion?.latitud && filtros.ubicacion?.longitud) {
+    // Con GPS viaja el centro y el mismo radio que guarda una alerta con estos filtros.
+    if (
+      Number.isFinite(filtros.ubicacion?.latitud) &&
+      Number.isFinite(filtros.ubicacion?.longitud)
+    ) {
       params.latitud = filtros.ubicacion.latitud;
       params.longitud = filtros.ubicacion.longitud;
+      params.radioKm = radioEfectivo(filtros);
     }
 
     const { data } = await api.get('/publicaciones', { params, signal });

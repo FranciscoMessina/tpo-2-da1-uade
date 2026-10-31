@@ -115,6 +115,11 @@ export default function AlertasScreen({ navigation }) {
               style={({ pressed }) => [styles.body, pressed && styles.pressed]}
             >
               <Text style={styles.summary}>{resumenBusqueda(item.filtros)}</Text>
+              {item.filtros.ubicacion && (
+                <Text style={styles.help}>
+                  Centro fijo: la alerta no sigue tu ubicación.
+                </Text>
+              )}
               {nuevas > 0 ? (
                 <Text style={styles.badge}>
                   {nuevas === 1 ? '1 publicación nueva' : `${nuevas} publicaciones nuevas`}

@@ -12,7 +12,7 @@ import {
   View,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { claveBusqueda } from '../data/searchDemo';
+import { claveBusqueda, radioValido } from '../data/searchDemo';
 import useAlertas from '../hooks/useAlertas';
 import useAuth from '../hooks/useAuth';
 import useSeguidas from '../hooks/useSeguidas';
@@ -33,8 +33,32 @@ function esBusquedaGuardada(item) {
     ) &&
     (filtros.ubicacion === null ||
       (Number.isFinite(filtros.ubicacion?.latitud) &&
-        Number.isFinite(filtros.ubicacion?.longitud)))
+        Number.isFinite(filtros.ubicacion?.longitud))) &&
+    // El radio es opcional (búsquedas guardadas antes de poder elegirlo), pero si está debe ser válido.
+    (filtros.radioKm === undefined || radioValido(filtros.radioKm))
   );
+}
+
+// Las claves guardadas pueden ser de una versión anterior (sin radio): se recalculan y se descartan repetidas.
+function recientesGuardados(datos) {
+  const vistas = new Set();
+
+  return datos
+    .filter(esBusquedaGuardada)
+    .map((item) => ({
+      clave: claveBusqueda(item.filtros),
+      filtros: item.filtros,
+    }))
+    .filter((item) => {
+      if (vistas.has(item.clave)) {
+        return false;
+      }
+
+      vistas.add(item.clave);
+
+      return true;
+    })
+    .slice(0, 5);
 }
 
 export function SearchProvider({ children }) {
@@ -91,9 +115,7 @@ export function SearchProvider({ children }) {
         }
 
         if (activo) {
-          setRecientes(
-            datos.filter(esBusquedaGuardada).slice(0, 5)
-          );
+          setRecientes(recientesGuardados(datos));
 
           puedeGuardar.current = true;
         }

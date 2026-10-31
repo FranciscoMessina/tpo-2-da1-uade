@@ -40,6 +40,47 @@ export const ZONAS = [
   },
 ];
 
+// Radio de las búsquedas y alertas por GPS. Los límites son los de la API (0,1 a 500 km) y el valor
+// inicial es su radio por defecto; el centro queda fijo, no se sigue al dispositivo.
+export const RADIO_KM_MIN = 0.1;
+export const RADIO_KM_MAX = 500;
+export const RADIO_KM_INICIAL = 10;
+
+export const MENSAJE_RADIO_INVALIDO =
+  'El radio debe estar entre 0,1 y 500 km.';
+
+export function radioValido(radio) {
+  return (
+    typeof radio === 'number' &&
+    Number.isFinite(radio) &&
+    radio >= RADIO_KM_MIN &&
+    radio <= RADIO_KM_MAX
+  );
+}
+
+// Radio que se aplica a unos filtros: solo existe con GPS (centro fijo más radio); un barrio
+// es un filtro textual y no lleva radio. Sin radio elegido se usa el inicial de la API.
+export function radioEfectivo(filtros) {
+  if (!filtros.ubicacion) {
+    return undefined;
+  }
+
+  return filtros.radioKm === undefined || filtros.radioKm === null
+    ? RADIO_KM_INICIAL
+    : filtros.radioKm;
+}
+
+// Acepta coma o punto decimal. Devuelve NaN si el texto no es un número.
+export function parsearRadio(texto) {
+  const limpio = String(texto).trim().replace(',', '.');
+
+  return /^\d+(\.\d+)?$/.test(limpio) ? Number(limpio) : NaN;
+}
+
+export function formatearRadio(radio) {
+  return `${radio}`.replace('.', ',');
+}
+
 export const PERIODOS = [
   { valor: 'hoy', nombre: 'Hoy' },
   { valor: 'tresDias', nombre: 'Últimos 3 días' },
@@ -109,6 +150,10 @@ export function validarFiltros(filtros) {
     }
   }
 
+  if (filtros.ubicacion && !radioValido(radioEfectivo(filtros))) {
+    return MENSAJE_RADIO_INVALIDO;
+  }
+
   return '';
 }
 
@@ -127,13 +172,25 @@ export function resumenBusqueda(filtros) {
       ? `${filtros.desde} a ${filtros.hasta}`
       : periodo;
 
-  const zona = filtros.zona || 'Mi ubicación';
+  const zona = filtros.zona || resumenUbicacion(filtros);
 
   const palabras = filtros.palabras.trim()
     ? ` · ${filtros.palabras.trim()}`
     : '';
 
   return `${situacion} · ${filtros.categoria} · ${zona} · ${fechas}${palabras}`;
+}
+
+function coordenadas(ubicacion) {
+  return `${ubicacion.latitud.toFixed(3)}, ${ubicacion.longitud.toFixed(3)}`;
+}
+
+function resumenUbicacion(filtros) {
+  const { ubicacion } = filtros;
+
+  return ubicacion
+    ? `Mi ubicación (${coordenadas(ubicacion)}) · radio ${formatearRadio(radioEfectivo(filtros))} km`
+    : 'Mi ubicación';
 }
 
 export function claveBusqueda(filtros) {
@@ -145,7 +202,10 @@ export function claveBusqueda(filtros) {
     filtros.periodo,
     filtros.periodo === 'rango' ? filtros.desde : '',
     filtros.periodo === 'rango' ? filtros.hasta : '',
-    filtros.ubicacion,
+    filtros.ubicacion
+      ? [filtros.ubicacion.latitud, filtros.ubicacion.longitud]
+      : null,
+    radioEfectivo(filtros) ?? null,
   ]);
 }
 
