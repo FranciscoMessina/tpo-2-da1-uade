@@ -1,4 +1,5 @@
 import { buscarPublicacionesConCache } from '../services/publicaciones';
+import { estaConectado } from '../services/conexion';
 import { mensajeErrorApi } from '../services/api';
 import { useEffect } from 'react';
 import { useRef, useState } from 'react';
@@ -17,6 +18,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import SearchForm from '../components/SearchForm';
+import { useConexion } from '../context/ConexionContext';
 import { useSearch } from '../context/SearchContext';
 import { claveBusqueda, resumenBusqueda } from '../data/searchDemo';
 
@@ -59,6 +61,34 @@ function FotoTarjeta({ uri, categoria }) {
   );
 }
 
+const MENSAJE_ALERTA_SIN_CONEXION =
+  'Sin conexión: no se puede guardar la alerta. Podés seguir viendo los resultados y guardarla cuando vuelva la conexión.';
+
+function esCoordenada(valor, limite) {
+  return typeof valor === 'number' && Number.isFinite(valor) && Math.abs(valor) <= limite;
+}
+
+// Coordenadas públicas de la publicación (la API ya las devuelve redondeadas, nunca la dirección
+// exacta). Se vuelven a redondear acá para no mostrar más precisión que la aproximada, y se
+// devuelve null si faltan o no son válidas.
+function ubicacionAproximada(publicacion) {
+  const origen = publicacion.ubicacion ?? publicacion;
+  const { latitud, longitud } = origen;
+  if (!esCoordenada(latitud, 90) || !esCoordenada(longitud, 180)) return null;
+  return { latitud: latitud.toFixed(3), longitud: longitud.toFixed(3) };
+}
+
+function UbicacionAproximada({ publicacion }) {
+  const ubicacion = ubicacionAproximada(publicacion);
+  if (!ubicacion) return null;
+
+  return (
+    <Text style={styles.help}>
+      Ubicación aproximada: {ubicacion.latitud}, {ubicacion.longitud}
+    </Text>
+  );
+}
+
 function fechaHora(iso) {
   const fecha = new Date(iso);
   if (Number.isNaN(fecha.getTime())) return '';
@@ -91,6 +121,9 @@ function ResultadosBusqueda({ route, navigation }) {
     recordarBusqueda,
     crearAlerta,
   } = useSearch();
+
+  const { hayConexion } = useConexion();
+  const sinConexion = !hayConexion;
 
   const [filtros, setFiltros] = useState(route.params.filtros);
   const [orden, setOrden] = useState('recientes');
@@ -147,6 +180,9 @@ function ResultadosBusqueda({ route, navigation }) {
     (alerta) => claveBusqueda(alerta.filtros) === claveBusqueda(filtros)
   );
 
+  const alertaDeshabilitada =
+    alertaGuardada || alertasGuardando || alertasLoading || sinConexion;
+
   function aplicarFiltros(nuevos) {
     setFiltros(nuevos);
     recordarBusqueda(nuevos);
@@ -184,6 +220,13 @@ function ResultadosBusqueda({ route, navigation }) {
   }
 
   async function guardarBusquedaComoAlerta() {
+    // Guardar es una mutación: se vuelve a comprobar la conexión al tocar, por si cayó
+    // entre el último render y el toque.
+    if (!estaConectado()) {
+      Alert.alert('Sin conexión', MENSAJE_ALERTA_SIN_CONEXION);
+      return;
+    }
+
     const guardada = await crearAlerta(filtros);
     if (!guardada) return;
 
@@ -255,9 +298,15 @@ function ResultadosBusqueda({ route, navigation }) {
                     ? 'Guardando alerta…'
                     : 'Guardar búsqueda como alerta'
               }
-              disabled={alertaGuardada || alertasGuardando || alertasLoading}
+              disabled={alertaDeshabilitada}
               onPress={guardarBusquedaComoAlerta}
             />
+
+            {sinConexion && !alertaGuardada && (
+              <Text accessibilityRole="alert" style={styles.help}>
+                {MENSAJE_ALERTA_SIN_CONEXION}
+              </Text>
+            )}
 
             {alertasError !== '' && (
               <View style={styles.header}>
@@ -357,6 +406,8 @@ function ResultadosBusqueda({ route, navigation }) {
                 {item.fecha.split('-').reverse().join('/')}
               </Text>
 
+              <UbicacionAproximada publicacion={item} />
+
               {orden === 'cercanos' && item.distancia != null && (
                 <Text style={styles.distance}>
                   A {item.distancia.toFixed(1)} km del punto
@@ -425,7 +476,7 @@ function ResultadosBusqueda({ route, navigation }) {
                       ? 'Guardando alerta…'
                       : 'Guardar búsqueda como alerta'
                 }
-                disabled={alertaGuardada || alertasGuardando || alertasLoading}
+                disabled={alertaDeshabilitada}
                 onPress={guardarBusquedaComoAlerta}
               />
             </View>

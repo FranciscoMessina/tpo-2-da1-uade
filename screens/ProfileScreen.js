@@ -18,9 +18,16 @@ import BadgesCard from '../components/BadgesCard';
 import usePerfil from '../hooks/usePerfil';
 import MisPublicaciones from '../components/MisPublicaciones';
 import useAuth from '../hooks/useAuth';
+import { useConexion } from '../context/ConexionContext';
+import { estaConectado } from '../services/conexion';
+
+const MENSAJE_SIN_CONEXION =
+  'Sin conexión: no se puede guardar el perfil. Podés seguir editando y guardar cuando vuelva la conexión.';
 
 export default function ProfileScreen({ navigation }) {
   const { cerrarSesion, loading: loadingAuth } = useAuth();
+  const { hayConexion } = useConexion();
+  const sinConexion = !hayConexion;
   const {
     perfil,
     loading,
@@ -84,6 +91,13 @@ export default function ProfileScreen({ navigation }) {
 
     if (compartirTelefonoIngresado && telefonoLimpio === '') {
       setError('Ingresá un teléfono para poder compartirlo.');
+      return;
+    }
+
+    // Guardar es una mutación: se vuelve a comprobar la conexión al tocar, por si cayó
+    // entre el último render y el toque.
+    if (!estaConectado()) {
+      setError(MENSAJE_SIN_CONEXION);
       return;
     }
 
@@ -277,10 +291,16 @@ export default function ProfileScreen({ navigation }) {
 
         {editando ? (
           <View style={styles.buttons}>
+            {sinConexion && (
+              <Text accessibilityRole="alert" style={styles.error}>
+                {MENSAJE_SIN_CONEXION}
+              </Text>
+            )}
+
             <Button
               title={guardando ? 'Guardando…' : 'Guardar cambios'}
               onPress={guardarCambios}
-              disabled={guardando}
+              disabled={guardando || sinConexion}
             />
 
             <Button
