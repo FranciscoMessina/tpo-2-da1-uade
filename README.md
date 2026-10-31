@@ -166,7 +166,34 @@ Correr las pruebas unitarias (Jest con el preset `jest-expo`, no necesitan emula
 npm test
 ```
 
-Las pruebas están en `__tests__/` y cubren la lógica de `services/`: cola de publicaciones y su procesador (un alta por publicación aunque se corte la red, fotos que no se vuelven a subir), caché offline por cuenta y minimización de datos, borradores, sesión, conexión y búsqueda con caché. Los módulos nativos (AsyncStorage, SecureStore, sistema de archivos) y la API se reemplazan por dobles en `jest.setup.js` y dentro de cada prueba. Para correr una sola: `npm test -- cola` (filtra por nombre de archivo).
+Las pruebas están en `__tests__/`. `__tests__/services/` cubre la lógica de `services/`: cola de publicaciones y su procesador (un alta por publicación aunque se corte la red, fotos que no se vuelven a subir), caché offline por cuenta y minimización de datos, borradores, sesión, conexión y búsqueda con caché. Los módulos nativos (AsyncStorage, SecureStore, sistema de archivos) y la API se reemplazan por dobles en `jest.setup.js` y dentro de cada prueba. Para correr una sola: `npm test -- cola` (filtra por nombre de archivo). Para repetir la corrida exacta de verificación: `npm test -- --runInBand`.
+
+### Pruebas de hooks y pantallas
+
+`__tests__/hooks/` y `__tests__/screens/` usan `@testing-library/react-native` (`renderHook`, `render`). El entorno común:
+
+- `jest.setup.js` reemplaza `@react-navigation/native` (`useNavigation`, `useRoute`, `useFocusEffect`, `useIsFocused`): no se monta un `NavigationContainer`. `__navegacion` y `__ruta`, exportados por ese doble, permiten verificar `navigate`/`goBack` y fijar parámetros de ruta; se reinician antes de cada prueba.
+- `__tests__/hooks/entorno.js` (no es una prueba) ofrece `diferida()` (promesa que la prueba resuelve a mano, para probar respuestas tardías sin red), `controlarAppState()`/`restaurarAppState()` (doble de `AppState` con `emitir('background' | 'active')`) y `simularConectividad(bool)` (estado de `services/conexion`).
+- La API se reemplaza con `jest.mock('../../services/<módulo>')`; los temporizadores con `jest.useFakeTimers()`. Ninguna prueba usa red ni temporizadores reales.
+
+Ejemplos: `useNovedades.test.js` (cambio de cuenta durante una petición, respuesta tardía descartada, desmontaje que cancela y libera temporizador y `AppState`) y `HistorialScreen.test.js` (respuesta tardía de un filtro anterior, reintento tras error).
+
+### Chequeo estático
+
+```powershell
+npm run lint        # ESLint (eslint-config-expo, flat config en eslint.config.js)
+npm run typecheck   # tsc --noEmit con checkJs sobre JavaScript (tsconfig.json); no hay migración a TypeScript
+```
+
+Ambos terminan en 0 hoy, pero **el chequeo es parcial**:
+
+- **Lint** cubre todo el proyecto. Los incumplimientos que ya existían (reglas nuevas de `react-hooks` 7, comillas sin escapar en JSX y una variable sin definir) están registrados en `eslint.config.js` como `warn` solo en los archivos afectados y solo para esa regla; siguen apareciendo en la salida. `lint` usa `--max-warnings 26` (el total actual): un aviso nuevo hace fallar el comando. Al corregir deuda, sacar el archivo de la lista y bajar ese número.
+- **Typecheck** (`checkJs`, `strict: false`, sin `DOM` en `lib`) cubre solo los archivos listados en `include` de `tsconfig.json`: 44 de 69 archivos de `App.js`, `index.js`, `components/`, `context/`, `hooks/`, `screens/`, `services/` y `data/`. Quedan fuera los que hoy no pasan, o que importan alguno que no pasa (TypeScript igual chequea todo archivo importado, por eso no se usa `exclude`). **No** incluye `__tests__/` (no hay `@types/jest`) ni se puede afirmar que el proyecto esté tipado. Para ver la deuda, agregar el archivo a `include` y correr `npm run typecheck`. Hoy el chequeo completo da 65 errores en 17 archivos: `App.js` (3), `components/FormularioPublicacion.js` (28), `AvisoSincronizacion.js` (2), `BloqueoBiometrico.js` (1), `CodeStep.js` (2), `ImagenPrivada.js` (1), `PublicacionesPendientes.js` (2), `context/ColaPublicacionesContext.js` (1), `hooks/useBorradorPublicacion.js` (1), `screens/ConfiguracionScreen.js` (1), `CreatePostScreen.js` (1), `ForgotPasswordScreen.js` (6), `LoginScreen.js` (5), `RegisterScreen.js` (5), `SearchResultsScreen.js` (1), `services/colaPublicaciones.js` (3) y `procesadorCola.js` (2). Casi todos son inferencia de JS sin anotaciones (props opcionales, `useState({})`, una cadena de promesas en `serializar`); dos apuntan a fallos reales (ver abajo).
+
+Problemas reales detectados por estos chequeos y **no corregidos** (fuera del alcance del plan de verificación):
+
+- `screens/SearchResultsScreen.js:200` usa `visibles`, que no está definida: la pantalla de resultados de búsqueda falla al renderizar.
+- `components/BloqueoBiometrico.js:28` usa `StyleSheet.absoluteFillObject`, que ya no existe en React Native 0.86 (solo queda `absoluteFill`); el estilo queda sin efecto.
 
 Compilar el bundle de Android sin levantar el emulador:
 

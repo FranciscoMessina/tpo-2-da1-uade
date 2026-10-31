@@ -53,8 +53,36 @@ jest.mock('expo-file-system', () => {
   return { Directory, File, Paths: { document: { uri: 'file:///documentos/' } } };
 });
 
+// Navegación: dobles de los hooks de React Navigation. Las pruebas de hooks y pantallas no
+// montan un NavigationContainer; `__navegacion` expone el objeto que devuelve useNavigation
+// para verificar llamadas (navigate, goBack...) y `__ruta` los parámetros de useRoute.
+jest.mock('@react-navigation/native', () => {
+  const React = require('react');
+  const navegacion = {
+    navigate: jest.fn(),
+    goBack: jest.fn(),
+    replace: jest.fn(),
+    setOptions: jest.fn(),
+    addListener: jest.fn(() => jest.fn()),
+  };
+  const ruta = { params: {} };
+  return {
+    __navegacion: navegacion,
+    __ruta: ruta,
+    useNavigation: () => navegacion,
+    useRoute: () => ruta,
+    // Como en la app, el efecto corre al montar y se limpia al desmontar (pantalla siempre enfocada).
+    useFocusEffect: (efecto) => React.useEffect(efecto, [efecto]),
+    useIsFocused: () => true,
+    NavigationContainer: ({ children }) => children,
+  };
+});
+
 beforeEach(async () => {
   const AsyncStorage = require('@react-native-async-storage/async-storage');
   await (AsyncStorage.default ?? AsyncStorage).clear();
   require('expo-secure-store').__almacen.clear();
+  const navegacion = require('@react-navigation/native');
+  Object.values(navegacion.__navegacion).forEach((f) => f.mockClear());
+  navegacion.__ruta.params = {};
 });

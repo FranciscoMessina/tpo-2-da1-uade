@@ -1,0 +1,62 @@
+{
+  // Chequeo de tipos de JavaScript (checkJs) sin migrar a TypeScript. Alcance y deuda: ver README, sección "Chequeo estático".
+  "extends": "expo/tsconfig.base",
+  "compilerOptions": {
+    "allowJs": true,
+    "checkJs": true,
+    "noEmit": true,
+    // TypeScript 6 activa strict por defecto; en JS sin anotaciones produciría cientos de falsos positivos.
+    "strict": false,
+    // Sin "DOM": los tipos de React Native definen FormData/fetch y con DOM rechazan { uri, name, type }.
+    "lib": ["ESNext"]
+  },
+  // Lista explícita: archivos cuyo código (y los módulos que importan) pasa el chequeo hoy.
+  // Un archivo no listado igual se chequea si lo importa uno listado, por eso no hay exclusiones.
+  "include": [
+    "components/AgradecimientosPublicos.js",
+    "components/AuthUI.js",
+    "components/BadgesCard.js",
+    "components/CasoResuelto.js",
+    "components/EncuentroReclamo.js",
+    "components/PuntoEncuentro.js",
+    "components/ReputationCard.js",
+    "components/SearchForm.js",
+    "context/ConexionContext.js",
+    "context/SearchContext.js",
+    "hooks/useAlertas.js",
+    "hooks/useAuth.js",
+    "hooks/useBloqueoBiometrico.js",
+    "hooks/useConfiguracion.js",
+    "hooks/useGestionPublicacion.js",
+    "hooks/useMensajesReclamo.js",
+    "hooks/useMisPublicaciones.js",
+    "hooks/useNovedades.js",
+    "hooks/usePerfil.js",
+    "hooks/usePerfilPublico.js",
+    "hooks/usePublicacion.js",
+    "hooks/useSeguidas.js",
+    "hooks/useUbicacionActual.js",
+    "screens/AlertasScreen.js",
+    "screens/ConversacionReclamoScreen.js",
+    "screens/HistorialScreen.js",
+    "screens/PublicationDetailScreen.js",
+    "screens/PublicProfileScreen.js",
+    "screens/SearchScreen.js",
+    "screens/SeguidasScreen.js",
+    "services/alertas.js",
+    "services/api.js",
+    "services/archivosLocales.js",
+    "services/borradores.js",
+    "services/cacheOffline.js",
+    "services/conexion.js",
+    "services/encuentros.js",
+    "services/historial.js",
+    "services/mensajes.js",
+    "services/notificaciones.js",
+    "services/perfiles.js",
+    "services/publicaciones.js",
+    "services/sesion.js",
+    "data/searchDemo.js"
+  ],
+  "exclude": ["node_modules", "android", "ios", ".claude"]
+}
