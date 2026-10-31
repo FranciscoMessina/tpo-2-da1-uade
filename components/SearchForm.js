@@ -10,7 +10,12 @@ import {
 import {
   CATEGORIAS,
   PERIODOS,
+  RADIO_KM_INICIAL,
   ZONAS,
+  formatearRadio,
+  parsearRadio,
+  radioEfectivo,
+  radioValido,
   validarFiltros,
 } from '../data/searchDemo';
 import useUbicacionActual from '../hooks/useUbicacionActual';
@@ -46,14 +51,25 @@ function Opciones({ opciones, valor, onChange }) {
   );
 }
 
+// El radio solo existe con GPS: una búsqueda anterior con GPS pero sin radio se refina con el
+// inicial, y una por barrio no arrastra ninguno.
+function filtrosDeInicio(initialFilters) {
+  const { radioKm: _radioKm, ...filtros } = initialFilters;
+  const radio = radioEfectivo(initialFilters);
+
+  return radio === undefined ? filtros : { ...filtros, radioKm: radio };
+}
+
 export default function SearchForm({
   initialFilters,
   onSubmit,
   submitLabel = 'Buscar coincidencias',
 }) {
-  const [filtros, setFiltros] = useState(() => ({
-    ...initialFilters,
-  }));
+  const [filtros, setFiltros] = useState(() =>
+    filtrosDeInicio(initialFilters)
+  );
+  // Texto que está escribiendo la persona; null muestra el radio ya guardado en los filtros.
+  const [radioEscrito, setRadioEscrito] = useState(null);
   const [error, setError] = useState('');
   const {
     obtener: obtenerUbicacion,
@@ -70,13 +86,25 @@ export default function SearchForm({
     }));
   }
 
+  // Un barrio es un filtro textual: no hay centro ni radio.
   function elegirZona(zona) {
     setError('');
+    setRadioEscrito(null);
 
-    setFiltros((actuales) => ({
+    setFiltros(({ radioKm: _radioKm, ...actuales }) => ({
       ...actuales,
       zona,
       ubicacion: null,
+    }));
+  }
+
+  function cambiarRadio(texto) {
+    setError('');
+    setRadioEscrito(texto);
+
+    setFiltros((actuales) => ({
+      ...actuales,
+      radioKm: parsearRadio(texto),
     }));
   }
 
@@ -86,10 +114,18 @@ export default function SearchForm({
     const coords = await obtenerUbicacion();
 
     if (coords) {
+      setRadioEscrito(null);
+
+      // El centro queda fijo en este punto. Un radio ya elegido se conserva; si no hay, o es
+      // inválido, se vuelve al inicial.
       setFiltros((actuales) => ({
         ...actuales,
         zona: '',
         ubicacion: coords,
+        radioKm:
+          actuales.ubicacion && radioValido(actuales.radioKm)
+            ? actuales.radioKm
+            : RADIO_KM_INICIAL,
       }));
     }
   }
@@ -189,8 +225,30 @@ export default function SearchForm({
             Usando tu ubicación actual (
             {filtros.ubicacion.latitud.toFixed(4)},{' '}
             {filtros.ubicacion.longitud.toFixed(4)}). Se buscará
-            en todos los barrios.
+            en todos los barrios dentro del radio.
           </Text>
+        )}
+
+        {filtros.ubicacion && (
+          <View style={styles.radius}>
+            <Text style={styles.label}>Radio de búsqueda (km)</Text>
+
+            <TextInput
+              accessibilityLabel="Radio de búsqueda en kilómetros"
+              style={styles.input}
+              value={radioEscrito ?? formatearRadio(filtros.radioKm)}
+              onChangeText={cambiarRadio}
+              placeholder={formatearRadio(RADIO_KM_INICIAL)}
+              placeholderTextColor="#6B7280"
+              maxLength={6}
+              keyboardType="decimal-pad"
+            />
+
+            <Text style={styles.help}>
+              Entre 0,1 y 500 km. El centro queda fijo en este punto: no
+              seguimos tu ubicación después, tampoco para las alertas.
+            </Text>
+          </View>
         )}
       </View>
 
@@ -317,6 +375,9 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#111827',
     minHeight: 48,
+  },
+  radius: {
+    gap: 4,
   },
   dates: {
     gap: 12,

@@ -77,6 +77,8 @@ export default function AlertasScreen({ navigation }) {
           </Text>
           <Text style={styles.help}>
             Las publicaciones nuevas que coincidan se destacan en cada alerta.
+            Un período como «Hoy» o «Última semana» se evalúa cuando se publica
+            algo; un rango de fechas queda fijo.
           </Text>
           {alertasError !== '' && (
             <Text accessibilityRole="alert" style={styles.error}>{alertasError}</Text>
@@ -115,6 +117,11 @@ export default function AlertasScreen({ navigation }) {
               style={({ pressed }) => [styles.body, pressed && styles.pressed]}
             >
               <Text style={styles.summary}>{resumenBusqueda(item.filtros)}</Text>
+              {item.filtros.ubicacion && (
+                <Text style={styles.help}>
+                  Centro fijo: la alerta no sigue tu ubicación.
+                </Text>
+              )}
               {nuevas > 0 ? (
                 <Text style={styles.badge}>
                   {nuevas === 1 ? '1 publicación nueva' : `${nuevas} publicaciones nuevas`}

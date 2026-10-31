@@ -1,14 +1,30 @@
 import { api } from './api';
-import { filtrosIniciales } from '../data/searchDemo';
+import {
+  MENSAJE_RADIO_INVALIDO,
+  filtrosIniciales,
+  radioEfectivo,
+  radioValido,
+} from '../data/searchDemo';
 
 function prepararAlerta(alerta) {
+  const filtros = { ...filtrosIniciales(), ...alerta.filtros };
+  const radioKm = radioEfectivo(filtros);
+
   return {
     ...alerta,
-    filtros: { ...filtrosIniciales(), ...alerta.filtros },
+    // Una alerta por GPS siempre tiene radio (las anteriores usaban el de la API); por barrio no.
+    filtros: radioKm === undefined ? filtros : { ...filtros, radioKm },
   };
 }
 
 function prepararFiltros(filtros) {
+  const radioKm = radioEfectivo(filtros);
+
+  // Misma validación que la API (0,1 a 500 km): se avisa antes de llamarla.
+  if (radioKm !== undefined && !radioValido(radioKm)) {
+    throw new Error(MENSAJE_RADIO_INVALIDO);
+  }
+
   return {
     situacion: filtros.situacion,
     categoria: filtros.categoria,
@@ -24,9 +40,8 @@ function prepararFiltros(filtros) {
     ...(filtros.periodo === 'rango'
       ? { desde: filtros.desde, hasta: filtros.hasta }
       : {}),
-    ...(filtros.ubicacion && filtros.radioKm !== undefined
-      ? { radioKm: filtros.radioKm }
-      : {}),
+    // Con GPS el radio se envía siempre, explícito; un barrio no lleva coordenadas ni radio.
+    ...(radioKm === undefined ? {} : { radioKm }),
   };
 }
 
