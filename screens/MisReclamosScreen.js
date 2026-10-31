@@ -3,6 +3,8 @@ import {
   obtenerUltimosReclamos,
 } from '../services/cacheOffline';
 import { useConexion } from '../context/ConexionContext';
+import useAuth from '../hooks/useAuth';
+import useActualizacionVisible from '../hooks/useActualizacionVisible';
 import { useSearch } from '../context/SearchContext';
 import { estaConectado, verificarConexion } from '../services/conexion';
 import { useCallback, useRef, useState } from 'react';
@@ -35,99 +37,168 @@ const ESTADOS_RECLAMO = {
   vencido: { texto: 'Vencido (48 hs)', fondo: '#FEE2E2', color: '#991B1B' },
 };
 
+const PAGINACION_INICIAL = {
+  enviados: { pagina: 1, totalPaginas: 1, total: 0 },
+  recibidos: { pagina: 1, totalPaginas: 1, total: 0 },
+};
+
+// `alcance` es la cuenta a la que pertenecen los datos: undefined hasta la primera carga.
+const ESTADO_INICIAL = {
+  alcance: undefined,
+  cargando: true,
+  error: '',
+  enviados: [],
+  recibidos: [],
+  paginacion: PAGINACION_INICIAL,
+};
+
+// Paginación completa guardada en caché o con un solo grupo de resultados
+const paginacionLocal = (lista) => ({
+  pagina: 1,
+  totalPaginas: 1,
+  total: lista.length,
+});
+const paginacionServidor = (res, lista) => ({
+  pagina: res.page || 1,
+  totalPaginas: res.totalPages || 1,
+  total: res.total ?? lista.length,
+});
+const hayCache = (cache) => !!cache && (cache.enviados.length > 0 || cache.recibidos.length > 0);
+
 export default function MisReclamosScreen({ navigation }) {
   const { hayConexion } = useConexion();
   const { novedadesPorReclamo } = useSearch();
+  const { usuario } = useAuth();
+  const alcance = usuario?.id ?? null;
   const [tab, setTab] = useState('recibidos'); // 'recibidos' | 'enviados'
-  const [reclamosEnviados, setReclamosEnviados] = useState([]);
-  const [reclamosRecibidos, setReclamosRecibidos] = useState([]);
-  const [cargando, setCargando] = useState(true);
+  const [datos, setDatos] = useState(ESTADO_INICIAL);
   const [procesandoId, setProcesandoId] = useState(null);
-  const [error, setError] = useState('');
   const [actualizacion, setActualizacion] = useState(0);
-  const [paginacion, setPaginacion] = useState({
-    enviados: { pagina: 1, totalPaginas: 1, total: 0 },
-    recibidos: { pagina: 1, totalPaginas: 1, total: 0 },
-  });
   const [cargandoMas, setCargandoMas] = useState(false);
   const [errorMas, setErrorMas] = useState('');
+  // Cada recarga aplicada invalida las páginas adicionales que estaban en camino
   const versionCarga = useRef(0);
+  // Solo vale la respuesta de la última recarga pedida; las anteriores se cancelan
+  const ciclo = useRef({ solicitud: 0, controller: null, enCurso: false });
 
-  // Paginación completa guardada en caché o con un solo grupo de resultados
-  const paginacionLocal = (lista) => ({
-    pagina: 1,
-    totalPaginas: 1,
-    total: lista.length,
-  });
-  const paginacionServidor = (res, lista) => ({
-    pagina: res.page || 1,
-    totalPaginas: res.totalPages || 1,
-    total: res.total ?? lista.length,
-  });
+  // Lo cargado de otra cuenta no se muestra mientras llegan los datos de la actual
+  const vigente = datos.alcance === alcance;
+  const { cargando, error } = vigente ? datos : ESTADO_INICIAL;
+  const reclamosEnviados = vigente ? datos.enviados : ESTADO_INICIAL.enviados;
+  const reclamosRecibidos = vigente ? datos.recibidos : ESTADO_INICIAL.recibidos;
+  const paginacion = vigente ? datos.paginacion : PAGINACION_INICIAL;
 
-  const cargar = useCallback(async () => {
-    versionCarga.current += 1;
-    setErrorMas('');
-    setError('');
-    const online = estaConectado();
-    if (!online) {
-      const cache = await obtenerUltimosReclamos();
-      if (cache && (cache.enviados.length > 0 || cache.recibidos.length > 0)) {
-        setReclamosEnviados(cache.enviados);
-        setReclamosRecibidos(cache.recibidos);
-        setPaginacion({
+  /**
+   * Recarga la primera página de ambas bandejas y reemplaza lo que se veía (las páginas
+   * siguientes se descartan y el cursor vuelve a la página 1). Con `silencioso` es el
+   * refresco periódico: no toca la pantalla hasta tener datos, no se superpone con otra
+   * petición y, si falla, deja a la vista lo que ya había.
+   */
+  const cargar = useCallback(async ({ silencioso = false } = {}) => {
+    if (silencioso && ciclo.current.enCurso) return;
+    ciclo.current.controller?.abort();
+    const solicitud = ++ciclo.current.solicitud;
+    const controller = new AbortController();
+    ciclo.current.controller = controller;
+    ciclo.current.enCurso = true;
+    const vale = () => solicitud === ciclo.current.solicitud && !controller.signal.aborted;
+    const mostrar = (nuevo) => {
+      versionCarga.current += 1;
+      setDatos((previo) => ({
+        ...(previo.alcance === alcance ? previo : ESTADO_INICIAL),
+        alcance,
+        ...nuevo,
+      }));
+    };
+    const mostrarCache = (cache) => {
+      mostrar({
+        cargando: false,
+        error: '',
+        enviados: cache.enviados,
+        recibidos: cache.recibidos,
+        paginacion: {
           enviados: paginacionLocal(cache.enviados),
           recibidos: paginacionLocal(cache.recibidos),
-        });
-        setActualizacion((n) => n + 1);
-        setError('');
-      } else {
-        setError('No hay conexión a internet y no hay reclamos guardados previamente en el dispositivo.');
-      }
-      setCargando(false);
-      return;
-    }
-
-    try {
-      const [resEnviados, resRecibidos] = await Promise.all([
-        obtenerMisReclamos({ tipo: 'enviados' }),
-        obtenerMisReclamos({ tipo: 'recibidos' }),
-      ]);
-      const env = resEnviados.items || [];
-      const rec = resRecibidos.items || [];
-      setReclamosEnviados(env);
-      setReclamosRecibidos(rec);
-      setPaginacion({
-        enviados: paginacionServidor(resEnviados, env),
-        recibidos: paginacionServidor(resRecibidos, rec),
+        },
       });
       setActualizacion((n) => n + 1);
-      // Guardar copia local para visualización sin conexión
-      await guardarUltimosReclamos({ enviados: env, recibidos: rec });
-    } catch (e) {
-      const cache = await obtenerUltimosReclamos();
-      if (cache && (cache.enviados.length > 0 || cache.recibidos.length > 0)) {
-        setReclamosEnviados(cache.enviados);
-        setReclamosRecibidos(cache.recibidos);
-        setPaginacion({
-          enviados: paginacionLocal(cache.enviados),
-          recibidos: paginacionLocal(cache.recibidos),
+    };
+
+    try {
+      if (!silencioso) {
+        setErrorMas('');
+        setDatos((previo) => (previo.alcance === alcance
+          ? { ...previo, error: '' }
+          : { ...ESTADO_INICIAL, alcance }));
+      }
+      if (!estaConectado()) {
+        if (silencioso) return;
+        const cache = await obtenerUltimosReclamos();
+        if (!vale()) return;
+        if (hayCache(cache)) {
+          mostrarCache(cache);
+        } else {
+          mostrar({
+            cargando: false,
+            error: 'No hay conexión a internet y no hay reclamos guardados previamente en el dispositivo.',
+          });
+        }
+        return;
+      }
+
+      try {
+        const [resEnviados, resRecibidos] = await Promise.all([
+          obtenerMisReclamos({ tipo: 'enviados', signal: controller.signal }),
+          obtenerMisReclamos({ tipo: 'recibidos', signal: controller.signal }),
+        ]);
+        if (!vale()) return;
+        const env = resEnviados.items || [];
+        const rec = resRecibidos.items || [];
+        mostrar({
+          cargando: false,
+          error: '',
+          enviados: env,
+          recibidos: rec,
+          paginacion: {
+            enviados: paginacionServidor(resEnviados, env),
+            recibidos: paginacionServidor(resRecibidos, rec),
+          },
         });
-        setActualizacion((n) => n + 1);
-        setError('');
-      } else {
-        setError(mensajeErrorApi(e));
+        // Solo las cargas pedidas por la persona hacen que cada encuentro se consulte de nuevo
+        if (!silencioso) setActualizacion((n) => n + 1);
+        // Guardar copia local para visualización sin conexión
+        await guardarUltimosReclamos({ enviados: env, recibidos: rec });
+      } catch (e) {
+        if (!vale() || silencioso) return;
+        const cache = await obtenerUltimosReclamos();
+        if (!vale()) return;
+        if (hayCache(cache)) {
+          mostrarCache(cache);
+        } else {
+          mostrar({ cargando: false, error: mensajeErrorApi(e) });
+        }
       }
     } finally {
-      setCargando(false);
+      if (solicitud === ciclo.current.solicitud) ciclo.current.enCurso = false;
     }
-  }, []);
+  }, [alcance]);
 
+  // Al salir de la pantalla o cambiar de cuenta se cancela lo pendiente y se descartan sus respuestas
   useFocusEffect(
     useCallback(() => {
+      const actual = ciclo.current;
       cargar();
+      return () => {
+        actual.solicitud += 1;
+        actual.enCurso = false;
+        actual.controller?.abort();
+        versionCarga.current += 1;
+      };
     }, [cargar])
   );
+
+  const actualizarEnSegundoPlano = useCallback(() => cargar({ silencioso: true }), [cargar]);
+  useActualizacionVisible(actualizarEnSegundoPlano, { alcance });
 
   // Trae la siguiente página de la bandeja activa y la suma a la lista
   async function cargarMas() {
@@ -148,14 +219,10 @@ export default function MisReclamosScreen({ navigation }) {
         const ids = new Set(previos.map((r) => r.id));
         return [...previos, ...nuevos.filter((r) => !ids.has(r.id))];
       };
-      if (bandeja === 'recibidos') {
-        setReclamosRecibidos(agregar);
-      } else {
-        setReclamosEnviados(agregar);
-      }
-      setPaginacion((previa) => ({
-        ...previa,
-        [bandeja]: paginacionServidor(res, nuevos),
+      setDatos((previo) => (previo.alcance !== alcance ? previo : {
+        ...previo,
+        [bandeja]: agregar(previo[bandeja]),
+        paginacion: { ...previo.paginacion, [bandeja]: paginacionServidor(res, nuevos) },
       }));
     } catch (e) {
       if (version === versionCarga.current) setErrorMas(mensajeErrorApi(e));
@@ -470,7 +537,7 @@ export default function MisReclamosScreen({ navigation }) {
       ) : error ? (
         <View style={styles.center}>
           <Text style={styles.errorTexto}>{error}</Text>
-          <Button title="Reintentar" onPress={cargar} />
+          <Button title="Reintentar" onPress={() => cargar()} />
         </View>
       ) : (
         <FlatList
@@ -479,7 +546,7 @@ export default function MisReclamosScreen({ navigation }) {
           keyExtractor={(item) => String(item.id)}
           renderItem={renderItem}
           refreshControl={
-            <RefreshControl refreshing={cargando} onRefresh={cargar} />
+            <RefreshControl refreshing={cargando} onRefresh={() => cargar()} />
           }
           ListFooterComponent={
             paginacion[tab].pagina < paginacion[tab].totalPaginas ? (
