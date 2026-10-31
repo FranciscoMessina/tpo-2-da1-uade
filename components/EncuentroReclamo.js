@@ -5,56 +5,96 @@ import PuntoEncuentro from './PuntoEncuentro';
 import { aceptarEncuentro, obtenerEncuentro, proponerEncuentro } from '../services/encuentros';
 import { mensajeErrorApi } from '../services/api';
 import { useConexion } from '../context/ConexionContext';
+import useActualizacionVisible from '../hooks/useActualizacionVisible';
+
+// `reclamoId` es el reclamo al que pertenecen los datos: nunca se muestran los de otro.
+const VISTA_INICIAL = { reclamoId: undefined, datos: null, error: '' };
 
 export default function EncuentroReclamo({ reclamoId, actualizacion }) {
   const { hayConexion } = useConexion();
-  const [datos, setDatos] = useState(null);
-  const [cargando, setCargando] = useState(true);
+  const [vista, setVista] = useState(VISTA_INICIAL);
   const [guardando, setGuardando] = useState(false);
-  const [error, setError] = useState('');
   const [recarga, setRecarga] = useState(0);
   const enviando = useRef(false);
-  const version = useRef(0);
+  // Solo vale la respuesta de la última consulta; las anteriores se cancelan o se descartan
+  const consulta = useRef({ version: 0, controller: null, enCurso: false });
 
-  useFocusEffect(useCallback(() => {
-    const solicitud = ++version.current;
+  const vigente = vista.reclamoId === reclamoId;
+  const { datos, error } = vigente ? vista : VISTA_INICIAL;
+  // Con datos a la vista, refrescar no los reemplaza por el indicador de carga
+  const cargando = datos === null && error === '';
+
+  /**
+   * Consulta el encuentro. Con `silencioso` es el refresco periódico: conserva lo que se
+   * ve, no se superpone con otra consulta ni con un guardado y, si falla, no muestra error.
+   */
+  const consultar = useCallback(({ silencioso = false } = {}) => {
+    const actual = consulta.current;
+    if (silencioso && (actual.enCurso || enviando.current)) return;
+    actual.controller?.abort();
+    const version = ++actual.version;
     const controller = new AbortController();
-    setCargando(true);
-    setDatos(null);
-    setError('');
+    actual.controller = controller;
+    actual.enCurso = true;
+    const vale = () => version === actual.version && !controller.signal.aborted;
+
+    if (!silencioso) {
+      setVista((previo) => (previo.reclamoId === reclamoId
+        ? { ...previo, error: '' }
+        : { reclamoId, datos: null, error: '' }));
+    }
     obtenerEncuentro(reclamoId, controller.signal)
       .then((resultado) => {
-        if (solicitud === version.current) setDatos(resultado);
+        if (vale()) setVista({ reclamoId, datos: resultado, error: '' });
       })
       .catch((e) => {
-        if (!controller.signal.aborted && solicitud === version.current) setError(mensajeErrorApi(e));
+        if (silencioso || !vale()) return;
+        setVista({ reclamoId, datos: null, error: mensajeErrorApi(e) });
       })
       .finally(() => {
-        if (solicitud === version.current) setCargando(false);
+        if (version === actual.version) actual.enCurso = false;
       });
-    return () => { controller.abort(); version.current++; };
-  }, [reclamoId, actualizacion, recarga]));
+  }, [reclamoId]);
+
+  useFocusEffect(useCallback(() => {
+    const actual = consulta.current;
+    consultar();
+    return () => {
+      actual.version += 1;
+      actual.enCurso = false;
+      actual.controller?.abort();
+    };
+    // `actualizacion` y `recarga` fuerzan una consulta nueva al cambiar
+  }, [consultar, actualizacion, recarga]));
+
+  const refrescar = useCallback(() => consultar({ silencioso: true }), [consultar]);
+  useActualizacionVisible(refrescar, { alcance: reclamoId });
 
   async function guardar(direccion) {
     if (!datos || enviando.current) return false;
     if (!hayConexion) {
-      setError('Se necesita conexión a internet para coordinar el punto de encuentro.');
+      setVista((previo) => ({
+        ...previo, error: 'Se necesita conexión a internet para coordinar el punto de encuentro.',
+      }));
       return false;
     }
     enviando.current = true;
     setGuardando(true);
-    setError('');
-    const solicitud = version.current;
+    setVista((previo) => ({ ...previo, error: '' }));
+    // El resultado del guardado es el más nuevo: una consulta en camino ya no vale
+    const actual = consulta.current;
+    actual.controller?.abort();
+    actual.enCurso = false;
+    const solicitud = ++actual.version;
     try {
       const resultado = direccion === undefined
         ? await aceptarEncuentro(reclamoId, datos)
         : await proponerEncuentro(reclamoId, direccion, datos);
-      if (solicitud === version.current) setDatos(resultado);
+      if (solicitud === actual.version) setVista({ reclamoId, datos: resultado, error: '' });
       return true;
     } catch (e) {
-      if (solicitud === version.current) {
-        setDatos(null);
-        setError(mensajeErrorApi(e));
+      if (solicitud === actual.version) {
+        setVista({ reclamoId, datos: null, error: mensajeErrorApi(e) });
       }
       return false;
     } finally {
