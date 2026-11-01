@@ -25,6 +25,7 @@ import {
   descartarCacheLegada,
   setUsuarioCache,
 } from '../services/cacheOffline';
+import { desactivarBiometria } from './useConfiguracion';
 
 export const SEGUNDOS_REENVIO = 30;
 
@@ -92,6 +93,8 @@ export function AuthProvider({ children }) {
     setSesionOffline(false);
     setCodigoPendiente(null);
     setError('Tu sesión venció o dejó de ser válida. Volvé a ingresar.');
+
+    desactivarBiometria().catch(() => {});
 
     try {
       await borrarToken();
@@ -371,6 +374,8 @@ export function AuthProvider({ children }) {
         setUsuario(null);
         setSesionOffline(false);
         setCodigoPendiente(null);
+        // Una falla acá no debe impedir borrar el token
+        await desactivarBiometria().catch(() => {});
         await borrarToken();
       }
 
