@@ -14,6 +14,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { conActividadExterna } from '../services/actividadExterna';
 import ReputationCard from '../components/ReputationCard';
 import { fechaSuceso } from '../components/TarjetaPublicacion';
+import { nombreFranja, textoHora } from '../data/franjas';
 import usePublicacion from '../hooks/usePublicacion';
 import { mensajeErrorApi } from '../services/api';
 import SelectorBarrio from '../components/SelectorBarrio';
@@ -43,12 +44,6 @@ import {
   radios,
   tonos,
 } from '../components/ui';
-
-const FRANJAS = {
-  manana: 'Mañana (6 a 12 h)',
-  tarde: 'Tarde (12 a 19 h)',
-  noche: 'Noche (19 a 6 h)',
-};
 
 export default function PublicationDetailScreen({ route, navigation }) {
   return (
@@ -281,15 +276,20 @@ function DetallePublicacion({ route, navigation }) {
 
         <Tarjeta>
           <FilaDato etiqueta="Categoría" valor={publicacion.categoria} />
-          <FilaDato etiqueta="Fecha del suceso" valor={fechaSuceso(publicacion.fecha)} />
           <FilaDato
-            etiqueta="Franja horaria"
-            valor={FRANJAS[publicacion.franja] || publicacion.franja}
+            etiqueta="Fecha del suceso"
+            valor={[fechaSuceso(publicacion.fecha), textoHora(publicacion.hora)].filter(Boolean).join(' · ')}
           />
+          <FilaDato etiqueta="Franja horaria" valor={nombreFranja(publicacion.franja)} />
           <FilaDato etiqueta="Barrio" valor={publicacion.barrio} />
           <FilaDato
             etiqueta="Dirección exacta"
-            valor={publicacion.direccionExacta || 'Se muestra cuando el reclamo sea aceptado.'}
+            valor={
+              publicacion.direccionExacta ||
+              (esPropia || reclamoAceptado
+                ? 'No informada'
+                : 'Se muestra cuando el reclamo sea aceptado.')
+            }
           />
         </Tarjeta>
 

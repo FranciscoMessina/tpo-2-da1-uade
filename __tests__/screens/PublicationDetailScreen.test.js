@@ -30,7 +30,7 @@ const publicacion = (extra = {}) => ({
 
 let reclamar;
 
-function montar(extra) {
+function montar(extra, hook = {}) {
   reclamar = jest.fn().mockResolvedValue({ id: 'c1' });
   jest.mocked(usePublicacion).mockReturnValue({
     publicacion: publicacion(extra),
@@ -44,6 +44,7 @@ function montar(extra) {
     recargar: jest.fn(),
     toggleSeguir: jest.fn(),
     reclamar,
+    ...hook,
   });
   jest.mocked(useConexion).mockReturnValue({ hayConexion: true });
   render(
@@ -123,5 +124,48 @@ describe('PublicationDetailScreen: reclamo «Es mío»', () => {
     await enviar('Confirmar y enviar reclamo');
 
     expect(reclamar).toHaveBeenCalledWith(expect.objectContaining({ mensaje: 'azul con un moño' }));
+  });
+});
+
+describe('PublicationDetailScreen: fecha, hora y dirección', () => {
+  test('con hora, la muestra junto a la fecha del suceso y conserva la franja', () => {
+    montar({ hora: '18:30' });
+
+    expect(screen.getByText('30/10/2026 · 18:30 h')).toBeTruthy();
+    expect(screen.getByText('Tarde (12 a 19 h)')).toBeTruthy();
+  });
+
+  test('una publicación vieja sin hora muestra solo la fecha y la franja', () => {
+    montar({ hora: null });
+
+    expect(screen.getByText('30/10/2026')).toBeTruthy();
+    expect(screen.getByText('Tarde (12 a 19 h)')).toBeTruthy();
+    expect(screen.queryByText(/ h$/)).toBeNull();
+  });
+
+  test('sin acceso, la dirección se muestra cuando el reclamo sea aceptado', () => {
+    montar({ direccionExacta: null });
+
+    expect(screen.getByText('Se muestra cuando el reclamo sea aceptado.')).toBeTruthy();
+  });
+
+  test('con el reclamo aceptado se ve la dirección', () => {
+    montar({ direccionExacta: 'Av. Santa Fe 3000', miReclamo: { estado: 'aceptado', intentos: 1 } });
+    expect(screen.getByText('Av. Santa Fe 3000')).toBeTruthy();
+    expect(screen.queryByText('Se muestra cuando el reclamo sea aceptado.')).toBeNull();
+  });
+
+  test('con el reclamo aceptado y sin dirección dice «No informada»', () => {
+    montar({ direccionExacta: null, miReclamo: { estado: 'aceptado', intentos: 1 } });
+
+    expect(screen.getByText('No informada')).toBeTruthy();
+    expect(screen.queryByText('Se muestra cuando el reclamo sea aceptado.')).toBeNull();
+  });
+
+  test('en una publicación propia sin dirección dice «No informada»', () => {
+    montar({ direccionExacta: null }, { esPropia: true });
+
+    expect(screen.getByText('No informada')).toBeTruthy();
+    expect(screen.queryByText('Se muestra cuando el reclamo sea aceptado.')).toBeNull();
   });
 });
