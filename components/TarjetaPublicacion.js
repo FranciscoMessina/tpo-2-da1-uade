@@ -14,9 +14,23 @@ import {
   radios,
   tonos,
 } from './ui';
+import { useConexion } from '../context/ConexionContext';
 
 function Miniatura({ uri = undefined, categoria }) {
-  const [fallo, setFallo] = useState(false);
+  // Se guarda qué foto falló, no un simple "falló": si la publicación cambia de foto, la nueva
+  // se intenta sola, y el error tardío de una foto anterior no oculta a la actual.
+  const [uriFallida, setUriFallida] = useState(null);
+  const { hayConexion } = useConexion();
+  const fallo = !!uri && uri === uriFallida;
+
+  // Un único reintento de la misma foto cuando vuelve la conexión. Si falla otra vez, espera
+  // a otro corte y reconexión real: no reintenta en cada render. Se ajusta durante el render
+  // (patrón de React para derivar estado de una prop que cambia) en lugar de en un efecto.
+  const [conexionPrevia, setConexionPrevia] = useState(hayConexion);
+  if (conexionPrevia !== hayConexion) {
+    setConexionPrevia(hayConexion);
+    if (hayConexion) setUriFallida(null);
+  }
 
   if (uri && !fallo) {
     return (
@@ -25,7 +39,7 @@ function Miniatura({ uri = undefined, categoria }) {
         style={styles.miniatura}
         resizeMode="cover"
         accessibilityLabel={`Foto de ${categoria}`}
-        onError={() => setFallo(true)}
+        onError={() => setUriFallida(uri)}
       />
     );
   }
