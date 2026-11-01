@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import { RefreshControl, StyleSheet, View } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
+import { conActividadExterna } from '../services/actividadExterna';
 import ReputationCard from '../components/ReputationCard';
 import BadgesCard from '../components/BadgesCard';
 import usePerfil from '../hooks/usePerfil';
@@ -131,12 +132,12 @@ export default function ProfileScreen({ navigation }) {
     setError('');
 
     try {
-      const resultado = await ImagePicker.launchImageLibraryAsync({
+      const resultado = await conActividadExterna(() => ImagePicker.launchImageLibraryAsync({
         mediaTypes: ['images'],
         allowsEditing: true,
         aspect: [1, 1],
         quality: 0.8,
-      });
+      }));
 
       if (!resultado.canceled && resultado.assets?.[0]) {
         setFotoIngresada(resultado.assets[0].uri);

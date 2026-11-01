@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { Alert, Image, StyleSheet, View } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
+import { conActividadExterna } from '../services/actividadExterna';
 import {
   fechaLocal,
   fechaValida,
@@ -228,12 +229,12 @@ export default function FormularioPublicacion({
     }
 
     try {
-      const resultado = await ImagePicker.launchImageLibraryAsync({
+      const resultado = await conActividadExterna(() => ImagePicker.launchImageLibraryAsync({
         mediaTypes: ['images'],
         allowsMultipleSelection: true,
         selectionLimit: disponibles,
         quality: 0.7,
-      });
+      }));
 
       if (!resultado.canceled) {
         await agregarUris(resultado.assets.map((asset) => asset.uri));
@@ -252,7 +253,7 @@ export default function FormularioPublicacion({
     }
 
     try {
-      const permiso = await ImagePicker.requestCameraPermissionsAsync();
+      const permiso = await conActividadExterna(() => ImagePicker.requestCameraPermissionsAsync());
 
       if (!permiso.granted) {
         setErrorFotos(
@@ -263,10 +264,10 @@ export default function FormularioPublicacion({
         return;
       }
 
-      const resultado = await ImagePicker.launchCameraAsync({
+      const resultado = await conActividadExterna(() => ImagePicker.launchCameraAsync({
         mediaTypes: ['images'],
         quality: 0.7,
-      });
+      }));
 
       if (!resultado.canceled && resultado.assets?.length) {
         await agregarUris([resultado.assets[0].uri]);
