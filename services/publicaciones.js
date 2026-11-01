@@ -392,7 +392,7 @@ export function armarCuerpoPublicacion(datos, fotos) {
     descripcion: datos.descripcion.trim(),
     barrio: (datos.barrio || '').trim(),
     fecha: datos.fecha,
-    franja: datos.franja,
+    hora: datos.hora,
     direccionExacta: datos.direccionExacta?.trim() || null,
     fotos,
   };

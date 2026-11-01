@@ -4,6 +4,7 @@ import { procesarCola } from '../../services/procesadorCola';
 import {
   ESTADOS,
   crearItem,
+  descartarDeCola,
   leerCola,
   modificarCola,
 } from '../../services/colaPublicaciones';
@@ -18,7 +19,8 @@ const datos = (titulo, fotos = []) => ({
   descripcion: 'Descripción',
   barrio: 'Palermo',
   fecha: '2026-10-01',
-  franja: 'mañana',
+  hora: '09:00',
+  direccionExacta: 'Calle 1',
   fotos,
 });
 
@@ -160,6 +162,37 @@ describe('procesarCola', () => {
       estado: ESTADOS.ERROR,
       ultimoError: 'Título inválido',
     });
+  });
+
+  test('un pendiente viejo sin hora ni dirección recibe un 422: queda con error visible, sin reintentos y sin perder los demás', async () => {
+    const viejo = (clientId) => ({
+      ...itemCola(clientId),
+      datos: { ...datos(clientId), hora: undefined, direccionExacta: undefined },
+    });
+    await sembrar(viejo('viejo'), itemCola('b'));
+    const crear = jest.fn(async (d) => {
+      if (!d.hora) throw errorHttp(422, 'Ingresá la hora del suceso.');
+      return { id: 2 };
+    });
+
+    const resultado = await procesarCola(UID, opciones({ crear }));
+    expect(resultado).toEqual({ enviadas: 1, motivo: 'vacia' });
+    expect(crear).toHaveBeenCalledTimes(2);
+
+    const cola = await leerCola(UID);
+    expect(cola).toHaveLength(1);
+    expect(cola[0]).toMatchObject({
+      clientId: 'viejo',
+      estado: ESTADOS.ERROR,
+      ultimoError: 'Ingresá la hora del suceso.',
+      proximoIntentoAt: null,
+    });
+
+    // Otro procesamiento no lo reintenta: espera a que se edite o se descarte.
+    await procesarCola(UID, opciones({ crear }));
+    expect(crear).toHaveBeenCalledTimes(2);
+    expect(await descartarDeCola(UID, 'viejo')).toBe(true);
+    expect(await leerCola(UID)).toEqual([]);
   });
 
   test('un 500 reintenta más tarde y detiene el procesamiento con motivo «fallo»', async () => {

@@ -22,7 +22,8 @@ const valores = (extra = {}) => ({
   coords: { latitud: -34.6, longitud: -58.4 },
   direccionExacta: 'Calle 1',
   fecha: '2026-10-01',
-  franja: 'mañana',
+  hora: '09:15',
+  paso: 3,
   fotos: [FOTO],
   preguntaVerificacion: '¿Cuántas llaves?',
   respuestaVerificacion: 'Tres',
@@ -40,7 +41,8 @@ describe('normalizarValores', () => {
       coords: null,
       direccionExacta: '',
       fecha: '',
-      franja: '',
+      hora: '',
+      paso: 1,
       fotos: [],
       preguntaVerificacion: '',
       respuestaVerificacion: '',
@@ -68,6 +70,19 @@ describe('normalizarValores', () => {
     expect(normalizarValores({ coords: { latitud: 1 } }).coords).toBeNull();
   });
 
+  test('el paso debe ser un entero desde 1; si no, vuelve al primero', () => {
+    expect(normalizarValores({ paso: 4 }).paso).toBe(4);
+    for (const paso of [0, -2, 1.5, '3', null, undefined, NaN]) {
+      expect(normalizarValores({ paso }).paso).toBe(1);
+    }
+  });
+
+  test('un borrador viejo con franja y sin hora se normaliza sin la franja y con la hora vacía', () => {
+    const n = normalizarValores({ titulo: 'Llaves', franja: 'tarde' });
+    expect(n.hora).toBe('');
+    expect(n).not.toHaveProperty('franja');
+  });
+
   test('las fotos se filtran: solo strings no vacíos', () => {
     expect(normalizarValores({ fotos: ['a', '', 3, null, 'b'] }).fotos).toEqual(['a', 'b']);
     expect(normalizarValores({ fotos: 'a' }).fotos).toEqual([]);
@@ -88,7 +103,7 @@ describe('borradorVacio', () => {
     ['barrio', { barrio: 'Palermo' }],
     ['coordenadas', { coords: { latitud: 1, longitud: 2 } }],
     ['dirección', { direccionExacta: 'Calle 1' }],
-    ['franja', { franja: 'tarde' }],
+    ['hora', { hora: '10:00' }],
     ['foto', { fotos: [FOTO] }],
     ['pregunta de verificación', { preguntaVerificacion: '¿?' }],
     ['respuesta de verificación', { respuestaVerificacion: 'Sí' }],

@@ -14,6 +14,7 @@ import {
   reiniciarEnviando,
   reintentar,
   siguienteItem,
+  valoresDesdeDatos,
 } from '../../services/colaPublicaciones';
 
 const DATOS = { titulo: 'Llaves', fotos: [] };
@@ -224,5 +225,26 @@ describe('clasificarError', () => {
 
   test('un error que no es de axios (p. ej. foto inválida) es un rechazo', () => {
     expect(clasificarError(new Error('Seleccioná una foto válida'))).toBe('rechazo');
+  });
+});
+
+describe('valoresDesdeDatos', () => {
+  const base = {
+    tipo: 'perdi', titulo: 'Llaves', categoria: 'Llaves', descripcion: 'Con llavero', fecha: '2026-10-01',
+  };
+
+  test('carga la hora y la dirección; un pendiente viejo sin ellas las deja vacías para completarlas', () => {
+    expect(valoresDesdeDatos({ ...base, barrio: 'Palermo', hora: '18:30', direccionExacta: 'Calle 1' }))
+      .toMatchObject({ hora: '18:30', direccionExacta: 'Calle 1' });
+    expect(valoresDesdeDatos({ ...base, barrio: 'Palermo', franja: 'tarde' }))
+      .toMatchObject({ hora: '', direccionExacta: '' });
+  });
+
+  test('conserva las coordenadas del GPS junto al barrio, pero no el centro del barrio', () => {
+    const gps = { latitud: -34.5, longitud: -58.4 };
+    expect(valoresDesdeDatos({ ...base, barrio: 'Palermo', ubicacion: gps }).coords).toEqual(gps);
+
+    const centro = { latitud: -34.5889, longitud: -58.4306 };
+    expect(valoresDesdeDatos({ ...base, barrio: 'Palermo', ubicacion: centro }).coords).toBeNull();
   });
 });

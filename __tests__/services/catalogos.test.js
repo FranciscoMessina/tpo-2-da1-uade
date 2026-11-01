@@ -14,6 +14,7 @@ import {
   cargarCatalogoGuardado,
   catalogoActual,
   catalogoIncluido,
+  coordenadasPropias,
   iniciarCatalogo,
   opcionesZona,
   restablecerCatalogo,
@@ -471,5 +472,25 @@ describe('SearchForm y FormularioPublicacion usan el mismo catálogo', () => {
       barrio: '',
       coords: ubicacion,
     });
+  });
+});
+
+describe('coordenadasPropias', () => {
+  const centro = { latitud: -34.5889, longitud: -58.4306 };
+
+  test('el centro del barrio no cuenta como coordenadas propias', () => {
+    expect(coordenadasPropias('Palermo', centro)).toBeNull();
+    expect(coordenadasPropias('palermo', centro)).toBeNull();
+  });
+
+  test('otras coordenadas, aunque haya barrio, sí son propias', () => {
+    const gps = { latitud: -34.6, longitud: -58.4 };
+    expect(coordenadasPropias('Palermo', gps)).toEqual(gps);
+    expect(coordenadasPropias('Barrio inexistente', centro)).toEqual(centro);
+  });
+
+  test('sin ubicación o con una inválida no hay coordenadas', () => {
+    expect(coordenadasPropias('Palermo', null)).toBeNull();
+    expect(coordenadasPropias('Palermo', { latitud: '1', longitud: 2 })).toBeNull();
   });
 });

@@ -329,6 +329,28 @@ export function buscarZona(nombre, catalogo = actual) {
 }
 
 /**
+ * Coordenadas propias de una publicación: las de `ubicacion` salvo que sean el centro del barrio
+ * (lo que se guarda al elegir el barrio a mano), en cuyo caso no hay coordenadas propias.
+ */
+export function coordenadasPropias(barrio, ubicacion, catalogo = actual) {
+  if (
+    !ubicacion ||
+    typeof ubicacion.latitud !== 'number' ||
+    typeof ubicacion.longitud !== 'number'
+  ) {
+    return null;
+  }
+
+  const zona = buscarZona(barrio, catalogo);
+  const esCentro =
+    zona &&
+    Math.abs(zona.latitud - ubicacion.latitud) < 1e-6 &&
+    Math.abs(zona.longitud - ubicacion.longitud) < 1e-6;
+
+  return esCentro ? null : { latitud: ubicacion.latitud, longitud: ubicacion.longitud };
+}
+
+/**
  * Barrios que ofrece un formulario: los del catálogo, más el barrio histórico ya elegido si el
  * catálogo vigente ya no lo lista (para que una publicación o búsqueda guardada se pueda ver).
  */

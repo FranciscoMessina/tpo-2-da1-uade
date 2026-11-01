@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { isAxiosError, isCancel } from 'axios';
+import { coordenadasPropias } from './catalogos';
 import {
   borrarDirectorio,
   conservarSoloArchivos,
@@ -328,9 +329,9 @@ export function valoresDesdeDatos(datos) {
     categoria: datos.categoria,
     descripcion: datos.descripcion,
     barrio: datos.barrio || '',
-    coords: !datos.barrio && datos.ubicacion ? datos.ubicacion : null,
+    coords: coordenadasPropias(datos.barrio, datos.ubicacion),
     fecha: datos.fecha,
-    franja: datos.franja,
+    hora: datos.hora || '',
     direccionExacta: datos.direccionExacta || '',
     fotos: datos.fotos || [],
     preguntaVerificacion: datos.preguntaVerificacion || '',

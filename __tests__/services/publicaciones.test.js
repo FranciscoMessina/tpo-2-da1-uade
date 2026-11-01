@@ -249,7 +249,7 @@ describe('armarCuerpoPublicacion', () => {
     descripcion: ' Con llavero ',
     barrio: ' Palermo ',
     fecha: '2026-10-01',
-    franja: 'mañana',
+    hora: '18:30',
     direccionExacta: '  ',
     preguntaVerificacion: ' ¿Cuántas? ',
     respuestaVerificacion: ' Tres ',
@@ -291,6 +291,13 @@ describe('armarCuerpoPublicacion', () => {
     expect(cuerpo.respuestaVerificacion).toBeNull();
   });
 
+  test('envía la hora y ya no envía la franja, que deriva el servidor', () => {
+    const cuerpo = armarCuerpoPublicacion({ ...datosBase, tipo: 'perdi', franja: 'tarde' }, []);
+
+    expect(cuerpo.hora).toBe('18:30');
+    expect(cuerpo).not.toHaveProperty('franja');
+  });
+
   test('incluye la ubicación solo si hay', () => {
     const ubicacion = { latitud: -34.6, longitud: -58.4 };
 
@@ -310,7 +317,7 @@ describe('crearPublicacion', () => {
     });
 
     const creada = await crearPublicacion(
-      { tipo: 'perdi', titulo: 'T', categoria: 'C', descripcion: 'D', fecha: '2026-10-01', franja: 'tarde',
+      { tipo: 'perdi', titulo: 'T', categoria: 'C', descripcion: 'D', fecha: '2026-10-01', hora: '15:00',
         fotos: ['file:///documentos/a.jpg', 'file:///documentos/ya-subida.jpg'] },
       {
         clientId: 'app-fijo',
