@@ -2,29 +2,40 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AppState } from 'react-native';
 import { isCancel } from 'axios';
 import {
-  obtenerNotificaciones,
-  marcarNotificacionLeida,
+  obtenerResumenNotificaciones,
+  marcarGrupoLeido,
 } from '../services/notificaciones';
 import { mensajeErrorApi } from '../services/api';
 
-async function cargarNotificaciones(signal) {
-  const notificaciones = new Map();
-  let pagina = 1;
-  let datos;
+// Cada grupo del resumen: nombre que entiende el servidor, lista y campo de su id.
+const GRUPOS = {
+  alerta: { lista: 'alertas', campo: 'alertaId' },
+  publicacion: { lista: 'publicaciones', campo: 'publicacionId' },
+  reclamo: { lista: 'reclamos', campo: 'reclamoId' },
+};
 
-  do {
-    datos = await obtenerNotificaciones({ pagina, signal });
-    datos.items.forEach((item) => notificaciones.set(item.id, item));
-    pagina += 1;
-  } while (pagina <= datos.totalPages);
+function normalizarResumen(datos) {
+  return {
+    corte: datos?.corte ?? null,
+    alertas: datos?.alertas ?? [],
+    publicaciones: datos?.publicaciones ?? [],
+    reclamos: datos?.reclamos ?? [],
+  };
+}
 
-  return [...notificaciones.values()];
+function contadores(resumen, grupo) {
+  const { lista, campo } = GRUPOS[grupo];
+  const cantidades = new Map();
+  (resumen?.[lista] ?? []).forEach((item) => {
+    if (item[campo] && item.sinLeer > 0) cantidades.set(item[campo], item.sinLeer);
+  });
+  return cantidades;
 }
 
 export default function useNovedades(usuarioId) {
   const alcance = useMemo(() => ({ usuarioId }), [usuarioId]);
   const [estado, setEstado] = useState({
-    alcance: null, notificaciones: [], loading: false, error: '',
+    alcance: null, resumen: null, loading: false, error: '',
   });
   const [operacion, setOperacion] = useState({ alcance: null, guardando: false });
   const [intento, setIntento] = useState(0);
@@ -33,7 +44,7 @@ export default function useNovedades(usuarioId) {
   useEffect(() => {
     const sesion = {
       alcance, activa: true, ocupada: false, consultando: false,
-      controller: null, notificaciones: [],
+      controller: null, resumen: null,
     };
     sesionActual.current = sesion;
     if (!usuarioId) return () => { sesion.activa = false; };
@@ -67,17 +78,19 @@ export default function useNovedades(usuarioId) {
     sesion.controller = controller;
     sesion.consultando = true;
 
-    cargarNotificaciones(controller.signal)
-      .then((notificaciones) => {
+    // Una sola petición por ciclo: contadores del servidor, no el historial.
+    obtenerResumenNotificaciones({ signal: controller.signal })
+      .then((datos) => {
         if (!sesion.activa || controller.signal.aborted) return;
-        sesion.notificaciones = notificaciones;
-        setEstado({ alcance, notificaciones, loading: false, error: '' });
+        const resumen = normalizarResumen(datos);
+        sesion.resumen = resumen;
+        setEstado({ alcance, resumen, loading: false, error: '' });
       })
       .catch((error) => {
         if (!sesion.activa || controller.signal.aborted || isCancel(error)) return;
         setEstado((actual) => ({
           alcance,
-          notificaciones: actual.alcance === alcance ? actual.notificaciones : [],
+          resumen: actual.alcance === alcance ? actual.resumen : null,
           loading: false,
           error: mensajeErrorApi(error),
         }));
@@ -94,22 +107,20 @@ export default function useNovedades(usuarioId) {
     if (!usuarioId || !sesion?.activa || sesion.alcance !== alcance || sesion.ocupada) return;
     setEstado((actual) => ({
       alcance,
-      notificaciones: actual.alcance === alcance ? actual.notificaciones : [],
+      resumen: actual.alcance === alcance ? actual.resumen : null,
       loading: true,
       error: '',
     }));
     setIntento((actual) => actual + 1);
   }, [usuarioId, alcance]);
 
-  const marcarLeidas = useCallback(async (tipo, campo, id) => {
+  const marcarLeidas = useCallback(async (grupo, id) => {
     const sesion = sesionActual.current;
     if (!usuarioId || !sesion?.activa || sesion.alcance !== alcance || sesion.ocupada) {
       return false;
     }
-    const pendientes = sesion.notificaciones.filter(
-      (item) => !item.leidaEn && item.tipo === tipo && item[campo] === id
-    );
-    if (pendientes.length === 0) return true;
+    const resumenMostrado = sesion.resumen;
+    if (!resumenMostrado?.corte || !contadores(resumenMostrado, grupo).has(id)) return true;
 
     sesion.ocupada = true;
     sesion.controller?.abort();
@@ -117,18 +128,13 @@ export default function useNovedades(usuarioId) {
     setEstado((actual) => ({ ...actual, loading: false, error: '' }));
 
     try {
-      for (const item of pendientes) {
-        if (!sesion.activa) return false;
-        await marcarNotificacionLeida(item.id);
-        if (!sesion.activa) return false;
-        const leidaEn = new Date().toISOString();
-        sesion.notificaciones = sesion.notificaciones.map((actual) => (
-          actual.id === item.id ? { ...actual, leidaEn } : actual
-        ));
-        setEstado({
-          alcance, notificaciones: sesion.notificaciones, loading: false, error: '',
-        });
-      }
+      // Una escritura por grupo, acotada al corte de lo mostrado: lo que llegó después queda sin leer.
+      const datos = await marcarGrupoLeido({ tipo: grupo, id, corte: resumenMostrado.corte });
+      if (!sesion.activa) return false;
+      // El servidor devuelve el resumen ya reconciliado, con los eventos nuevos incluidos.
+      const resumen = normalizarResumen(datos?.resumen);
+      sesion.resumen = resumen;
+      setEstado({ alcance, resumen, loading: false, error: '' });
       return true;
     } catch (error) {
       if (sesion.activa) {
@@ -141,40 +147,16 @@ export default function useNovedades(usuarioId) {
     }
   }, [usuarioId, alcance]);
 
-  const marcarAlertaLeida = useCallback(
-    (id) => marcarLeidas('coincidencia', 'alertaId', id), [marcarLeidas]
-  );
+  const marcarAlertaLeida = useCallback((id) => marcarLeidas('alerta', id), [marcarLeidas]);
   const marcarPublicacionLeida = useCallback(
-    (id) => marcarLeidas('publicacion', 'publicacionId', id), [marcarLeidas]
+    (id) => marcarLeidas('publicacion', id), [marcarLeidas]
   );
-  const marcarReclamoLeido = useCallback(
-    (id) => marcarLeidas('mensaje', 'reclamoId', id), [marcarLeidas]
-  );
+  const marcarReclamoLeido = useCallback((id) => marcarLeidas('reclamo', id), [marcarLeidas]);
 
-  const { porAlerta, porPublicacion, porReclamo } = useMemo(() => {
-    const coincidencias = new Map();
-    const porAlerta = new Map();
-    const porPublicacion = new Map();
-    const porReclamo = new Map();
-
-    if (estado.alcance === alcance && usuarioId) {
-      estado.notificaciones.forEach((item) => {
-        if (item.leidaEn) return;
-        if (item.tipo === 'coincidencia' && item.alertaId && item.publicacionId) {
-          if (!coincidencias.has(item.alertaId)) coincidencias.set(item.alertaId, new Set());
-          coincidencias.get(item.alertaId).add(item.publicacionId);
-        }
-        if (item.tipo === 'publicacion' && item.publicacionId) {
-          porPublicacion.set(item.publicacionId, (porPublicacion.get(item.publicacionId) || 0) + 1);
-        }
-        if (item.tipo === 'mensaje' && item.reclamoId) {
-          porReclamo.set(item.reclamoId, (porReclamo.get(item.reclamoId) || 0) + 1);
-        }
-      });
-      coincidencias.forEach((ids, id) => porAlerta.set(id, ids.size));
-    }
-    return { porAlerta, porPublicacion, porReclamo };
-  }, [estado, alcance, usuarioId]);
+  const resumen = estado.alcance === alcance && usuarioId ? estado.resumen : null;
+  const porAlerta = useMemo(() => contadores(resumen, 'alerta'), [resumen]);
+  const porPublicacion = useMemo(() => contadores(resumen, 'publicacion'), [resumen]);
+  const porReclamo = useMemo(() => contadores(resumen, 'reclamo'), [resumen]);
 
   const vigente = estado.alcance === alcance;
   return {
