@@ -333,6 +333,9 @@ export default function MisReclamosScreen({ navigation }) {
   function renderItem({ item }) {
     const pub = item.publicacion;
     const esRecibido = tab === 'recibidos';
+    const telefonoContacto = esRecibido
+      ? item.telefono
+      : pub?.publicador?.phone;
     // Todo lo nuevo del reclamo (mensajes, reclamo, encuentros y devolución) y, aparte, los mensajes
     const novedades = novedadesPorReclamo.get(item.id) || 0;
     const sinLeer = mensajesPorReclamo.get(item.id) || 0;
@@ -398,8 +401,8 @@ export default function MisReclamosScreen({ navigation }) {
           <Aviso
             tono="exito"
             icono="phone-outline"
-            mensaje={item.telefono
-              ? `Teléfono de contacto: ${item.telefono}`
+            mensaje={telefonoContacto
+              ? `Teléfono de contacto: ${telefonoContacto}`
               : 'Esta persona prefiere comunicarse mediante la aplicación.'}
           />
         )}
