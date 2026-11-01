@@ -16,7 +16,7 @@ import ReputationCard from '../components/ReputationCard';
 import { fechaSuceso } from '../components/TarjetaPublicacion';
 import usePublicacion from '../hooks/usePublicacion';
 import { mensajeErrorApi } from '../services/api';
-import { ZONAS } from '../data/busqueda';
+import SelectorBarrio from '../components/SelectorBarrio';
 import {
   Avatar,
   Aviso,
@@ -27,7 +27,6 @@ import {
   ErrorConReintento,
   Fila,
   FilaDato,
-  GrupoOpciones,
   Icono,
   InsigniaEstado,
   InsigniaTipo,
@@ -219,7 +218,6 @@ function DetallePublicacion({ route, navigation }) {
     }
   }
 
-  const opcionesBarrio = ZONAS.map((zona) => ({ valor: zona.nombre, nombre: zona.nombre }));
   const tituloModal = encontrado ? 'Reclamar como tuyo' : 'Avisar que lo encontraste';
 
   return (
@@ -529,10 +527,12 @@ function DetallePublicacion({ route, navigation }) {
               Para que el dueño pueda confirmar si se trata de lo suyo, adjuntá una foto clara del objeto e indicá el barrio donde lo encontraste.
             </Texto>
 
-            <Texto variante="etiqueta" tono="secundario">
-              Barrio donde lo encontraste (obligatorio, elegí uno de la lista)
-            </Texto>
-            <GrupoOpciones opciones={opcionesBarrio} valor={barrio} onChange={setBarrio} chico />
+            <SelectorBarrio
+              etiqueta="Barrio donde lo encontraste (obligatorio)"
+              accessibilityLabel="Barrio donde lo encontraste"
+              valor={barrio}
+              onChange={setBarrio}
+            />
 
             <Texto variante="etiqueta" tono="secundario">
               Foto del objeto encontrado (obligatoria)

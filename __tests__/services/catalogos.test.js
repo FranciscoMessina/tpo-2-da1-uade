@@ -1,5 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { act, render, screen } from '@testing-library/react-native';
+import { act, fireEvent, render, screen } from '@testing-library/react-native';
 import { AxiosError } from 'axios';
 import SearchForm from '../../components/SearchForm';
 import FormularioPublicacion, {
@@ -21,6 +21,7 @@ import {
   validarCatalogo,
   versionDeCatalogo,
 } from '../../services/catalogos';
+import { abrirSelectorBarrio } from '../components/ayudas';
 import * as conexion from '../../services/conexion';
 import { simularConectividad } from '../hooks/entorno';
 
@@ -390,24 +391,41 @@ describe('SearchForm y FormularioPublicacion usan el mismo catálogo', () => {
 
   const montarPublicacion = () => render(<FormularioPublicacion onEnviar={jest.fn()} />);
 
+  // La búsqueda ofrece los barrios en un desplegable con buscador (la lista solo dibuja unas filas
+  // por vez); la publicación, por ahora, los muestra todos.
+  const verBarrios = (formulario) => {
+    if (formulario === 'búsqueda') abrirSelectorBarrio();
+  };
+  const ofrece = (formulario, barrio) => {
+    if (formulario === 'búsqueda') {
+      fireEvent.changeText(screen.getByLabelText('Buscar barrio'), barrio);
+    }
+
+    return screen.queryByText(barrio) !== null;
+  };
+
   test.each([
     ['búsqueda', montarBusqueda],
     ['publicación', montarPublicacion],
-  ])('el formulario de %s ofrece el catálogo incluido sin conexión', (_nombre, montar) => {
+  ])('el formulario de %s ofrece el catálogo incluido sin conexión', (nombre, montar) => {
     simularConectividad(false);
     montar();
+    verBarrios(nombre);
 
-    for (const nombre of [...CATEGORIAS, ...ZONAS.map((z) => z.nombre)]) {
-      expect(screen.getByText(nombre)).toBeTruthy();
+    for (const categoria of CATEGORIAS) {
+      expect(screen.getByText(categoria)).toBeTruthy();
     }
-    expect(screen.queryByText('Ciudad Evita')).toBeNull();
+    for (const zona of ZONAS) {
+      expect(ofrece(nombre, zona.nombre)).toBe(true);
+    }
+    expect(ofrece(nombre, 'Ciudad Evita')).toBe(false);
     expect(screen.queryByText('Bicicletas')).toBeNull();
   });
 
   test.each([
     ['búsqueda', montarBusqueda],
     ['publicación', montarPublicacion],
-  ])('el formulario de %s se actualiza cuando llega el catálogo de la API', async (_nombre, montar) => {
+  ])('el formulario de %s se actualiza cuando llega el catálogo de la API', async (nombre, montar) => {
     simularConectividad(false);
     backend();
     montar();
@@ -415,8 +433,9 @@ describe('SearchForm y FormularioPublicacion usan el mismo catálogo', () => {
     await act(async () => {
       await actualizarCatalogo();
     });
+    verBarrios(nombre);
 
-    expect(screen.getByText('Ciudad Evita')).toBeTruthy();
+    expect(ofrece(nombre, 'Ciudad Evita')).toBe(true);
     expect(screen.getByText('Bicicletas')).toBeTruthy();
   });
 
@@ -431,12 +450,13 @@ describe('SearchForm y FormularioPublicacion usan el mismo catálogo', () => {
     await act(async () => {
       await iniciarCatalogo();
     });
-    expect(screen.getByText('Ciudad Evita')).toBeTruthy();
+    abrirSelectorBarrio();
+    expect(ofrece('búsqueda', 'Ciudad Evita')).toBe(true);
     expect(screen.getByText('Bicicletas')).toBeTruthy();
     busqueda.unmount();
 
     montarPublicacion();
-    expect(screen.getByText('Ciudad Evita')).toBeTruthy();
+    expect(ofrece('publicación', 'Ciudad Evita')).toBe(true);
     expect(screen.getByText('Bicicletas')).toBeTruthy();
   });
 

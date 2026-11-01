@@ -5,6 +5,7 @@ import useAuth from '../../hooks/useAuth';
 import { useConexion } from '../../context/ConexionContext';
 import { __navegacion as navegacion } from '@react-navigation/native';
 import { simularConectividad } from '../hooks/entorno';
+import { elegirBarrio } from '../components/ayudas';
 
 // Hooks y contexto se reemplazan: la prueba no toca la red ni el servidor.
 jest.mock('../../hooks/usePerfil');
@@ -163,5 +164,45 @@ describe('ProfileScreen — acciones que siguen disponibles sin conexión', () =
     expect(screen.getByText('Reintentar')).not.toBeDisabled();
     fireEvent.press(screen.getByText('Reintentar'));
     expect(estadoPerfil.recargarPerfil).toHaveBeenCalled();
+  });
+});
+
+describe('ProfileScreen — barrio', () => {
+  test('se elige de la lista y se guarda su nombre', async () => {
+    editar();
+
+    elegirBarrio('Caballito');
+    await act(async () => { fireEvent.press(screen.getByText(GUARDAR)); });
+
+    expect(estadoPerfil.guardarPerfil).toHaveBeenCalledWith(expect.objectContaining({ zone: 'Caballito' }));
+  });
+
+  test('se puede dejar sin barrio', async () => {
+    editar();
+
+    elegirBarrio('Sin barrio');
+    await act(async () => { fireEvent.press(screen.getByText(GUARDAR)); });
+
+    expect(estadoPerfil.guardarPerfil).toHaveBeenCalledWith(expect.objectContaining({ zone: '' }));
+  });
+
+  test('un barrio viejo fuera del catálogo se muestra y se guarda tal cual si no se cambia', async () => {
+    estadoPerfil.perfil = { ...perfil, zone: 'Barrio Viejo' };
+    editar();
+
+    expect(screen.getAllByText('Barrio Viejo').length).toBeGreaterThan(0);
+    await act(async () => { fireEvent.press(screen.getByText(GUARDAR)); });
+
+    expect(estadoPerfil.guardarPerfil).toHaveBeenCalledWith(expect.objectContaining({ zone: 'Barrio Viejo' }));
+  });
+
+  test('un barrio viejo se puede reemplazar por uno del catálogo', async () => {
+    estadoPerfil.perfil = { ...perfil, zone: 'Barrio Viejo' };
+    editar();
+
+    elegirBarrio('Almagro');
+    await act(async () => { fireEvent.press(screen.getByText(GUARDAR)); });
+
+    expect(estadoPerfil.guardarPerfil).toHaveBeenCalledWith(expect.objectContaining({ zone: 'Almagro' }));
   });
 });

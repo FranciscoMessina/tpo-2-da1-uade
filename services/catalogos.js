@@ -37,7 +37,7 @@ const OPCIONES_PEDIDO = {
  * Minúsculas y sin tildes: así se comparan nombres de barrio y de categoría. «Núñez» y «nunez»
  * son el mismo nombre; por eso un catálogo no puede traer los dos.
  */
-function normalizar(texto) {
+export function normalizar(texto) {
   return texto
     .normalize('NFD')
     .replace(/[̀-ͯ]/g, '')

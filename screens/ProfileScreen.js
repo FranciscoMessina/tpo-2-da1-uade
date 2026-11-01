@@ -3,6 +3,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { RefreshControl, StyleSheet, View } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { conActividadExterna } from '../services/actividadExterna';
+import SelectorBarrio from '../components/SelectorBarrio';
 import ReputationCard from '../components/ReputationCard';
 import BadgesCard from '../components/BadgesCard';
 import usePerfil from '../hooks/usePerfil';
@@ -86,11 +87,6 @@ export default function ProfileScreen({ navigation }) {
 
     if (nombreLimpio.length < 2) {
       setError('El nombre debe tener al menos 2 caracteres.');
-      return;
-    }
-
-    if (barrioLimpio !== '' && barrioLimpio.length < 2) {
-      setError('El barrio debe tener al menos 2 caracteres.');
       return;
     }
 
@@ -215,14 +211,14 @@ export default function ProfileScreen({ navigation }) {
               maxLength={80}
             />
 
-            <Campo
+            <SelectorBarrio
               etiqueta="Barrio"
-              editable={!guardando}
-              value={barrioIngresado}
-              onChangeText={setBarrioIngresado}
-              placeholder="Ingresá tu barrio"
-              autoCapitalize="words"
-              maxLength={100}
+              accessibilityLabel="Barrio"
+              placeholder="Elegir barrio (opcional)"
+              disabled={guardando}
+              valor={barrioIngresado}
+              onChange={setBarrioIngresado}
+              permitirVaciar
             />
 
             <Campo
