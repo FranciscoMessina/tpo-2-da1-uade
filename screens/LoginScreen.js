@@ -45,8 +45,6 @@ export default function LoginScreen({ navigation }) {
           <Texto variante="pantalla" centrado>Ingresá a Hallado</Texto>
         </View>
 
-        <Aviso tono="info" mensaje="Probá con demo@hallado.com / Hallado123." />
-
         <Tarjeta>
           {!hayConexion && <AvisoSinConexion mensaje="Necesitás conexión para ingresar." />}
           {!!error && hayConexion && (
