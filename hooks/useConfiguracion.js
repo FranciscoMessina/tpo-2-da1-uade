@@ -8,6 +8,12 @@ export async function leerBiometriaActiva() {
   return (await AsyncStorage.getItem(BIOMETRIA_STORAGE_KEY)) === 'true';
 }
 
+// La preferencia es del dispositivo, no de la cuenta: al salir de la sesión se descarta
+// para que la pantalla de ingreso no pida la huella a quien todavía no se identificó.
+export async function desactivarBiometria() {
+  await AsyncStorage.removeItem(BIOMETRIA_STORAGE_KEY);
+}
+
 export async function verificarDisponibilidadBiometrica() {
   const [hardware, enrolado, tipos] = await Promise.all([
     LocalAuthentication.hasHardwareAsync(),
