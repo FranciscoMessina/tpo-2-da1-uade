@@ -178,6 +178,12 @@ Las pruebas están en `__tests__/`. `__tests__/services/` cubre la lógica de `s
 
 Ejemplos: `useNovedades.test.js` (cambio de cuenta durante una petición, respuesta tardía descartada, desmontaje que cancela y libera temporizador y `AppState`) y `HistorialScreen.test.js` (respuesta tardía de un filtro anterior, reintento tras error).
 
+### Recorridos de borrador, cola y reintento
+
+`__tests__/screens/CreatePostScreen.test.js` monta la pantalla de alta con la cola, el borrador y `crearPublicacion` reales, y reemplaza solo la sesión, el GPS y la red por un servidor simulado que, como el backend, guarda una publicación por cuenta y `clientId`. Cubre: el borrador que sobrevive al cierre de la pantalla y se retoma o descarta, el aislamiento del borrador y de la cola por cuenta, guardar sin conexión sin llamar al servidor, el envío posterior desde la cola con una sola publicación aunque se pierda la respuesta del primer intento, el reintento en línea con el mismo `clientId` y que un segundo toque mientras se envía no crea otra alta.
+
+Lo que **no** certifica Jest, y sigue sin validarse hasta que una persona lo pruebe en un Android real: cámara y galería, permisos de ubicación denegados, GPS real, biometría real, Maps, el modo avión del sistema operativo (aquí se simula con `simularConectividad`), el reinicio real de la app (aquí se simula montando la pantalla de nuevo) y la recepción de correo real del código OTP. La prueba contra el backend real que se hizo a mano (servicios y `useNovedades` del frontend contra el proceso del backend con base temporal) no se guarda como prueba automática de este repositorio.
+
 ### Chequeo estático
 
 ```powershell
