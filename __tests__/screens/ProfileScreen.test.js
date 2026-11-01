@@ -142,9 +142,6 @@ describe('ProfileScreen — acciones que siguen disponibles sin conexión', () =
     expect(screen.getByText('Editar perfil')).not.toBeDisabled();
     expect(screen.queryByText(AVISO)).toBeNull();
 
-    fireEvent.press(screen.getByText('Mis reclamos (enviados y recibidos)'));
-    expect(navegacion.navigate).toHaveBeenCalledWith('MisReclamos');
-
     fireEvent.press(screen.getByText('Historial de devoluciones'));
     expect(navegacion.navigate).toHaveBeenCalledWith('Historial');
 

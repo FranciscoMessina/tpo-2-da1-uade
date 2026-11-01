@@ -2,33 +2,47 @@ import { useConexion } from '../context/ConexionContext';
 import { useCallback, useState } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import {
-  ActivityIndicator,
   Alert,
-  Button,
   FlatList,
   Image,
-  Modal,
-  Pressable,
   ScrollView,
   StyleSheet,
-  Text,
-  TextInput,
   View,
   useWindowDimensions,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import ReputationCard from '../components/ReputationCard';
+import { fechaSuceso } from '../components/TarjetaPublicacion';
 import usePublicacion from '../hooks/usePublicacion';
 import { mensajeErrorApi } from '../services/api';
 import { ZONAS } from '../data/searchDemo';
-
-const ESTADOS = {
-  abierta: { texto: 'Abierta', fondo: '#DCFCE7', color: '#166534' },
-  en_reclamo: { texto: 'En reclamo', fondo: '#FEF3C7', color: '#92400E' },
-  resuelta: { texto: 'Resuelta', fondo: '#E5E7EB', color: '#374151' },
-  vencida: { texto: 'Vencida', fondo: '#FEE2E2', color: '#991B1B' },
-};
+import {
+  Avatar,
+  Aviso,
+  AvisoSinConexion,
+  Boton,
+  Campo,
+  Cargando,
+  ErrorConReintento,
+  Fila,
+  FilaDato,
+  GrupoOpciones,
+  Icono,
+  InsigniaEstado,
+  InsigniaTipo,
+  ModalPantalla,
+  NotaSinConexion,
+  Tarjeta,
+  Texto,
+  Tocable,
+  colores,
+  espacio,
+  estilosPantalla,
+  iconoCategoria,
+  irAPestana,
+  radios,
+  tonos,
+} from '../components/ui';
 
 const FRANJAS = {
   manana: 'Mañana (6 a 12 h)',
@@ -77,21 +91,15 @@ function DetallePublicacion({ route, navigation }) {
     recargar();
   }, [recargar]));
 
-  if (loading) {
-    return (
-      <View style={styles.center}>
-        <ActivityIndicator size="large" color="#1D4ED8" />
-      </View>
-    );
-  }
+  if (loading) return <Cargando pantalla />;
 
   if (error || !publicacion) {
     return (
-      <View style={styles.center}>
-        <Text style={styles.help}>
-          {error || 'No encontramos la publicación.'}
-        </Text>
-        <Button title="Reintentar" onPress={recargar} />
+      <View style={estilosPantalla.centrado}>
+        <ErrorConReintento
+          mensaje={error || 'No encontramos la publicación.'}
+          onReintentar={recargar}
+        />
       </View>
     );
   }
@@ -99,9 +107,6 @@ function DetallePublicacion({ route, navigation }) {
   const estaOffline = !hayConexion || publicacion?.esOffline;
   const encontrado = publicacion.tipo === 'encontrado';
   const vencida = publicacion.estado === 'vencida';
-  const estado = ESTADOS[publicacion.estado] || {
-    texto: publicacion.estado, fondo: '#E5E7EB', color: '#374151',
-  };
   const fotos = publicacion.fotos.length ? publicacion.fotos : [null];
 
   const miReclamo = publicacion.miReclamo;
@@ -213,21 +218,11 @@ function DetallePublicacion({ route, navigation }) {
     }
   }
 
+  const opcionesBarrio = ZONAS.map((zona) => ({ valor: zona.nombre, nombre: zona.nombre }));
+  const tituloModal = encontrado ? 'Reclamar como tuyo' : 'Avisar que lo encontraste';
+
   return (
-    <ScrollView style={styles.screen}>
-      {estaOffline && (
-        <View style={styles.bannerOffline}>
-          <Text style={styles.bannerOfflineIcon}>📡</Text>
-          <View style={styles.bannerOfflineTexto}>
-            <Text style={styles.bannerOfflineTitulo}>Modo sin conexión</Text>
-            <Text style={styles.bannerOfflineMensaje}>
-              {publicacion.esOffline
-                ? 'Estás viendo una publicación guardada en tu dispositivo (fotos, detalle y barrio disponibles).'
-                : 'Sin conexión a internet. Las acciones para reclamar, seguir o gestionar están deshabilitadas.'}
-            </Text>
-          </View>
-        </View>
-      )}
+    <ScrollView style={estilosPantalla.pantalla}>
       <FlatList
         data={fotos}
         horizontal
@@ -239,141 +234,125 @@ function DetallePublicacion({ route, navigation }) {
         }
         renderItem={({ item }) => (
           <View
-            style={[styles.photo, { width }]}
+            style={[styles.foto, { width }]}
             accessibilityLabel={`Foto de ${publicacion.categoria}`}
           >
             {item ? (
-              <Image source={{ uri: item }} style={styles.image} resizeMode="cover" />
+              <Image source={{ uri: item }} style={styles.imagen} resizeMode="cover" />
             ) : (
               <>
-                <Text style={styles.icon}>📦</Text>
-                <Text style={styles.photoLabel}>Sin fotos</Text>
+                <Icono
+                  nombre={iconoCategoria(publicacion.categoria)}
+                  tamano={56}
+                  color={tonos.info.texto}
+                />
+                <Texto variante="cuerpoChico" style={styles.sinFoto}>Sin fotos</Texto>
               </>
+            )}
+
+            {publicacion.fotos.length > 0 && (
+              <View style={styles.contador}>
+                <Texto variante="leyendaFuerte" tono="inverso">
+                  Foto {foto + 1} de {publicacion.fotos.length}
+                </Texto>
+              </View>
             )}
           </View>
         )}
       />
 
-      <Text style={styles.counter}>
-        {publicacion.fotos.length ? `Foto ${foto + 1} de ${publicacion.fotos.length}` : 'Sin fotos adjuntas'}
-      </Text>
+      <View style={estilosPantalla.contenido}>
+        {estaOffline && (
+          <AvisoSinConexion
+            mensaje={
+              publicacion.esOffline
+                ? 'Estás viendo una publicación guardada en tu dispositivo (fotos, detalle y barrio disponibles).'
+                : 'Sin conexión a internet. Las acciones para reclamar, seguir o gestionar están deshabilitadas.'
+            }
+          />
+        )}
 
-      <View style={styles.content}>
-        <View style={styles.row}>
-          <Text style={styles.type}>
-            {encontrado ? 'ENCONTRADO' : 'PERDIDO'}
-          </Text>
-          <View style={[styles.badge, { backgroundColor: estado.fondo }]}>
-            <Text style={[styles.badgeText, { color: estado.color }]}>
-              {estado.texto}
-            </Text>
-          </View>
+        <View style={styles.cabecera}>
+          <Fila>
+            <InsigniaTipo tipo={publicacion.tipo} />
+            <InsigniaEstado estado={publicacion.estado} />
+          </Fila>
+
+          <Texto variante="pantalla">{publicacion.titulo}</Texto>
+          <Texto tono="secundario">{publicacion.descripcion}</Texto>
         </View>
 
-        <Text style={styles.title}>{publicacion.titulo}</Text>
-        <Text style={styles.body}>{publicacion.descripcion}</Text>
+        <Tarjeta>
+          <FilaDato etiqueta="Categoría" valor={publicacion.categoria} />
+          <FilaDato etiqueta="Fecha del suceso" valor={fechaSuceso(publicacion.fecha)} />
+          <FilaDato
+            etiqueta="Franja horaria"
+            valor={FRANJAS[publicacion.franja] || publicacion.franja}
+          />
+          <FilaDato etiqueta="Barrio" valor={publicacion.barrio} />
+          <FilaDato
+            etiqueta="Dirección exacta"
+            valor={publicacion.direccionExacta || 'Se muestra cuando el reclamo sea aceptado.'}
+          />
+        </Tarjeta>
 
-        <View style={styles.card}>
-          <Text style={styles.label}>Categoría</Text>
-          <Text style={styles.value}>{publicacion.categoria}</Text>
+        {!esPropia && vencida && (
+          <Aviso
+            tono="peligro"
+            icono="clock-outline"
+            titulo="Publicación vencida"
+            mensaje="Esta publicación venció y ya no acepta reclamos ni avisos."
+          />
+        )}
 
-          <Text style={styles.label}>Fecha del suceso</Text>
-          <Text style={styles.value}>
-            {publicacion.fecha.split('-').reverse().join('/')}
-          </Text>
+        {!esPropia && reclamoPendiente && (
+          <Aviso
+            tono="aviso"
+            icono="timer-sand"
+            titulo={`Reclamo pendiente (Intento ${intentosRealizados} de 3)`}
+            mensaje="Tu reclamo está a la espera de respuesta del publicador. Vence automáticamente a las 48 horas si no recibe respuesta."
+          />
+        )}
 
-          <Text style={styles.label}>Franja horaria</Text>
-          <Text style={styles.value}>{FRANJAS[publicacion.franja] || publicacion.franja}</Text>
+        {!esPropia && reclamoVencido && (
+          <Aviso
+            tono="peligro"
+            icono="clock-outline"
+            titulo={`Reclamo vencido (Intento ${intentosRealizados} de 3)`}
+            mensaje={`Tu reclamo anterior venció automáticamente al cumplirse 48 horas sin respuesta.${
+              intentosRealizados < 3
+                ? ` Podés volver a intentarlo (intento ${proximoIntento} de 3).`
+                : ' Ya utilizaste los 3 intentos permitidos para esta publicación.'
+            }`}
+          />
+        )}
 
-          <Text style={styles.label}>Barrio</Text>
-          <Text style={styles.value}>{publicacion.barrio}</Text>
+        {!esPropia && reclamoRechazado && (
+          <Aviso
+            tono="neutro"
+            icono="close-circle-outline"
+            titulo={`Reclamo rechazado (Intento ${intentosRealizados} de 3)`}
+            mensaje={`El publicador no confirmó tu reclamo anterior.${
+              intentosRealizados < 3
+                ? ` Podés intentarlo nuevamente (intento ${proximoIntento} de 3).`
+                : ' Ya utilizaste los 3 intentos permitidos para esta publicación.'
+            }`}
+          />
+        )}
 
-          <Text style={styles.label}>Dirección exacta</Text>
-          <Text style={styles.value}>
-            {publicacion.direccionExacta ||
-              'Se muestra cuando el reclamo sea aceptado.'}
-          </Text>
-        </View>
+        {!esPropia && reclamoAceptado && (
+          <Aviso
+            tono="exito"
+            titulo="Reclamo aceptado"
+            mensaje="¡El publicador aceptó tu reclamo! Podés coordinar la entrega con él."
+          />
+        )}
 
-        <Text style={styles.section}>Publicado por</Text>
-        <Text style={styles.value}>{publicacion.publicador.name}</Text>
-        <ReputationCard reputacion={publicacion.publicador.reputation} />
-        <Button
-          title="Ver perfil"
-          onPress={() =>
-            navigation.navigate('PerfilPublico', {
-              usuario: publicacion.publicador,
-            })
-          }
-        />
-
-        <View style={styles.actions}>
-          {!esPropia && vencida && (
-            <View style={styles.statusCardVencido}>
-              <Text style={styles.statusTitleVencido}>
-                ⏰ Publicación vencida
-              </Text>
-              <Text style={styles.statusText}>
-                Esta publicación venció y ya no acepta reclamos ni avisos.
-              </Text>
-            </View>
-          )}
-
-          {!esPropia && reclamoPendiente && (
-            <View style={styles.statusCardPendiente}>
-              <Text style={styles.statusTitlePendiente}>
-                ⏳ Reclamo pendiente (Intento {intentosRealizados} de 3)
-              </Text>
-              <Text style={styles.statusText}>
-                Tu reclamo está a la espera de respuesta del publicador. Vence automáticamente a las 48 horas si no recibe respuesta.
-              </Text>
-            </View>
-          )}
-
-          {!esPropia && reclamoVencido && (
-            <View style={styles.statusCardVencido}>
-              <Text style={styles.statusTitleVencido}>
-                ⏰ Reclamo vencido (Intento {intentosRealizados} de 3)
-              </Text>
-              <Text style={styles.statusText}>
-                Tu reclamo anterior venció automáticamente al cumplirse 48 horas sin respuesta.
-                {intentosRealizados < 3
-                  ? ` Podés volver a intentarlo (intento ${proximoIntento} de 3).`
-                  : ' Ya utilizaste los 3 intentos permitidos para esta publicación.'}
-              </Text>
-            </View>
-          )}
-
-          {!esPropia && reclamoRechazado && (
-            <View style={styles.statusCardRechazado}>
-              <Text style={styles.statusTitleRechazado}>
-                ❌ Reclamo rechazado (Intento {intentosRealizados} de 3)
-              </Text>
-              <Text style={styles.statusText}>
-                El publicador no confirmó tu reclamo anterior.
-                {intentosRealizados < 3
-                  ? ` Podés intentarlo nuevamente (intento ${proximoIntento} de 3).`
-                  : ' Ya utilizaste los 3 intentos permitidos para esta publicación.'}
-              </Text>
-            </View>
-          )}
-
-          {!esPropia && reclamoAceptado && (
-            <View style={styles.statusCardAceptado}>
-              <Text style={styles.statusTitleAceptado}>
-                ✅ Reclamo aceptado
-              </Text>
-              <Text style={styles.statusText}>
-                ¡El publicador aceptó tu reclamo! Podés coordinar la entrega con él.
-              </Text>
-            </View>
-          )}
-
+        <View style={styles.acciones}>
           {esPropia ? (
             <>
-              <Button
-                title="Gestionar publicación"
-                color={estaOffline ? '#9CA3AF' : '#1D4ED8'}
+              <Boton
+                titulo="Gestionar publicación"
                 disabled={estaOffline}
                 onPress={() =>
                   navigation.navigate('GestionPublicacion', {
@@ -382,507 +361,257 @@ function DetallePublicacion({ route, navigation }) {
                 }
               />
               {estaOffline && (
-                <View style={styles.avisoAccionOffline}>
-                  <Text style={styles.avisoAccionOfflineTexto}>
-                    ⚠️ Se necesita conexión a internet para gestionar tu publicación.
-                  </Text>
-                </View>
+                <NotaSinConexion>
+                  Se necesita conexión a internet para gestionar tu publicación.
+                </NotaSinConexion>
               )}
             </>
           ) : (
             <>
-              <Button
-                title={tituloBoton}
-                color={botonDeshabilitado || estaOffline ? '#9CA3AF' : '#1D4ED8'}
+              <Boton
+                titulo={tituloBoton}
                 disabled={botonDeshabilitado || estaOffline}
                 onPress={() => setMostrarReclamo(true)}
               />
               {estaOffline && !reclamoAceptado && !reclamoPendiente && !vencida && (
-                <View style={styles.avisoAccionOffline}>
-                  <Text style={styles.avisoAccionOfflineTexto}>
-                    ⚠️ Se necesita conexión para reclamar esta publicación.
-                  </Text>
-                </View>
+                <NotaSinConexion>
+                  Se necesita conexión para reclamar esta publicación.
+                </NotaSinConexion>
               )}
-            </>
-          )}
 
-          {!esPropia && (
-            <>
-              <Button
-                title={guardandoSeguimiento
+              <Boton
+                titulo={guardandoSeguimiento
                   ? 'Guardando seguimiento…'
                   : siguiendo ? 'Dejar de seguir' : 'Seguir publicación'}
-                color={guardandoSeguimiento || estaOffline || (vencida && !siguiendo) ? '#9CA3AF' : '#4B5563'}
-                disabled={guardandoSeguimiento || estaOffline || (vencida && !siguiendo)}
+                icono={siguiendo ? 'bookmark' : 'bookmark-outline'}
+                variante="secundario"
+                cargando={guardandoSeguimiento}
+                disabled={estaOffline || (vencida && !siguiendo)}
                 onPress={toggleSeguir}
               />
               {estaOffline && (
-                <View style={styles.avisoAccionOffline}>
-                  <Text style={styles.avisoAccionOfflineTexto}>
-                    ⚠️ Se necesita conexión para seguir o dejar de seguir esta publicación.
-                  </Text>
-                </View>
+                <NotaSinConexion>
+                  Se necesita conexión para seguir o dejar de seguir esta publicación.
+                </NotaSinConexion>
               )}
             </>
           )}
+
           {errorSeguimiento !== '' && (
-            <>
-              <Text accessibilityRole="alert" style={styles.error}>{errorSeguimiento}</Text>
-              <Button
-                title="Reintentar carga de seguidas"
-                disabled={guardandoSeguimiento}
-                onPress={recargarSeguimiento}
-              />
-            </>
+            <Aviso
+              tono="peligro"
+              mensaje={errorSeguimiento}
+              accessibilityRole="alert"
+              accion={{
+                titulo: 'Reintentar carga de seguidas',
+                onPress: recargarSeguimiento,
+                disabled: guardandoSeguimiento,
+              }}
+            />
           )}
-          <Button
-            title="Ver publicaciones seguidas"
-            onPress={() => navigation.navigate('Seguidas')}
-          />
-          <Button
-            title="Ir a Mis reclamos"
-            onPress={() => navigation.navigate('MisReclamos')}
-          />
+
+          {siguiendo && (
+            <Boton
+              titulo="Ver publicaciones seguidas"
+              variante="terciario"
+              chico
+              onPress={() => irAPestana(navigation, 'Seguidas')}
+            />
+          )}
+
+          {!!miReclamo && (
+            <Boton
+              titulo="Ir a Mis reclamos"
+              variante="terciario"
+              chico
+              onPress={() => irAPestana(navigation, 'MisReclamos')}
+            />
+          )}
         </View>
+
+        <Texto variante="seccion" style={styles.tituloSeccion}>Publicado por</Texto>
+
+        <Tarjeta sinRelleno>
+          <Tocable
+            radio={radios.tarjeta}
+            accessibilityLabel={`Ver perfil de ${publicacion.publicador.name}`}
+            onPress={() =>
+              navigation.navigate('PerfilPublico', {
+                usuario: publicacion.publicador,
+              })
+            }
+            style={styles.publicador}
+          >
+            <Avatar
+              uri={publicacion.publicador.avatarUrl}
+              nombre={publicacion.publicador.name}
+              tamano={48}
+            />
+            <View style={styles.publicadorTexto}>
+              <Texto variante="subtitulo">{publicacion.publicador.name}</Texto>
+              <Texto variante="cuerpoChico" tono="primario">Ver perfil</Texto>
+            </View>
+            <Icono nombre="chevron-right" tamano={22} color={colores.textoTenue} />
+          </Tocable>
+        </Tarjeta>
+
+        <ReputationCard reputacion={publicacion.publicador.reputation} />
       </View>
 
-      <Modal
+      <ModalPantalla
         visible={mostrarReclamo}
-        animationType="slide"
-        onRequestClose={cerrarModal}
+        titulo={tituloModal}
+        onCerrar={cerrarModal}
+        cerrarDeshabilitado={enviando}
       >
-        <SafeAreaView style={styles.screen}>
-          <ScrollView
-            contentContainerStyle={styles.content}
-            keyboardShouldPersistTaps="handled"
-          >
-            <View style={styles.attemptNotice}>
-              <Text style={styles.attemptNoticeTitle}>
-                Intento {miReclamo ? proximoIntento : 1} de 3
-              </Text>
-              <Text style={styles.attemptNoticeText}>
-                Tenés un máximo de 3 intentos por publicación. Cada reclamo vence automáticamente a las 48 horas si no recibe respuesta.
-              </Text>
-            </View>
+        <Aviso
+          tono="info"
+          titulo={`Intento ${miReclamo ? proximoIntento : 1} de 3`}
+          mensaje="Tenés un máximo de 3 intentos por publicación. Cada reclamo vence automáticamente a las 48 horas si no recibe respuesta."
+        />
 
-            <Text style={styles.title}>
-              {encontrado ? 'Reclamar como tuyo' : 'Avisar que lo encontraste'}
-            </Text>
-
-            {encontrado ? (
+        {encontrado ? (
+          <Tarjeta>
+            {preguntaVerificacion ? (
               <>
-                {preguntaVerificacion ? (
-                  <>
-                    <Text style={styles.help}>
-                      Para acreditar que el objeto es tuyo, respondé la pregunta de verificación definida por quien lo encontró.
-                    </Text>
+                <Texto variante="cuerpoChico" tono="secundario">
+                  Para acreditar que el objeto es tuyo, respondé la pregunta de verificación definida por quien lo encontró.
+                </Texto>
 
-                    <View style={styles.questionCard}>
-                      <Text style={styles.questionLabel}>Pregunta de verificación</Text>
-                      <Text style={styles.questionText}>{preguntaVerificacion}</Text>
-                    </View>
+                <FilaDato etiqueta="Pregunta de verificación" valor={preguntaVerificacion} />
 
-                    <Text style={styles.fieldLabel}>Tu respuesta (obligatoria):</Text>
-                    <TextInput
-                      style={[styles.input, styles.inputShort]}
-                      value={respuesta}
-                      onChangeText={setRespuesta}
-                      placeholder="Escribí tu respuesta…"
-                      maxLength={200}
-                      multiline
-                    />
-
-                    <Text style={styles.fieldLabel}>Mensaje adicional (opcional):</Text>
-                  </>
-                ) : (
-                  <>
-                    <Text style={styles.help}>
-                      Esta publicación no tiene pregunta de verificación. Para acreditar que el objeto es tuyo, describí detalles distintivos que solo vos conozcas.
-                    </Text>
-
-                    <Text style={styles.fieldLabel}>Detalles distintivos (obligatorio):</Text>
-                  </>
-                )}
-                <TextInput
-                  style={styles.input}
-                  value={descripcion}
-                  onChangeText={setDescripcion}
-                  placeholder="Detalles o marcas para acreditar que te pertenece…"
-                  maxLength={500}
+                <Campo
+                  etiqueta="Tu respuesta (obligatoria)"
+                  value={respuesta}
+                  onChangeText={setRespuesta}
+                  placeholder="Escribí tu respuesta…"
+                  maxLength={200}
                   multiline
+                  estiloInput={styles.inputCorto}
                 />
-
-                <Text style={styles.fieldLabel}>Foto que acredite pertenencia (opcional):</Text>
-                {fotoUri ? (
-                  <View style={styles.previewContainer}>
-                    <Image source={{ uri: fotoUri }} style={styles.previewImage} resizeMode="cover" />
-                    <Button title="Quitar foto" color="#DC2626" onPress={quitarFoto} />
-                  </View>
-                ) : (
-                  <Button
-                    title="📷 Seleccionar foto del dispositivo"
-                    color="#2563EB"
-                    onPress={elegirFoto}
-                  />
-                )}
-
-                <View style={styles.modalActions}>
-                  <Button
-                    title={enviando ? 'Enviando reclamo…' : 'Confirmar y enviar reclamo'}
-                    disabled={enviando || !hayConexion || !respuestaValida}
-                    onPress={enviarReclamo}
-                  />
-                  <Button
-                    title="Cancelar"
-                    disabled={enviando}
-                    color="#6B7280"
-                    onPress={cerrarModal}
-                  />
-                </View>
               </>
             ) : (
-              <>
-                <Text style={styles.help}>
-                  Para que el dueño pueda confirmar si se trata de lo suyo, adjuntá una foto clara del objeto e indicá el barrio donde lo encontraste.
-                </Text>
-
-                <Text style={styles.fieldLabel}>
-                  Barrio donde lo encontraste (obligatorio, elegí uno de la lista):
-                </Text>
-                <View style={styles.chipContainer}>
-                  {ZONAS.map((z) => (
-                    <Pressable
-                      key={z.nombre}
-                      onPress={() => setBarrio(z.nombre)}
-                      style={[
-                        styles.chip,
-                        barrio === z.nombre && styles.chipSelected,
-                      ]}
-                    >
-                      <Text
-                        style={[
-                          styles.chipText,
-                          barrio === z.nombre && styles.chipTextSelected,
-                        ]}
-                      >
-                        {z.nombre}
-                      </Text>
-                    </Pressable>
-                  ))}
-                </View>
-
-                <Text style={styles.fieldLabel}>
-                  Foto del objeto encontrado (obligatoria):
-                </Text>
-                {fotoUri ? (
-                  <View style={styles.previewContainer}>
-                    <Image
-                      source={{ uri: fotoUri }}
-                      style={styles.previewImage}
-                      resizeMode="cover"
-                    />
-                    <Button
-                      title="Quitar foto"
-                      color="#DC2626"
-                      onPress={quitarFoto}
-                    />
-                  </View>
-                ) : (
-                  <Button
-                    title="📷 Adjuntar foto del objeto encontrado"
-                    color="#2563EB"
-                    onPress={elegirFoto}
-                  />
-                )}
-
-                <Text style={styles.fieldLabel}>
-                  Mensaje o información adicional (opcional):
-                </Text>
-                <TextInput
-                  style={styles.input}
-                  value={mensaje}
-                  onChangeText={setMensaje}
-                  placeholder="Detalles adicionales sobre el estado del objeto o dónde lo guardás…"
-                  maxLength={1000}
-                  multiline
-                />
-
-                <View style={styles.modalActions}>
-                  <Button
-                    title={
-                      enviando
-                        ? 'Enviando aviso…'
-                        : 'Confirmar y enviar aviso'
-                    }
-                    disabled={
-                      enviando ||
-                      !hayConexion ||
-                      !fotoUri ||
-                      !barrio
-                    }
-                    onPress={enviarReclamo}
-                  />
-                  <Button
-                    title="Cancelar"
-                    disabled={enviando}
-                    color="#6B7280"
-                    onPress={cerrarModal}
-                  />
-                </View>
-              </>
+              <Texto variante="cuerpoChico" tono="secundario">
+                Esta publicación no tiene pregunta de verificación. Para acreditar que el objeto es tuyo, describí detalles distintivos que solo vos conozcas.
+              </Texto>
             )}
-          </ScrollView>
-        </SafeAreaView>
-      </Modal>
+
+            <Campo
+              etiqueta={preguntaVerificacion ? 'Mensaje adicional (opcional)' : 'Detalles distintivos (obligatorio)'}
+              value={descripcion}
+              onChangeText={setDescripcion}
+              placeholder="Detalles o marcas para acreditar que te pertenece…"
+              maxLength={500}
+              multiline
+            />
+
+            <Texto variante="etiqueta" tono="secundario">
+              Foto que acredite pertenencia (opcional)
+            </Texto>
+            {fotoUri ? (
+              <View style={styles.previa}>
+                <Image source={{ uri: fotoUri }} style={styles.imagenPrevia} resizeMode="cover" />
+                <Boton titulo="Quitar foto" variante="peligro" chico onPress={quitarFoto} />
+              </View>
+            ) : (
+              <Boton
+                titulo="Seleccionar foto del dispositivo"
+                icono="image-outline"
+                variante="secundario"
+                onPress={elegirFoto}
+              />
+            )}
+          </Tarjeta>
+        ) : (
+          <Tarjeta>
+            <Texto variante="cuerpoChico" tono="secundario">
+              Para que el dueño pueda confirmar si se trata de lo suyo, adjuntá una foto clara del objeto e indicá el barrio donde lo encontraste.
+            </Texto>
+
+            <Texto variante="etiqueta" tono="secundario">
+              Barrio donde lo encontraste (obligatorio, elegí uno de la lista)
+            </Texto>
+            <GrupoOpciones opciones={opcionesBarrio} valor={barrio} onChange={setBarrio} chico />
+
+            <Texto variante="etiqueta" tono="secundario">
+              Foto del objeto encontrado (obligatoria)
+            </Texto>
+            {fotoUri ? (
+              <View style={styles.previa}>
+                <Image source={{ uri: fotoUri }} style={styles.imagenPrevia} resizeMode="cover" />
+                <Boton titulo="Quitar foto" variante="peligro" chico onPress={quitarFoto} />
+              </View>
+            ) : (
+              <Boton
+                titulo="Adjuntar foto del objeto encontrado"
+                icono="camera-outline"
+                variante="secundario"
+                onPress={elegirFoto}
+              />
+            )}
+
+            <Campo
+              etiqueta="Mensaje o información adicional (opcional)"
+              value={mensaje}
+              onChangeText={setMensaje}
+              placeholder="Detalles adicionales sobre el estado del objeto o dónde lo guardás…"
+              maxLength={1000}
+              multiline
+            />
+          </Tarjeta>
+        )}
+
+        <Boton
+          titulo={
+            encontrado
+              ? (enviando ? 'Enviando reclamo…' : 'Confirmar y enviar reclamo')
+              : (enviando ? 'Enviando aviso…' : 'Confirmar y enviar aviso')
+          }
+          cargando={enviando}
+          disabled={!hayConexion || (encontrado ? !respuestaValida : !fotoUri || !barrio)}
+          onPress={enviarReclamo}
+        />
+        <Boton titulo="Cancelar" variante="terciario" disabled={enviando} onPress={cerrarModal} />
+      </ModalPantalla>
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: '#F3F4F6' },
-  center: {
-    flex: 1,
+  foto: {
+    height: 240,
+    backgroundColor: colores.primarioSuave,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 20,
-    backgroundColor: '#F3F4F6',
+    gap: espacio.xs,
   },
-  content: { padding: 20, gap: 14 },
-  photo: {
-    height: 220,
-    backgroundColor: '#DBEAFE',
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: 8,
+  imagen: { width: '100%', height: '100%' },
+  sinFoto: { color: tonos.info.texto },
+  contador: {
+    position: 'absolute',
+    right: espacio.sm,
+    bottom: espacio.sm,
+    paddingHorizontal: 10,
+    paddingVertical: espacio.xxs,
+    borderRadius: radios.pastilla,
+    backgroundColor: colores.velo,
   },
-  image: { width: '100%', height: '100%' },
-  error: { fontSize: 15, color: '#991B1B' },
-  icon: { fontSize: 64 },
-  photoLabel: { color: '#1D4ED8', fontSize: 13 },
-  counter: {
-    textAlign: 'center',
-    color: '#6B7280',
-    fontSize: 13,
-    marginTop: 8,
-  },
-  row: {
+  cabecera: { gap: espacio.xs },
+  acciones: { gap: espacio.xs },
+  tituloSeccion: { marginTop: espacio.xs },
+  publicador: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
+    gap: espacio.sm,
+    padding: espacio.sm,
   },
-  type: { color: '#1D4ED8', fontSize: 12, fontWeight: 'bold' },
-  badge: { borderRadius: 12, paddingHorizontal: 10, paddingVertical: 4 },
-  badgeText: { fontSize: 13, fontWeight: 'bold' },
-  title: { fontSize: 24, fontWeight: 'bold', color: '#111827' },
-  body: { fontSize: 16, color: '#374151', lineHeight: 24 },
-  help: { fontSize: 15, color: '#6B7280', lineHeight: 22 },
-  card: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 20,
-  },
-  label: { fontSize: 13, color: '#6B7280', marginTop: 8 },
-  value: { fontSize: 16, color: '#111827' },
-  section: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#111827',
-    marginTop: 8,
-  },
-  actions: { gap: 12, marginTop: 8 },
-  input: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    padding: 14,
-    minHeight: 100,
-    textAlignVertical: 'top',
-    fontSize: 16,
-  },
-  inputShort: {
-    minHeight: 60,
-  },
-  fieldLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#374151',
-    marginTop: 4,
-  },
-  questionCard: {
-    backgroundColor: '#EFF6FF',
-    borderColor: '#BFDBFE',
-    borderWidth: 1,
-    borderRadius: 12,
-    padding: 14,
-    gap: 6,
-  },
-  questionLabel: {
-    fontSize: 12,
-    fontWeight: 'bold',
-    color: '#1E40AF',
-    textTransform: 'uppercase',
-  },
-  questionText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#1E3A8A',
-    lineHeight: 22,
-  },
-  previewContainer: {
-    alignItems: 'center',
-    gap: 10,
-  },
-  previewImage: {
+  publicadorTexto: { flex: 1 },
+  inputCorto: { minHeight: 64 },
+  previa: { gap: espacio.xs },
+  imagenPrevia: {
     width: '100%',
     height: 180,
-    borderRadius: 12,
-    backgroundColor: '#E5E7EB',
-  },
-  modalActions: {
-    gap: 12,
-    marginTop: 10,
-    marginBottom: 20,
-  },
-  chipContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  chip: {
-    backgroundColor: '#E5E7EB',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 16,
-  },
-  chipSelected: {
-    backgroundColor: '#1D4ED8',
-  },
-  chipText: {
-    fontSize: 14,
-    color: '#374151',
-  },
-  chipTextSelected: {
-    color: '#FFFFFF',
-    fontWeight: 'bold',
-  },
-  statusCardPendiente: {
-    backgroundColor: '#FEF3C7',
-    borderColor: '#FDE68A',
-    borderWidth: 1,
-    borderRadius: 12,
-    padding: 14,
-    gap: 6,
-  },
-  statusTitlePendiente: {
-    fontSize: 15,
-    fontWeight: 'bold',
-    color: '#92400E',
-  },
-  statusCardVencido: {
-    backgroundColor: '#FEE2E2',
-    borderColor: '#FECACA',
-    borderWidth: 1,
-    borderRadius: 12,
-    padding: 14,
-    gap: 6,
-  },
-  statusTitleVencido: {
-    fontSize: 15,
-    fontWeight: 'bold',
-    color: '#991B1B',
-  },
-  statusCardRechazado: {
-    backgroundColor: '#F3F4F6',
-    borderColor: '#E5E7EB',
-    borderWidth: 1,
-    borderRadius: 12,
-    padding: 14,
-    gap: 6,
-  },
-  statusTitleRechazado: {
-    fontSize: 15,
-    fontWeight: 'bold',
-    color: '#4B5563',
-  },
-  statusCardAceptado: {
-    backgroundColor: '#DCFCE7',
-    borderColor: '#BBF7D0',
-    borderWidth: 1,
-    borderRadius: 12,
-    padding: 14,
-    gap: 6,
-  },
-  statusTitleAceptado: {
-    fontSize: 15,
-    fontWeight: 'bold',
-    color: '#166534',
-  },
-  statusText: {
-    fontSize: 14,
-    color: '#374151',
-    lineHeight: 20,
-  },
-  attemptNotice: {
-    backgroundColor: '#EFF6FF',
-    borderColor: '#BFDBFE',
-    borderWidth: 1,
-    borderRadius: 12,
-    padding: 12,
-    gap: 4,
-    marginBottom: 10,
-  },
-  attemptNoticeTitle: {
-    fontSize: 14,
-    fontWeight: 'bold',
-    color: '#1E40AF',
-  },
-  attemptNoticeText: {
-    fontSize: 13,
-    color: '#1E3A8A',
-    lineHeight: 18,
-  },
-  bannerOffline: {
-    backgroundColor: '#FEF3C7',
-    borderColor: '#F59E0B',
-    borderWidth: 1,
-    borderRadius: 12,
-    margin: 16,
-    marginBottom: 8,
-    padding: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  bannerOfflineIcon: {
-    fontSize: 24,
-  },
-  bannerOfflineTexto: {
-    flex: 1,
-  },
-  bannerOfflineTitulo: {
-    fontSize: 14,
-    fontWeight: 'bold',
-    color: '#92400E',
-    marginBottom: 2,
-  },
-  bannerOfflineMensaje: {
-    fontSize: 13,
-    color: '#78350F',
-    lineHeight: 18,
-  },
-  avisoAccionOffline: {
-    backgroundColor: '#FEF2F2',
-    borderColor: '#F87171',
-    borderWidth: 1,
-    borderRadius: 8,
-    padding: 8,
-    marginTop: 4,
-    marginBottom: 4,
-  },
-  avisoAccionOfflineTexto: {
-    fontSize: 13,
-    color: '#991B1B',
-    fontWeight: '600',
-    textAlign: 'center',
+    borderRadius: radios.control,
+    backgroundColor: colores.borde,
   },
 });

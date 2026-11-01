@@ -9,17 +9,7 @@ import { useSearch } from '../context/SearchContext';
 import { estaConectado, verificarConexion } from '../services/conexion';
 import { useCallback, useRef, useState } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
-import {
-  ActivityIndicator,
-  Alert,
-  Button,
-  FlatList,
-  Pressable,
-  RefreshControl,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
+import { Alert, FlatList, RefreshControl, StyleSheet, View } from 'react-native';
 import {
   obtenerMisReclamos,
   aceptarReclamo,
@@ -29,13 +19,29 @@ import { mensajeErrorApi } from '../services/api';
 import EncuentroReclamo from '../components/EncuentroReclamo';
 import EvidenciaReclamo from '../components/EvidenciaReclamo';
 import { resolverPublicacion } from '../services/historial';
-
-const ESTADOS_RECLAMO = {
-  pendiente: { texto: 'Pendiente', fondo: '#FEF3C7', color: '#92400E' },
-  aceptado: { texto: 'Aceptado', fondo: '#DCFCE7', color: '#166534' },
-  rechazado: { texto: 'Rechazado', fondo: '#E5E7EB', color: '#374151' },
-  vencido: { texto: 'Vencido (48 hs)', fondo: '#FEE2E2', color: '#991B1B' },
-};
+import {
+  Aviso,
+  AvisoSinConexion,
+  Boton,
+  Cargando,
+  ESTADOS_RECLAMO,
+  ErrorConReintento,
+  EstadoVacio,
+  Fila,
+  Icono,
+  InsigniaEstado,
+  InsigniaTipo,
+  NotaSinConexion,
+  Pestanas,
+  Separador,
+  Tarjeta,
+  Texto,
+  Tocable,
+  colores,
+  espacio,
+  estilosPantalla,
+  radios,
+} from '../components/ui';
 
 const PAGINACION_INICIAL = {
   enviados: { pagina: 1, totalPaginas: 1, total: 0 },
@@ -318,64 +324,51 @@ export default function MisReclamosScreen({ navigation }) {
   const items = tab === 'recibidos' ? reclamosRecibidos : reclamosEnviados;
 
   function renderItem({ item }) {
-    const estadoConfig = ESTADOS_RECLAMO[item.estado] || {
-      texto: item.estado,
-      fondo: '#E5E7EB',
-      color: '#374151',
-    };
     const pub = item.publicacion;
     const esRecibido = tab === 'recibidos';
+    const sinLeer = novedadesPorReclamo.get(item.id);
 
     return (
-      <View style={styles.card}>
-        {/* Cabecera con publicación vinculada */}
+      <Tarjeta>
+        {/* Publicación vinculada */}
         {pub && (
-          <Pressable
-            style={styles.pubHeader}
-            onPress={() =>
-              navigation.navigate('DetallePublicacion', {
-                publicacionId: pub.id,
-              })
-            }
-          >
-            <View style={styles.pubInfo}>
-              <Text style={styles.pubTipo}>
-                {pub.tipo === 'encontrado' ? 'OBJETO ENCONTRADO' : 'OBJETO PERDIDO'}
-              </Text>
-              <Text style={styles.pubTitulo} numberOfLines={1}>
-                {pub.titulo}
-              </Text>
-              <Text style={styles.pubDetalles}>
-                {pub.categoria} · {pub.barrio}
-              </Text>
-            </View>
-            <Text style={styles.verFlecha}>›</Text>
-          </Pressable>
+          <>
+            <Tocable
+              radio={radios.chico}
+              accessibilityLabel={`Ver publicación ${pub.titulo}`}
+              onPress={() =>
+                navigation.navigate('DetallePublicacion', {
+                  publicacionId: pub.id,
+                })
+              }
+              style={styles.publicacion}
+            >
+              <View style={styles.publicacionDatos}>
+                <InsigniaTipo tipo={pub.tipo} />
+                <Texto variante="subtitulo" numberOfLines={1}>{pub.titulo}</Texto>
+                <Texto variante="cuerpoChico" tono="secundario">
+                  {pub.categoria} · {pub.barrio}
+                </Texto>
+              </View>
+              <Icono nombre="chevron-right" tamano={22} color={colores.textoTenue} />
+            </Tocable>
+
+            <Separador />
+          </>
         )}
 
-        {/* Separador */}
-        <View style={styles.divisor} />
-
         {/* Datos del reclamo */}
-        <View style={styles.claimRow}>
-          <Text style={styles.claimUser}>
-            {esRecibido ? `De: ${item.usuario}` : 'Enviado por vos'}
-          </Text>
-          <View
-            style={[
-              styles.estadoBadge,
-              { backgroundColor: estadoConfig.fondo },
-            ]}
-          >
-            <Text style={[styles.estadoTexto, { color: estadoConfig.color }]}>
-              {estadoConfig.texto}
-            </Text>
+        <View style={styles.reclamo}>
+          <View style={styles.reclamoDatos}>
+            <Texto variante="etiqueta">
+              {esRecibido ? `De: ${item.usuario}` : 'Enviado por vos'}
+            </Texto>
+            <Texto variante="leyenda" tono="secundario">
+              Intento {item.intentos || 1} de {item.maxIntentos || 3}
+            </Texto>
           </View>
+          <InsigniaEstado estado={item.estado} estados={ESTADOS_RECLAMO} />
         </View>
-
-        <Text style={styles.intentosTexto}>
-          Intento {item.intentos || 1} de {item.maxIntentos || 3}
-        </Text>
 
         {/* Mensaje y evidencia del reclamo (respuesta, barrio y foto de prueba) */}
         <EvidenciaReclamo
@@ -386,13 +379,13 @@ export default function MisReclamosScreen({ navigation }) {
 
         {/* Teléfono compartido en caso de aceptación */}
         {item.estado === 'aceptado' && (
-          <View style={styles.infoBoxAceptado}>
-            <Text style={styles.infoBoxAceptadoTexto}>
-              {item.telefono
-                ? `📞 Teléfono de contacto: ${item.telefono}`
-                : 'Esta persona prefiere comunicarse mediante la aplicación.'}
-            </Text>
-          </View>
+          <Aviso
+            tono="exito"
+            icono="phone-outline"
+            mensaje={item.telefono
+              ? `Teléfono de contacto: ${item.telefono}`
+              : 'Esta persona prefiere comunicarse mediante la aplicación.'}
+          />
         )}
 
         {item.estado === 'aceptado' && pub?.estado === 'en_reclamo' && (
@@ -400,8 +393,10 @@ export default function MisReclamosScreen({ navigation }) {
         )}
 
         {item.estado === 'aceptado' && (
-          <Button
-            title={novedadesPorReclamo.get(item.id) ? `Mensajes (${novedadesPorReclamo.get(item.id)} sin leer)` : 'Mensajes'}
+          <Boton
+            titulo={sinLeer ? `Mensajes (${sinLeer} sin leer)` : 'Mensajes'}
+            icono="message-text-outline"
+            variante="secundario"
             onPress={() => navigation.navigate('ConversacionReclamo', {
               reclamoId: item.id,
               contraparte: esRecibido ? item.usuario : pub?.publicador?.name,
@@ -412,136 +407,89 @@ export default function MisReclamosScreen({ navigation }) {
 
         {esRecibido && item.estado === 'aceptado' && pub?.estado === 'en_reclamo' && (
           <>
-            <Button title={procesandoId === item.id ? 'Confirmando…' : 'Confirmar devolución'}
-              color={!hayConexion ? '#9CA3AF' : undefined}
-              disabled={procesandoId !== null || !hayConexion} onPress={() => manejarResolver(item)} />
+            <Boton
+              titulo={procesandoId === item.id ? 'Confirmando…' : 'Confirmar devolución'}
+              cargando={procesandoId === item.id}
+              disabled={procesandoId !== null || !hayConexion}
+              onPress={() => manejarResolver(item)}
+            />
             {!hayConexion && (
-              <View style={styles.avisoAccionOffline}>
-                <Text style={styles.avisoAccionOfflineTexto}>
-                  ⚠️ Se necesita conexión para confirmar la devolución.
-                </Text>
-              </View>
+              <NotaSinConexion>Se necesita conexión para confirmar la devolución.</NotaSinConexion>
             )}
           </>
         )}
+
         {item.estado === 'aceptado' && pub?.estado === 'resuelta' && (
-          <Button title="Ver historial y valorar" onPress={() => navigation.navigate('Historial')} />
+          <Boton
+            titulo="Ver historial y valorar"
+            variante="secundario"
+            onPress={() => navigation.navigate('Historial')}
+          />
         )}
 
         {/* Aviso de vencimiento */}
         {item.estado === 'vencido' && (
-          <View style={styles.infoBoxVencido}>
-            <Text style={styles.infoBoxVencidoTexto}>
-              ⏰ Venció automáticamente al cumplirse 48 hs sin respuesta.
-            </Text>
-          </View>
+          <Aviso
+            tono="peligro"
+            icono="clock-outline"
+            mensaje="Venció automáticamente al cumplirse 48 hs sin respuesta."
+          />
         )}
 
         {/* Acciones para el publicador en reclamos recibidos */}
         {esRecibido && item.estado === 'pendiente' && pub?.estado === 'abierta' && (
           <>
-            <View style={styles.accionesFila}>
-              <View style={styles.botonAccion}>
-                <Button
-                  title={procesandoId === item.id ? 'Aceptando…' : 'Aceptar'}
-                  color={!hayConexion ? '#9CA3AF' : undefined}
-                  disabled={procesandoId === item.id || !hayConexion}
-                  onPress={() => manejarAceptar(item)}
-                />
-              </View>
-              <View style={styles.botonAccion}>
-                <Button
-                  title={procesandoId === item.id ? 'Rechazando…' : 'Rechazar'}
-                  color={!hayConexion ? '#9CA3AF' : '#DC2626'}
-                  disabled={procesandoId === item.id || !hayConexion}
-                  onPress={() => manejarRechazar(item)}
-                />
-              </View>
-            </View>
+            <Fila>
+              <Boton
+                titulo={procesandoId === item.id ? 'Aceptando…' : 'Aceptar'}
+                flexible
+                disabled={procesandoId === item.id || !hayConexion}
+                onPress={() => manejarAceptar(item)}
+              />
+              <Boton
+                titulo={procesandoId === item.id ? 'Rechazando…' : 'Rechazar'}
+                variante="peligro"
+                flexible
+                disabled={procesandoId === item.id || !hayConexion}
+                onPress={() => manejarRechazar(item)}
+              />
+            </Fila>
             {!hayConexion && (
-              <View style={styles.avisoAccionOffline}>
-                <Text style={styles.avisoAccionOfflineTexto}>
-                  ⚠️ Se necesita conexión para aceptar o rechazar este reclamo.
-                </Text>
-              </View>
+              <NotaSinConexion>Se necesita conexión para aceptar o rechazar este reclamo.</NotaSinConexion>
             )}
           </>
         )}
-
-        {/* Botón para ver publicación si es enviado o ya resuelto */}
-        {pub && (
-          <View style={styles.verPubContainer}>
-            <Button
-              title="Ver publicación"
-              color="#4B5563"
-              onPress={() =>
-                navigation.navigate('DetallePublicacion', {
-                  publicacionId: pub.id,
-                })
-              }
-            />
-          </View>
-        )}
-      </View>
+      </Tarjeta>
     );
   }
 
   return (
-    <View style={styles.screen}>
-      {!hayConexion && (
-        <View style={styles.bannerOffline}>
-          <Text style={styles.bannerOfflineIcon}>⚠️</Text>
-          <View style={styles.bannerOfflineTexto}>
-            <Text style={styles.bannerOfflineTitulo}>Modo sin conexión</Text>
-            <Text style={styles.bannerOfflineMensaje}>
-              Mostrando los últimos reclamos cargados. Se necesita conexión a internet para aceptar o rechazar reclamos.
-            </Text>
-          </View>
-        </View>
-      )}
-      {/* Selector de solapas */}
-      <View style={styles.tabs}>
-        <Pressable
-          style={[styles.tab, tab === 'recibidos' && styles.tabActiva]}
-          onPress={() => setTab('recibidos')}
-        >
-          <Text
-            style={[
-              styles.tabTexto,
-              tab === 'recibidos' && styles.tabTextoActivo,
-            ]}
-          >
-            Recibidos ({paginacion.recibidos.total})
-          </Text>
-        </Pressable>
+    <View style={estilosPantalla.pantalla}>
+      <Pestanas
+        opciones={[
+          { valor: 'recibidos', nombre: `Recibidos (${paginacion.recibidos.total})` },
+          { valor: 'enviados', nombre: `Enviados (${paginacion.enviados.total})` },
+        ]}
+        valor={tab}
+        onChange={setTab}
+      />
 
-        <Pressable
-          style={[styles.tab, tab === 'enviados' && styles.tabActiva]}
-          onPress={() => setTab('enviados')}
-        >
-          <Text
-            style={[
-              styles.tabTexto,
-              tab === 'enviados' && styles.tabTextoActivo,
-            ]}
-          >
-            Enviados ({paginacion.enviados.total})
-          </Text>
-        </Pressable>
-      </View>
+      {!hayConexion && (
+        <AvisoSinConexion
+          style={styles.avisoSinConexion}
+          mensaje="Mostrando los últimos reclamos cargados. Se necesita conexión a internet para aceptar o rechazar reclamos."
+        />
+      )}
 
       {cargando ? (
-        <View style={styles.center}>
-          <ActivityIndicator size="large" color="#1D4ED8" />
-        </View>
+        <Cargando pantalla />
       ) : error ? (
-        <View style={styles.center}>
-          <Text style={styles.errorTexto}>{error}</Text>
-          <Button title="Reintentar" onPress={() => cargar()} />
+        <View style={estilosPantalla.centrado}>
+          <ErrorConReintento mensaje={error} onReintentar={() => cargar()} />
         </View>
       ) : (
         <FlatList
-          contentContainerStyle={styles.listContent}
+          contentContainerStyle={estilosPantalla.contenido}
           data={items}
           keyExtractor={(item) => String(item.id)}
           renderItem={renderItem}
@@ -552,32 +500,26 @@ export default function MisReclamosScreen({ navigation }) {
             paginacion[tab].pagina < paginacion[tab].totalPaginas ? (
               <View style={styles.cargarMas}>
                 {errorMas !== '' && (
-                  <Text style={styles.errorTexto}>{errorMas}</Text>
+                  <Texto variante="cuerpoChico" tono="peligro" centrado>{errorMas}</Texto>
                 )}
-                <Button
-                  title={cargandoMas ? 'Cargando…' : 'Cargar más reclamos'}
-                  disabled={cargandoMas || !hayConexion}
+                <Boton
+                  titulo={cargandoMas ? 'Cargando…' : 'Cargar más reclamos'}
+                  variante="terciario"
+                  cargando={cargandoMas}
+                  disabled={!hayConexion}
                   onPress={cargarMas}
                 />
               </View>
             ) : null
           }
           ListEmptyComponent={
-            <View style={styles.emptyContainer}>
-              <Text style={styles.emptyIcon}>
-                {tab === 'recibidos' ? '📥' : '📤'}
-              </Text>
-              <Text style={styles.emptyTitle}>
-                {tab === 'recibidos'
-                  ? 'No recibiste reclamos'
-                  : 'No enviaste reclamos'}
-              </Text>
-              <Text style={styles.emptySubtitle}>
-                {tab === 'recibidos'
-                  ? 'Cuando alguien reclame un objeto en tus publicaciones, lo vas a ver acá.'
-                  : 'Cuando reclames un objeto perdido o encontrado, podrás seguir su estado acá.'}
-              </Text>
-            </View>
+            <EstadoVacio
+              icono={tab === 'recibidos' ? 'tray-arrow-down' : 'tray-arrow-up'}
+              titulo={tab === 'recibidos' ? 'No recibiste reclamos' : 'No enviaste reclamos'}
+              mensaje={tab === 'recibidos'
+                ? 'Cuando alguien reclame un objeto en tus publicaciones, lo vas a ver acá.'
+                : 'Cuando reclames un objeto perdido o encontrado, podrás seguir su estado acá.'}
+            />
           }
         />
       )}
@@ -586,213 +528,10 @@ export default function MisReclamosScreen({ navigation }) {
 }
 
 const styles = StyleSheet.create({
-  screen: {
-    flex: 1,
-    backgroundColor: '#F3F4F6',
-  },
-  tabs: {
-    flexDirection: 'row',
-    backgroundColor: '#FFFFFF',
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
-  },
-  tab: {
-    flex: 1,
-    paddingVertical: 14,
-    alignItems: 'center',
-    borderBottomWidth: 3,
-    borderBottomColor: 'transparent',
-  },
-  tabActiva: {
-    borderBottomColor: '#1D4ED8',
-  },
-  tabTexto: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#6B7280',
-  },
-  tabTextoActivo: {
-    color: '#1D4ED8',
-    fontWeight: 'bold',
-  },
-  listContent: {
-    padding: 16,
-    gap: 16,
-  },
-  center: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-  },
-  errorTexto: {
-    fontSize: 15,
-    color: '#DC2626',
-    marginBottom: 12,
-    textAlign: 'center',
-  },
-  card: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 16,
-    gap: 10,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOpacity: 0.05,
-    shadowOffset: { width: 0, height: 2 },
-    shadowRadius: 6,
-  },
-  pubHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  pubInfo: {
-    flex: 1,
-    gap: 2,
-  },
-  pubTipo: {
-    fontSize: 11,
-    fontWeight: 'bold',
-    color: '#1D4ED8',
-  },
-  pubTitulo: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#111827',
-  },
-  pubDetalles: {
-    fontSize: 13,
-    color: '#6B7280',
-  },
-  verFlecha: {
-    fontSize: 24,
-    color: '#9CA3AF',
-    marginLeft: 8,
-  },
-  divisor: {
-    height: 1,
-    backgroundColor: '#F3F4F6',
-  },
-  claimRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  claimUser: {
-    fontSize: 15,
-    fontWeight: 'bold',
-    color: '#111827',
-  },
-  estadoBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  estadoTexto: {
-    fontSize: 12,
-    fontWeight: 'bold',
-  },
-  intentosTexto: {
-    fontSize: 12,
-    color: '#6B7280',
-    fontWeight: '600',
-  },
-  infoBoxAceptado: {
-    backgroundColor: '#DCFCE7',
-    padding: 10,
-    borderRadius: 8,
-  },
-  infoBoxAceptadoTexto: {
-    color: '#166534',
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  infoBoxVencido: {
-    backgroundColor: '#FEE2E2',
-    padding: 10,
-    borderRadius: 8,
-  },
-  infoBoxVencidoTexto: {
-    color: '#991B1B',
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  accionesFila: {
-    flexDirection: 'row',
-    gap: 12,
-    marginTop: 4,
-  },
-  botonAccion: {
-    flex: 1,
-  },
-  verPubContainer: {
-    marginTop: 4,
-  },
-  cargarMas: {
-    marginTop: 4,
-  },
-  emptyContainer: {
-    alignItems: 'center',
-    paddingVertical: 48,
-    gap: 10,
-  },
-  emptyIcon: {
-    fontSize: 48,
-  },
-  emptyTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#111827',
-  },
-  emptySubtitle: {
-    fontSize: 14,
-    color: '#6B7280',
-    textAlign: 'center',
-    paddingHorizontal: 32,
-    lineHeight: 20,
-  },
-  bannerOffline: {
-    backgroundColor: '#FEF3C7',
-    borderColor: '#F59E0B',
-    borderWidth: 1,
-    borderRadius: 12,
-    margin: 16,
-    marginBottom: 0,
-    padding: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  bannerOfflineIcon: {
-    fontSize: 22,
-  },
-  bannerOfflineTexto: {
-    flex: 1,
-  },
-  bannerOfflineTitulo: {
-    fontSize: 14,
-    fontWeight: 'bold',
-    color: '#92400E',
-    marginBottom: 2,
-  },
-  bannerOfflineMensaje: {
-    fontSize: 13,
-    color: '#78350F',
-    lineHeight: 18,
-  },
-  avisoAccionOffline: {
-    backgroundColor: '#FEF2F2',
-    borderColor: '#F87171',
-    borderWidth: 1,
-    borderRadius: 8,
-    padding: 8,
-    marginTop: 8,
-  },
-  avisoAccionOfflineTexto: {
-    fontSize: 13,
-    color: '#991B1B',
-    fontWeight: '600',
-    textAlign: 'center',
-  },
+  avisoSinConexion: { marginHorizontal: espacio.md, marginTop: espacio.sm },
+  publicacion: { flexDirection: 'row', alignItems: 'center', gap: espacio.xs },
+  publicacionDatos: { flex: 1, gap: espacio.xxs },
+  reclamo: { flexDirection: 'row', alignItems: 'center', gap: espacio.xs },
+  reclamoDatos: { flex: 1 },
+  cargarMas: { gap: espacio.xs },
 });

@@ -1,11 +1,12 @@
 import { useCallback, useRef, useState } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
-import { ActivityIndicator, Button, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import PuntoEncuentro from './PuntoEncuentro';
 import { aceptarEncuentro, obtenerEncuentro, proponerEncuentro } from '../services/encuentros';
 import { mensajeErrorApi } from '../services/api';
 import { useConexion } from '../context/ConexionContext';
 import useActualizacionVisible from '../hooks/useActualizacionVisible';
+import { Aviso, Boton, Cargando, espacio } from './ui';
 
 // `reclamoId` es el reclamo al que pertenecen los datos: nunca se muestran los de otro.
 const VISTA_INICIAL = { reclamoId: undefined, datos: null, error: '' };
@@ -103,10 +104,10 @@ export default function EncuentroReclamo({ reclamoId, actualizacion }) {
     }
   }
 
-  if (cargando) return <ActivityIndicator accessibilityLabel="Cargando encuentro" />;
+  if (cargando) return <Cargando etiqueta="Cargando encuentro" chico />;
 
   return (
-    <View>
+    <View style={styles.encuentro}>
       {datos && (
         <PuntoEncuentro
           key={datos.encuentro?.id ?? 'nuevo'}
@@ -120,8 +121,20 @@ export default function EncuentroReclamo({ reclamoId, actualizacion }) {
           onAceptar={() => guardar()}
         />
       )}
-      {!!error && <Text accessibilityRole="alert" style={{ color: '#DC2626' }}>{error}</Text>}
-      <Button title="Actualizar encuentro" disabled={guardando} onPress={() => setRecarga((n) => n + 1)} />
+      {!!error && <Aviso tono="peligro" mensaje={error} accessibilityRole="alert" />}
+      <Boton
+        titulo="Actualizar encuentro"
+        icono="refresh"
+        variante="terciario"
+        chico
+        ajustado
+        disabled={guardando}
+        onPress={() => setRecarga((n) => n + 1)}
+      />
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  encuentro: { gap: espacio.xs },
+});

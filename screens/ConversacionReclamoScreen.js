@@ -1,13 +1,11 @@
 import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
-  Button,
   FlatList,
   KeyboardAvoidingView,
   Platform,
   RefreshControl,
   StyleSheet,
-  Text,
   TextInput,
   View,
 } from 'react-native';
@@ -15,6 +13,20 @@ import useAuth from '../hooks/useAuth';
 import useMensajesReclamo from '../hooks/useMensajesReclamo';
 import { useConexion } from '../context/ConexionContext';
 import { useSearch } from '../context/SearchContext';
+import {
+  Aviso,
+  Cargando,
+  ErrorConReintento,
+  EstadoVacio,
+  Icono,
+  Texto,
+  Tocable,
+  colores,
+  espacio,
+  estilosPantalla,
+  radios,
+  tipografia,
+} from '../components/ui';
 
 const MAX_MENSAJE = 2000;
 
@@ -50,48 +62,49 @@ export default function ConversacionReclamoScreen({ route }) {
 
   function renderMensaje({ item }) {
     const propio = item.autorId === usuario?.id;
+
     return (
       <View style={[styles.burbuja, propio ? styles.burbujaPropia : styles.burbujaAjena]}>
-        <Text style={[styles.textoMensaje, propio && styles.textoPropio]}>{item.texto}</Text>
-        <Text style={[styles.fecha, propio && styles.fechaPropia]}>
+        <Texto variante="cuerpoChico" tono={propio ? 'inverso' : 'principal'}>{item.texto}</Texto>
+        <Texto
+          variante="leyenda"
+          tono={propio ? 'inverso' : 'secundario'}
+          style={styles.fecha}
+        >
           {formatearFecha(item.creadaEn)}
-        </Text>
+        </Texto>
       </View>
     );
   }
 
   let contenido;
   if (cargando) {
-    contenido = (
-      <View style={styles.center}>
-        <ActivityIndicator size="large" color="#1D4ED8" />
-      </View>
-    );
+    contenido = <Cargando pantalla />;
   } else if (!cargado && !hayConexion) {
     contenido = (
-      <View style={styles.center}>
-        <Text style={styles.emptyIcon}>📡</Text>
-        <Text style={styles.emptyTitle}>Sin conexión</Text>
-        <Text style={styles.emptySubtitle}>
-          Necesitás conexión a internet para ver y enviar mensajes.
-        </Text>
+      <View style={estilosPantalla.centrado}>
+        <EstadoVacio
+          icono="wifi-off"
+          tono="aviso"
+          titulo="Sin conexión"
+          mensaje="Necesitás conexión a internet para ver y enviar mensajes."
+        />
       </View>
     );
   } else if (!cargado && error) {
     contenido = (
-      <View style={styles.center}>
-        <Text style={styles.errorTexto}>{error}</Text>
-        <Button title="Reintentar" onPress={recargar} />
+      <View style={estilosPantalla.centrado}>
+        <ErrorConReintento mensaje={error} onReintentar={recargar} />
       </View>
     );
   } else if (mensajes.length === 0) {
     contenido = (
-      <View style={styles.center}>
-        <Text style={styles.emptyIcon}>💬</Text>
-        <Text style={styles.emptyTitle}>Todavía no hay mensajes</Text>
-        <Text style={styles.emptySubtitle}>
-          Escribí el primero para coordinar la devolución sin compartir tu teléfono.
-        </Text>
+      <View style={estilosPantalla.centrado}>
+        <EstadoVacio
+          icono="message-text-outline"
+          titulo="Todavía no hay mensajes"
+          mensaje="Escribí el primero para coordinar la devolución sin compartir tu teléfono."
+        />
       </View>
     );
   } else {
@@ -99,7 +112,7 @@ export default function ConversacionReclamoScreen({ route }) {
     contenido = (
       <FlatList
         inverted
-        contentContainerStyle={styles.listContent}
+        contentContainerStyle={styles.lista}
         data={[...mensajes].reverse()}
         keyExtractor={(item) => String(item.id)}
         renderItem={renderMensaje}
@@ -111,189 +124,135 @@ export default function ConversacionReclamoScreen({ route }) {
 
   return (
     <KeyboardAvoidingView
-      style={styles.screen}
+      style={estilosPantalla.pantalla}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
-      {!hayConexion && (
-        <View style={styles.bannerOffline}>
-          <Text style={styles.bannerOfflineTexto}>
-            ⚠️ Sin conexión. No se actualizan ni se pueden enviar mensajes.
-          </Text>
-        </View>
-      )}
       <View style={styles.encabezado}>
-        <Text style={styles.encabezadoTitulo} numberOfLines={1}>
+        <Texto variante="subtitulo" numberOfLines={1}>
           {contraparte ? `Conversación con ${contraparte}` : 'Conversación'}
-        </Text>
+        </Texto>
         {!!tituloPublicacion && (
-          <Text style={styles.encabezadoDetalle} numberOfLines={1}>{tituloPublicacion}</Text>
+          <Texto variante="cuerpoChico" tono="secundario" numberOfLines={1}>
+            {tituloPublicacion}
+          </Texto>
         )}
       </View>
+
+      {!hayConexion && (
+        <Aviso
+          tono="aviso"
+          icono="wifi-off"
+          mensaje="Sin conexión. No se actualizan ni se pueden enviar mensajes."
+          style={styles.aviso}
+        />
+      )}
+
       {!!error && cargado && hayConexion && (
-        <Text style={styles.avisoError}>No se pudo actualizar la conversación. {error}</Text>
+        <Aviso
+          tono="peligro"
+          mensaje={`No se pudo actualizar la conversación. ${error}`}
+          style={styles.aviso}
+        />
       )}
 
       <View style={styles.cuerpo}>{contenido}</View>
 
-      {!!errorEnvio && <Text style={styles.avisoError}>{errorEnvio}</Text>}
+      {!!errorEnvio && <Aviso tono="peligro" mensaje={errorEnvio} style={styles.aviso} />}
+
       <View style={styles.barraEnvio}>
         <TextInput
           style={styles.input}
           value={texto}
           onChangeText={setTexto}
           placeholder="Escribí un mensaje"
-          placeholderTextColor="#9CA3AF"
+          placeholderTextColor={colores.textoTenue}
           multiline
           maxLength={MAX_MENSAJE}
           editable={!enviando}
           accessibilityLabel="Mensaje"
         />
-        <View style={styles.botonEnviar}>
-          <Button
-            title={enviando ? 'Enviando…' : 'Enviar'}
-            color={!puedeEnviar ? '#9CA3AF' : undefined}
-            disabled={!puedeEnviar}
-            onPress={manejarEnviar}
-          />
-        </View>
+
+        <Tocable
+          radio={radios.pastilla}
+          colorOnda={colores.ondaInversa}
+          accessibilityLabel={enviando ? 'Enviando…' : 'Enviar'}
+          disabled={!puedeEnviar}
+          onPress={manejarEnviar}
+          style={[styles.enviar, !puedeEnviar && styles.enviarInactivo]}
+        >
+          {enviando ? (
+            <ActivityIndicator size="small" color={colores.textoTenue} />
+          ) : (
+            <Icono
+              nombre="send"
+              tamano={22}
+              color={puedeEnviar ? colores.textoInverso : colores.textoTenue}
+            />
+          )}
+        </Tocable>
       </View>
     </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: {
-    flex: 1,
-    backgroundColor: '#F3F4F6',
-  },
   encabezado: {
-    backgroundColor: '#FFFFFF',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
+    backgroundColor: colores.superficie,
+    paddingHorizontal: espacio.md,
+    paddingBottom: espacio.xs,
     borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
+    borderBottomColor: colores.borde,
   },
-  encabezadoTitulo: {
-    fontSize: 15,
-    fontWeight: 'bold',
-    color: '#111827',
-  },
-  encabezadoDetalle: {
-    fontSize: 13,
-    color: '#6B7280',
-  },
-  cuerpo: {
-    flex: 1,
-  },
-  listContent: {
-    padding: 16,
-    gap: 8,
-  },
-  center: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-    gap: 10,
-  },
+  aviso: { marginHorizontal: espacio.md, marginTop: espacio.xs },
+  cuerpo: { flex: 1 },
+  lista: { padding: espacio.md, gap: espacio.xs },
   burbuja: {
     maxWidth: '80%',
-    borderRadius: 16,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    gap: 4,
+    borderRadius: radios.tarjeta,
+    paddingHorizontal: espacio.sm,
+    paddingVertical: espacio.xs,
+    gap: espacio.xxs,
   },
   burbujaPropia: {
     alignSelf: 'flex-end',
-    backgroundColor: '#1D4ED8',
-    borderBottomRightRadius: 4,
+    backgroundColor: colores.primario,
+    borderBottomRightRadius: espacio.xxs,
   },
   burbujaAjena: {
     alignSelf: 'flex-start',
-    backgroundColor: '#FFFFFF',
-    borderBottomLeftRadius: 4,
-    elevation: 1,
-    shadowColor: '#000',
-    shadowOpacity: 0.05,
-    shadowOffset: { width: 0, height: 1 },
-    shadowRadius: 3,
+    backgroundColor: colores.superficie,
+    borderBottomLeftRadius: espacio.xxs,
   },
-  textoMensaje: {
-    fontSize: 15,
-    color: '#111827',
-    lineHeight: 21,
-  },
-  textoPropio: {
-    color: '#FFFFFF',
-  },
-  fecha: {
-    fontSize: 11,
-    color: '#6B7280',
-    alignSelf: 'flex-end',
-  },
-  fechaPropia: {
-    color: '#BFDBFE',
-  },
-  errorTexto: {
-    fontSize: 15,
-    color: '#DC2626',
-    textAlign: 'center',
-  },
-  avisoError: {
-    fontSize: 13,
-    color: '#991B1B',
-    backgroundColor: '#FEF2F2',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    fontWeight: '600',
-  },
-  emptyIcon: {
-    fontSize: 48,
-  },
-  emptyTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#111827',
-  },
-  emptySubtitle: {
-    fontSize: 14,
-    color: '#6B7280',
-    textAlign: 'center',
-    paddingHorizontal: 32,
-    lineHeight: 20,
-  },
-  bannerOffline: {
-    backgroundColor: '#FEF3C7',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-  },
-  bannerOfflineTexto: {
-    fontSize: 13,
-    color: '#78350F',
-    fontWeight: '600',
-  },
+  fecha: { alignSelf: 'flex-end' },
   barraEnvio: {
     flexDirection: 'row',
     alignItems: 'flex-end',
-    gap: 8,
-    padding: 12,
-    backgroundColor: '#FFFFFF',
+    gap: espacio.xs,
+    padding: espacio.xs,
+    backgroundColor: colores.superficie,
     borderTopWidth: 1,
-    borderTopColor: '#E5E7EB',
+    borderTopColor: colores.borde,
   },
   input: {
+    ...tipografia.cuerpo,
+    lineHeight: undefined,
     flex: 1,
+    minHeight: 48,
     maxHeight: 120,
     borderWidth: 1,
-    borderColor: '#D1D5DB',
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    fontSize: 15,
-    color: '#111827',
-    backgroundColor: '#F9FAFB',
+    borderColor: colores.bordeControl,
+    borderRadius: radios.control,
+    paddingHorizontal: espacio.sm,
+    paddingVertical: espacio.xs,
+    color: colores.texto,
+    backgroundColor: colores.superficie,
   },
-  botonEnviar: {
+  enviar: {
+    width: 48,
+    height: 48,
+    alignItems: 'center',
     justifyContent: 'center',
+    backgroundColor: colores.primario,
   },
+  enviarInactivo: { backgroundColor: colores.deshabilitado },
 });

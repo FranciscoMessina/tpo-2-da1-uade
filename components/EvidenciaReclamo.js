@@ -1,5 +1,6 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import ImagenPrivada from './ImagenPrivada';
+import { FilaDato, Panel, Texto, espacio, radios, tonos } from './ui';
 
 const tieneTexto = (valor) => typeof valor === 'string' && valor.trim() !== '';
 
@@ -64,47 +65,46 @@ export default function EvidenciaReclamo({
 
   return (
     <View style={styles.contenedor}>
-      {mostrarMensaje && tieneTexto(texto) && <Text style={styles.mensaje}>{texto}</Text>}
+      {mostrarMensaje && tieneTexto(texto) && (
+        <Panel>
+          <Texto variante="cuerpoChico">{texto}</Texto>
+        </Panel>
+      )}
 
       {comparar ? (
-        <View>
+        <View style={styles.contenedor}>
           {tieneTexto(pub.preguntaVerificacion) && (
-            <Text style={styles.pregunta}>Pregunta: {pub.preguntaVerificacion}</Text>
+            <Texto variante="cuerpoChico" tono="secundario">
+              Pregunta: {pub.preguntaVerificacion}
+            </Texto>
           )}
           <View style={styles.comparacion}>
-            <View style={[styles.columna, styles.columnaPropia]}>
-              <Text style={styles.etiqueta}>Tu respuesta privada</Text>
-              <Text style={styles.valor}>{respuestaDuenio}</Text>
-            </View>
-            <View style={[styles.columna, styles.columnaReclamante]}>
-              <Text style={styles.etiqueta}>Respuesta del reclamante</Text>
-              <Text style={styles.valor}>{respuesta}</Text>
-            </View>
+            <Panel style={[styles.columna, { backgroundColor: tonos.info.fondo }]}>
+              <FilaDato etiqueta="Tu respuesta privada" valor={respuestaDuenio} />
+            </Panel>
+            <Panel style={[styles.columna, { backgroundColor: tonos.aviso.fondo }]}>
+              <FilaDato etiqueta="Respuesta del reclamante" valor={respuesta} />
+            </Panel>
           </View>
         </View>
       ) : (
         tieneTexto(respuesta) && (
-          <View style={styles.bloque}>
-            <Text style={styles.etiqueta}>Respuesta de verificación</Text>
-            <Text style={styles.valor}>{respuesta}</Text>
-          </View>
+          <FilaDato etiqueta="Respuesta de verificación" valor={respuesta} />
         )
       )}
 
       {tieneTexto(barrio) && (
-        <View style={styles.bloque}>
-          <Text style={styles.etiqueta}>
-            {encontradoPorReclamante ? 'Barrio donde lo encontró' : 'Barrio'}
-          </Text>
-          <Text style={styles.valor}>{barrio}</Text>
-        </View>
+        <FilaDato
+          etiqueta={encontradoPorReclamante ? 'Barrio donde lo encontró' : 'Barrio'}
+          valor={barrio}
+        />
       )}
 
       {tieneTexto(foto) && (
         <View style={styles.bloque}>
-          <Text style={styles.etiqueta}>
+          <Texto variante="leyendaFuerte" tono="secundario">
             {encontradoPorReclamante ? 'Foto del objeto encontrado' : 'Foto de prueba'}
-          </Text>
+          </Texto>
           <ImagenPrivada
             ruta={foto}
             style={styles.foto}
@@ -117,27 +117,9 @@ export default function EvidenciaReclamo({
 }
 
 const styles = StyleSheet.create({
-  contenedor: { gap: 10 },
-  mensaje: {
-    fontSize: 14,
-    color: '#374151',
-    lineHeight: 20,
-    backgroundColor: '#F9FAFB',
-    padding: 12,
-    borderRadius: 8,
-  },
-  bloque: { gap: 4 },
-  etiqueta: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#6B7280',
-    textTransform: 'uppercase',
-  },
-  valor: { fontSize: 14, color: '#111827', lineHeight: 20 },
-  pregunta: { fontSize: 13, color: '#4B5563', marginBottom: 6 },
-  comparacion: { flexDirection: 'row', gap: 8 },
-  columna: { flex: 1, padding: 10, borderRadius: 8, gap: 4 },
-  columnaPropia: { backgroundColor: '#EFF6FF' },
-  columnaReclamante: { backgroundColor: '#FEF3C7' },
-  foto: { width: '100%', height: 180, borderRadius: 10 },
+  contenedor: { gap: espacio.xs },
+  bloque: { gap: espacio.xxs },
+  comparacion: { flexDirection: 'row', flexWrap: 'wrap', gap: espacio.xs },
+  columna: { flexGrow: 1, flexBasis: 128 },
+  foto: { width: '100%', height: 180, borderRadius: radios.control },
 });

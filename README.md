@@ -148,11 +148,13 @@ npm run android      # abre la app en el emulador o dispositivo Android conectad
 ## Estructura
 
 ```
-App.js                navegación (pantallas de ingreso y de la app) y proveedores
+App.js                navegación (ingreso, cinco pestañas y pantallas apiladas) y proveedores
+DESIGN.md             tokens, componentes y reglas del sistema de diseño
 context/              ConexionContext (conexión), SearchContext (búsqueda, alertas, seguidas, novedades) y ColaPublicacionesContext (envíos pendientes)
 hooks/                lógica de pantallas y estado (useAuth, useCrearPublicacion, useGestionPublicacion, ...)
 screens/              pantallas
-components/           componentes reutilizables
+components/           componentes de dominio (formularios, tarjetas, reclamos)
+components/ui/        sistema de diseño: tema.js (tokens), controles y patrones compartidos
 services/             cliente HTTP (api.js) y llamadas a la API por dominio
 data/searchDemo.js    constantes (categorías, zonas, periodos) y validación de filtros de búsqueda;
                       el nombre es histórico y el archivo no contiene datos de prueba
@@ -194,7 +196,7 @@ npm run typecheck   # tsc --noEmit con checkJs sobre JavaScript (tsconfig.json);
 Ambos terminan en 0 hoy, pero **el chequeo es parcial**:
 
 - **Lint** cubre todo el proyecto. Los incumplimientos que ya existían (reglas nuevas de `react-hooks` 7, y comillas sin escapar en JSX) están registrados en `eslint.config.js` como `warn` solo en los archivos afectados y solo para esa regla; siguen apareciendo en la salida. `lint` usa `--max-warnings 25` (el total actual): un aviso nuevo hace fallar el comando. Al corregir deuda, sacar el archivo de la lista y bajar ese número.
-- **Typecheck** (`checkJs`, `strict: false`, sin `DOM` en `lib`) cubre solo los archivos listados en `include` de `tsconfig.json`: 44 de 69 archivos de `App.js`, `index.js`, `components/`, `context/`, `hooks/`, `screens/`, `services/` y `data/`. Quedan fuera los que hoy no pasan, o que importan alguno que no pasa (TypeScript igual chequea todo archivo importado, por eso no se usa `exclude`). **No** incluye `__tests__/` (no hay `@types/jest`) ni se puede afirmar que el proyecto esté tipado. Para ver la deuda, agregar el archivo a `include` y correr `npm run typecheck`. Hoy el chequeo completo da 63 errores en 15 archivos: `App.js` (3), `components/FormularioPublicacion.js` (28), `AvisoSincronizacion.js` (2), `CodeStep.js` (2), `ImagenPrivada.js` (1), `PublicacionesPendientes.js` (2), `context/ColaPublicacionesContext.js` (1), `hooks/useBorradorPublicacion.js` (1), `screens/ConfiguracionScreen.js` (1), `CreatePostScreen.js` (1), `ForgotPasswordScreen.js` (6), `LoginScreen.js` (5), `RegisterScreen.js` (5), `services/colaPublicaciones.js` (3) y `procesadorCola.js` (2). Casi todos son inferencia de JS sin anotaciones (props opcionales, `useState({})`, una cadena de promesas en `serializar`).
+- **Typecheck** (`checkJs`, `strict: false`, sin `DOM` en `lib`) cubre solo los archivos listados en `include` de `tsconfig.json` y lo que importan: 66 de 91 archivos de `App.js`, `index.js`, `components/`, `context/`, `hooks/`, `screens/`, `services/` y `data/`. Quedan fuera los que hoy no pasan, o que importan alguno que no pasa (TypeScript igual chequea todo archivo importado, por eso no se usa `exclude`). **No** incluye `__tests__/` (no hay `@types/jest`) ni se puede afirmar que el proyecto esté tipado. Para ver la deuda, agregar el archivo a `include` y correr `npm run typecheck`. Hoy el chequeo completo da 45 errores en 13 archivos: `App.js` (4), `components/FormularioPublicacion.js` (20), `AvisoSincronizacion.js` (2), `ImagenPrivada.js` (1), `PublicacionesPendientes.js` (2), `context/ColaPublicacionesContext.js` (1), `hooks/useBorradorPublicacion.js` (1), `screens/CreatePostScreen.js` (1), `ForgotPasswordScreen.js` (3), `LoginScreen.js` (2), `RegisterScreen.js` (3), `services/colaPublicaciones.js` (3) y `procesadorCola.js` (2). Casi todos son inferencia de JS sin anotaciones (props opcionales, `useState({})`, una cadena de promesas en `serializar`).
 
 Compilar el bundle de Android sin levantar el emulador:
 

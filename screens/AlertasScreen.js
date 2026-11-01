@@ -1,18 +1,23 @@
 import { useCallback } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
-import {
-  ActivityIndicator,
-  Alert,
-  Button,
-  FlatList,
-  Pressable,
-  StyleSheet,
-  Switch,
-  Text,
-  View,
-} from 'react-native';
+import { Alert, FlatList, StyleSheet, View } from 'react-native';
 import { useSearch } from '../context/SearchContext';
 import { resumenBusqueda } from '../data/searchDemo';
+import {
+  Aviso,
+  Boton,
+  Cargando,
+  EstadoVacio,
+  FilaInterruptor,
+  Insignia,
+  Separador,
+  Tarjeta,
+  Texto,
+  Tocable,
+  espacio,
+  estilosPantalla,
+  radios,
+} from '../components/ui';
 
 export default function AlertasScreen({ navigation }) {
   const {
@@ -61,185 +66,147 @@ export default function AlertasScreen({ navigation }) {
 
   return (
     <FlatList
-      style={styles.screen}
-      contentContainerStyle={styles.content}
+      style={estilosPantalla.pantalla}
+      contentContainerStyle={estilosPantalla.contenido}
       data={alertas}
       extraData={novedadesPorAlerta}
       refreshing={alertasLoading || novedadesLoading}
       onRefresh={actualizar}
       keyExtractor={(item) => item.id}
       ListHeaderComponent={
-        <View style={styles.header}>
-          <Text style={styles.title}>Alertas guardadas</Text>
-          <Text style={styles.help}>
+        <View style={styles.encabezado}>
+          <Texto variante="cuerpoChico" tono="secundario">
             Tocá una alerta para repetir su búsqueda. Podés pausarla o
             eliminarla cuando quieras.
-          </Text>
-          <Text style={styles.help}>
+          </Texto>
+          <Texto variante="cuerpoChico" tono="secundario">
             Las publicaciones nuevas que coincidan se destacan en cada alerta.
             Un período como «Hoy» o «Última semana» se evalúa cuando se publica
             algo; un rango de fechas queda fijo.
-          </Text>
+          </Texto>
+
           {alertasError !== '' && (
-            <Text accessibilityRole="alert" style={styles.error}>{alertasError}</Text>
+            <Aviso tono="peligro" mensaje={alertasError} accessibilityRole="alert" />
           )}
           {novedadesError !== '' && (
-            <Text accessibilityRole="alert" style={styles.error}>
-              No se pudieron actualizar las novedades. {novedadesError}
-            </Text>
+            <Aviso
+              tono="peligro"
+              mensaje={`No se pudieron actualizar las novedades. ${novedadesError}`}
+              accessibilityRole="alert"
+            />
           )}
-          <Button
-            title={alertasError || novedadesError ? 'Reintentar' : 'Actualizar alertas'}
+
+          <Boton
+            titulo={alertasError || novedadesError ? 'Reintentar' : 'Actualizar alertas'}
+            icono="refresh"
+            variante="terciario"
+            chico
+            ajustado
             onPress={actualizar}
-            disabled={bloqueado || novedadesLoading}
+            cargando={novedadesLoading}
+            disabled={bloqueado}
           />
-          {novedadesLoading && <Text style={styles.help}>Actualizando novedades…</Text>}
+
+          {novedadesLoading && (
+            <Texto variante="cuerpoChico" tono="secundario">Actualizando novedades…</Texto>
+          )}
           {(alertasGuardando || novedadesGuardando) && (
-            <View style={styles.switchRow}>
-              <ActivityIndicator color="#1D4ED8" />
-              <Text style={styles.help}>Guardando cambios…</Text>
-            </View>
+            <Cargando etiqueta="Guardando cambios…" chico />
           )}
         </View>
       }
       renderItem={({ item }) => {
         const nuevas = novedadesPorAlerta.get(item.id) || 0;
+
         return (
-          <View style={[
-            styles.card,
-            nuevas > 0 && styles.cardNew,
-            !item.activa && styles.inactive,
-          ]}>
-            <Pressable
-              accessibilityRole="button"
+          <Tarjeta destacada={nuevas > 0}>
+            <Tocable
+              radio={radios.chico}
               accessibilityLabel={`Ejecutar búsqueda: ${resumenBusqueda(item.filtros)}`}
               onPress={() => ejecutar(item)}
-              style={({ pressed }) => [styles.body, pressed && styles.pressed]}
+              style={styles.alerta}
             >
-              <Text style={styles.summary}>{resumenBusqueda(item.filtros)}</Text>
+              <Texto variante="subtitulo">{resumenBusqueda(item.filtros)}</Texto>
+
               {item.filtros.ubicacion && (
-                <Text style={styles.help}>
+                <Texto variante="cuerpoChico" tono="secundario">
                   Centro fijo: la alerta no sigue tu ubicación.
-                </Text>
+                </Texto>
               )}
+
               {nuevas > 0 ? (
-                <Text style={styles.badge}>
-                  {nuevas === 1 ? '1 publicación nueva' : `${nuevas} publicaciones nuevas`}
-                </Text>
+                <Insignia
+                  tono="info"
+                  texto={nuevas === 1 ? '1 publicación nueva' : `${nuevas} publicaciones nuevas`}
+                />
               ) : (
-                <Text style={styles.help}>
+                <Texto variante="cuerpoChico" tono="secundario">
                   {novedadesLoading ? 'Consultando novedades…'
                     : novedadesError ? 'Novedades sin actualizar'
                       : '0 publicaciones nuevas'}
-                </Text>
+                </Texto>
               )}
-              <Text style={styles.repeat}>Ver resultados →</Text>
-            </Pressable>
+
+              <Texto variante="etiqueta" tono="primario">Ver resultados</Texto>
+            </Tocable>
 
             {nuevas > 0 && (
-              <Button
-                title="Marcar novedades como leídas"
+              <Boton
+                titulo="Marcar novedades como leídas"
+                variante="secundario"
+                chico
                 onPress={() => marcarAlertaLeida(item.id)}
                 disabled={bloqueado || novedadesLoading}
               />
             )}
-            <View style={styles.actions}>
-              <View style={styles.switchRow}>
-                <Switch
-                  value={item.activa}
-                  disabled={bloqueado}
-                  onValueChange={(valor) => activarAlerta(item.id, valor)}
+
+            <Separador />
+
+            <View style={styles.pie}>
+              <View style={styles.interruptor}>
+                <FilaInterruptor
+                  etiqueta={item.activa ? 'Activa' : 'Desactivada'}
                   accessibilityLabel="Alerta activa"
+                  valor={item.activa}
+                  disabled={bloqueado}
+                  onChange={(valor) => activarAlerta(item.id, valor)}
                 />
-                <Text style={styles.help}>
-                  {item.activa ? 'Activa' : 'Desactivada'}
-                </Text>
               </View>
 
-              <Pressable
-                accessibilityRole="button"
+              <Boton
+                titulo="Eliminar"
+                icono="trash-can-outline"
+                variante="peligro"
+                chico
                 disabled={bloqueado}
-                accessibilityState={{ disabled: bloqueado }}
                 onPress={() => confirmarEliminar(item)}
-                style={({ pressed }) => pressed && styles.pressed}
-              >
-                <Text style={styles.delete}>Eliminar</Text>
-              </Pressable>
+              />
             </View>
-          </View>
+          </Tarjeta>
         );
       }}
       ListEmptyComponent={alertasLoading ? (
-        <View style={styles.empty}>
-          <ActivityIndicator size="large" color="#1D4ED8" />
-          <Text style={styles.help}>Cargando alertas…</Text>
-        </View>
+        <Cargando etiqueta="Cargando alertas…" />
       ) : alertasError ? null : (
-        <View style={styles.empty}>
-          <Text style={styles.subtitle}>Todavía no tenés alertas</Text>
-          <Text style={styles.help}>
-            Desde cualquier búsqueda podés guardar una alerta para recibir
-            novedades de publicaciones que coincidan.
-          </Text>
-          <Pressable
-            accessibilityRole="button"
+        <EstadoVacio
+          icono="bell-outline"
+          titulo="Todavía no tenés alertas"
+          mensaje="Desde cualquier búsqueda podés guardar una alerta para recibir novedades de publicaciones que coincidan."
+        >
+          <Boton
+            titulo="Ir al buscador"
+            variante="secundario"
             onPress={() => navigation.navigate('Buscador')}
-          >
-            <Text style={styles.repeat}>Ir al buscador →</Text>
-          </Pressable>
-        </View>
+          />
+        </EstadoVacio>
       )}
     />
   );
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: '#F3F4F6' },
-  content: { padding: 20, gap: 16 },
-  header: { gap: 10, marginBottom: 4 },
-  title: { fontSize: 26, fontWeight: 'bold', color: '#111827' },
-  subtitle: { fontSize: 20, fontWeight: 'bold', color: '#111827' },
-  help: { color: '#6B7280', fontSize: 15, lineHeight: 22 },
-  error: {
-    color: '#991B1B',
-    backgroundColor: '#FEE2E2',
-    padding: 12,
-    borderRadius: 10,
-  },
-  card: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    padding: 16,
-    gap: 12,
-    borderWidth: 1,
-    borderColor: 'transparent',
-  },
-  cardNew: { borderColor: '#2563EB' },
-  badge: {
-    alignSelf: 'flex-start',
-    color: '#1E40AF',
-    backgroundColor: '#DBEAFE',
-    fontWeight: 'bold',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
-  },
-  inactive: { opacity: 0.6 },
-  body: { gap: 10 },
-  pressed: { opacity: 0.7 },
-  summary: { color: '#374151', fontSize: 15, lineHeight: 22 },
-  repeat: { color: '#1D4ED8', fontWeight: 'bold' },
-  actions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  switchRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  delete: { color: '#B91C1C', fontWeight: 'bold' },
-  empty: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 20,
-    gap: 14,
-  },
+  encabezado: { gap: espacio.xs, marginBottom: espacio.xxs },
+  alerta: { gap: espacio.xs },
+  pie: { flexDirection: 'row', alignItems: 'center', gap: espacio.sm },
+  interruptor: { flex: 1 },
 });

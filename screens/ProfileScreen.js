@@ -1,17 +1,6 @@
 import { useState } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
-import {
-  ActivityIndicator,
-  Button,
-  Image,
-  RefreshControl,
-  ScrollView,
-  StyleSheet,
-  Switch,
-  Text,
-  TextInput,
-  View,
-} from 'react-native';
+import { RefreshControl, StyleSheet, View } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import ReputationCard from '../components/ReputationCard';
 import BadgesCard from '../components/BadgesCard';
@@ -20,9 +9,30 @@ import MisPublicaciones from '../components/MisPublicaciones';
 import useAuth from '../hooks/useAuth';
 import { useConexion } from '../context/ConexionContext';
 import { estaConectado } from '../services/conexion';
+import {
+  Avatar,
+  Aviso,
+  Boton,
+  Campo,
+  Cargando,
+  ErrorConReintento,
+  FilaDato,
+  FilaInterruptor,
+  FilaMenu,
+  Pantalla,
+  Seccion,
+  Separador,
+  Tarjeta,
+  Texto,
+  espacio,
+  estilosPantalla,
+} from '../components/ui';
 
 const MENSAJE_SIN_CONEXION =
   'Sin conexión: no se puede guardar el perfil. Podés seguir editando y guardar cuando vuelva la conexión.';
+
+const AYUDA_PRIVACIDAD =
+  'Esta preferencia indica si querés compartir tu teléfono con la otra parte una vez aceptado un reclamo. Tu teléfono no se muestra en el perfil público.';
 
 export default function ProfileScreen({ navigation }) {
   const { cerrarSesion, loading: loadingAuth } = useAuth();
@@ -142,341 +152,183 @@ export default function ProfileScreen({ navigation }) {
     });
   }
 
-  if (loading) {
-    return (
-      <View style={styles.center}>
-        <ActivityIndicator size="large" color="#1D4ED8" />
-      </View>
-    );
-  }
+  if (loading) return <Cargando pantalla />;
 
   if (!perfil) {
     return (
-      <View style={styles.center}>
-        <Text style={styles.error}>
-          {errorPerfil || 'No se pudo cargar el perfil.'}
-        </Text>
-        <Button title="Reintentar" onPress={recargarPerfil} />
+      <View style={estilosPantalla.centrado}>
+        <ErrorConReintento
+          mensaje={errorPerfil || 'No se pudo cargar el perfil.'}
+          onReintentar={recargarPerfil}
+        />
       </View>
     );
   }
 
+  const mensajeError = error || errorPerfil;
+
   return (
-    <ScrollView
-      style={styles.screen}
-      contentContainerStyle={styles.content}
-      keyboardShouldPersistTaps="handled"
+    <Pantalla
       refreshControl={
         <RefreshControl refreshing={false} onRefresh={recargarPerfil} />
       }
     >
-      <View style={styles.header}>
-        <View style={styles.avatar}>
-          {fotoVisible ? (
-            <Image
-              source={{ uri: fotoVisible }}
-              style={styles.photo}
-            />
-          ) : (
-            <Text style={styles.avatarText}>Sin foto</Text>
-          )}
-        </View>
-
-        <Text style={styles.name}>{nombre}</Text>
+      <View style={styles.cabecera}>
+        <Avatar uri={fotoVisible} nombre={nombre} />
+        <Texto variante="pantalla" centrado>{nombre}</Texto>
 
         {editando && (
-          <View style={styles.photoActions}>
-            <Button
-              title="Cambiar foto"
-              onPress={cambiarFoto}
-              disabled={guardando}
-            />
-          </View>
+          <Boton
+            titulo="Cambiar foto"
+            icono="camera-outline"
+            variante="secundario"
+            chico
+            onPress={cambiarFoto}
+            disabled={guardando}
+          />
         )}
       </View>
 
-      <View style={styles.card}>
-        <Text style={styles.label}>Nombre</Text>
-
-        {editando ? (
-          <TextInput
-            style={styles.input}
-            editable={!guardando}
-            value={nombreIngresado}
-            onChangeText={setNombreIngresado}
-            placeholder="Ingresá tu nombre"
-            autoCapitalize="words"
-            maxLength={80}
-          />
-        ) : (
-          <Text style={styles.value}>{nombre}</Text>
-        )}
-
-        {(error || errorPerfil) !== '' && (
-          <Text style={styles.error}>{error || errorPerfil}</Text>
-        )}
-
-        <Text style={styles.label}>Barrio</Text>
-
-        {editando ? (
-          <TextInput
-            style={styles.input}
-            editable={!guardando}
-            value={barrioIngresado}
-            onChangeText={setBarrioIngresado}
-            placeholder="Ingresá tu barrio"
-            autoCapitalize="words"
-            maxLength={100}
-          />
-        ) : (
-          <Text style={styles.value}>
-            {barrio || 'No informado'}
-          </Text>
-        )}
-
-        <Text style={styles.label}>Teléfono</Text>
-
-        {editando ? (
-          <TextInput
-            style={styles.input}
-            editable={!guardando}
-            value={telefonoIngresado}
-            onChangeText={setTelefonoIngresado}
-            placeholder="Ingresá tu teléfono"
-            keyboardType="phone-pad"
-            maxLength={30}
-          />
-        ) : (
-          <Text style={styles.value}>
-            {telefono || 'No informado'}
-          </Text>
-        )}
-
-        <View style={styles.privacySection}>
-          <Text style={styles.sectionTitle}>
-            Privacidad del teléfono
-          </Text>
-
-          {editando ? (
-            <View style={styles.switchRow}>
-              <Text style={styles.switchLabel}>
-                Compartir mi teléfono al aceptar un reclamo
-              </Text>
-
-              <Switch
-                value={compartirTelefonoIngresado}
-                onValueChange={setCompartirTelefonoIngresado}
-                disabled={guardando}
-                trackColor={{ false: '#D1D5DB', true: '#93C5FD' }}
-                thumbColor={
-                  compartirTelefonoIngresado ? '#1D4ED8' : '#F9FAFB'
-                }
-                accessibilityLabel="Compartir mi teléfono al aceptar un reclamo"
-              />
-            </View>
-          ) : (
-            <Text style={styles.preferenceText}>
-              {compartirTelefono
-                ? 'Compartir al aceptar un reclamo'
-                : 'Comunicarme solo por la app'}
-            </Text>
-          )}
-
-          <Text style={styles.privacyHelp}>
-            Esta preferencia indica si querés compartir tu teléfono con la
-            otra parte una vez aceptado un reclamo. Tu teléfono no se muestra
-            en el perfil público.
-          </Text>
-        </View>
-
-        {editando ? (
-          <View style={styles.buttons}>
+      {editando ? (
+        <>
+          <Seccion titulo="Tus datos">
             {sinConexion && (
-              <Text accessibilityRole="alert" style={styles.error}>
-                {MENSAJE_SIN_CONEXION}
-              </Text>
+              <Aviso
+                tono="aviso"
+                icono="wifi-off"
+                mensaje={MENSAJE_SIN_CONEXION}
+                accessibilityRole="alert"
+              />
             )}
 
-            <Button
-              title={guardando ? 'Guardando…' : 'Guardar cambios'}
-              onPress={guardarCambios}
-              disabled={guardando || sinConexion}
+            {mensajeError !== '' && (
+              <Aviso tono="peligro" mensaje={mensajeError} accessibilityRole="alert" />
+            )}
+
+            <Campo
+              etiqueta="Nombre"
+              editable={!guardando}
+              value={nombreIngresado}
+              onChangeText={setNombreIngresado}
+              placeholder="Ingresá tu nombre"
+              autoCapitalize="words"
+              maxLength={80}
             />
 
-            <Button
-              title="Cancelar"
-              onPress={cancelarEdicion}
+            <Campo
+              etiqueta="Barrio"
+              editable={!guardando}
+              value={barrioIngresado}
+              onChangeText={setBarrioIngresado}
+              placeholder="Ingresá tu barrio"
+              autoCapitalize="words"
+              maxLength={100}
+            />
+
+            <Campo
+              etiqueta="Teléfono"
+              editable={!guardando}
+              value={telefonoIngresado}
+              onChangeText={setTelefonoIngresado}
+              placeholder="Ingresá tu teléfono"
+              keyboardType="phone-pad"
+              maxLength={30}
+            />
+          </Seccion>
+
+          <Seccion titulo="Privacidad del teléfono" descripcion={AYUDA_PRIVACIDAD}>
+            <FilaInterruptor
+              etiqueta="Compartir mi teléfono al aceptar un reclamo"
+              valor={compartirTelefonoIngresado}
+              onChange={setCompartirTelefonoIngresado}
               disabled={guardando}
-              color="#6B7280"
             />
-          </View>
-        ) : (
-          <Button
-            title="Editar perfil"
-            onPress={iniciarEdicion}
-          />
-        )}
-      </View>
+          </Seccion>
 
-      {!editando && (
-        <View style={styles.publicProfileButton}>
+          <Boton
+            titulo={guardando ? 'Guardando…' : 'Guardar cambios'}
+            onPress={guardarCambios}
+            cargando={guardando}
+            disabled={sinConexion}
+          />
+
+          <Boton
+            titulo="Cancelar"
+            variante="terciario"
+            onPress={cancelarEdicion}
+            disabled={guardando}
+          />
+        </>
+      ) : (
+        <>
+          <Tarjeta>
+            {mensajeError !== '' && (
+              <Aviso tono="peligro" mensaje={mensajeError} accessibilityRole="alert" />
+            )}
+
+            <FilaDato etiqueta="Nombre" valor={nombre} />
+            <FilaDato etiqueta="Barrio" valor={barrio || 'No informado'} />
+            <FilaDato etiqueta="Teléfono" valor={telefono || 'No informado'} />
+            <FilaDato
+              etiqueta="Privacidad del teléfono"
+              valor={compartirTelefono
+                ? 'Compartir al aceptar un reclamo'
+                : 'Comunicarme solo por la app'}
+            />
+
+            <Texto variante="leyenda" tono="secundario">{AYUDA_PRIVACIDAD}</Texto>
+
+            <Boton
+              titulo="Editar perfil"
+              icono="pencil-outline"
+              variante="secundario"
+              onPress={iniciarEdicion}
+            />
+          </Tarjeta>
+
           <MisPublicaciones navigation={navigation} />
 
           <ReputationCard reputacion={perfil.reputation} />
 
           <BadgesCard insignias={perfil.badges} />
 
-          <Button
-            title="Ver mi perfil público"
-            onPress={abrirPerfilPublico}
-          />
-
-          <View style={styles.configButton}>
-            <Button
-              title="Mis reclamos (enviados y recibidos)"
-              onPress={() => navigation.navigate('MisReclamos')}
+          <Tarjeta sinRelleno>
+            <FilaMenu
+              titulo="Ver mi perfil público"
+              icono="account-outline"
+              onPress={abrirPerfilPublico}
             />
-          </View>
-
-          <View style={styles.configButton}>
-            <Button title="Historial de devoluciones" onPress={() => navigation.navigate('Historial')} />
-          </View>
-
-          <View style={styles.configButton}>
-            <Button
-              title="Configuración"
+            <Separador />
+            <FilaMenu
+              titulo="Historial de devoluciones"
+              icono="history"
+              onPress={() => navigation.navigate('Historial')}
+            />
+            <Separador />
+            <FilaMenu
+              titulo="Configuración"
+              icono="cog-outline"
               onPress={() => navigation.navigate('Configuracion')}
-              color="#6B7280"
             />
-          </View>
-        </View>
+            <Separador />
+            <FilaMenu
+              titulo={loadingAuth ? 'Cerrando sesión…' : 'Cerrar sesión'}
+              icono="logout"
+              peligro
+              disabled={loadingAuth}
+              onPress={cerrarSesion}
+            />
+          </Tarjeta>
+        </>
       )}
-
-      {!editando && (
-        <View style={styles.configButton}>
-          <Button
-            title={loadingAuth ? 'Cerrando sesión…' : 'Cerrar sesión'}
-            onPress={cerrarSesion}
-            disabled={loadingAuth}
-            color="#DC2626"
-          />
-        </View>
-      )}
-    </ScrollView>
+    </Pantalla>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: {
-    flex: 1,
-    backgroundColor: '#F3F4F6',
-  },
-  content: {
-    padding: 24,
-  },
-  header: {
+  cabecera: {
     alignItems: 'center',
-    marginBottom: 24,
-  },
-  avatar: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    backgroundColor: '#DBEAFE',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 12,
-  },
-  photo: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-  },
-  avatarText: {
-    color: '#1D4ED8',
-  },
-  name: {
-    fontSize: 22,
-    fontWeight: 'bold',
-    color: '#111827',
-    textAlign: 'center',
-  },
-  photoActions: {
-    marginTop: 12,
-  },
-  card: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 20,
-  },
-  label: {
-    fontSize: 14,
-    color: '#6B7280',
-    marginBottom: 4,
-  },
-  value: {
-    fontSize: 18,
-    color: '#111827',
-    marginBottom: 20,
-  },
-  input: {
-    borderWidth: 1,
-    borderColor: '#9CA3AF',
-    borderRadius: 8,
-    padding: 12,
-    fontSize: 18,
-    color: '#111827',
-    marginBottom: 20,
-  },
-  error: {
-    color: '#DC2626',
-    marginBottom: 16,
-  },
-  privacySection: {
-    borderTopWidth: 1,
-    borderTopColor: '#E5E7EB',
-    paddingTop: 16,
-    marginBottom: 24,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#111827',
-    marginBottom: 12,
-  },
-  switchRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    marginBottom: 12,
-  },
-  switchLabel: {
-    flex: 1,
-    fontSize: 16,
-    color: '#111827',
-  },
-  preferenceText: {
-    fontSize: 16,
-    color: '#1D4ED8',
-    marginBottom: 12,
-  },
-  privacyHelp: {
-    fontSize: 14,
-    color: '#6B7280',
-    lineHeight: 20,
-  },
-  buttons: {
-    gap: 12,
-  },
-  center: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  configButton: {
-    marginTop: 12,
-  },
-  publicProfileButton: {
-    marginTop: 16,
+    gap: espacio.xs,
+    paddingVertical: espacio.xs,
   },
 });

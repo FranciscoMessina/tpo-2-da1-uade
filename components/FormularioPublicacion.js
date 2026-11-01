@@ -1,14 +1,5 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
-import {
-  Alert,
-  Button,
-  Image,
-  Pressable,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from 'react-native';
+import { Alert, Image, StyleSheet, View } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import {
   fechaLocal,
@@ -24,6 +15,19 @@ import {
   opcionesZona,
   suscribirCatalogo,
 } from '../services/catalogos';
+import {
+  Aviso,
+  Boton,
+  Campo,
+  Fila,
+  GrupoOpciones,
+  Icono,
+  Seccion,
+  Tocable,
+  colores,
+  espacio,
+  radios,
+} from './ui';
 
 const MAX_FOTOS = 5;
 
@@ -32,37 +36,6 @@ export const FRANJAS = [
   { valor: 'tarde', nombre: 'Tarde (12 a 19)' },
   { valor: 'noche', nombre: 'Noche (19 a 6)' },
 ];
-
-function Opciones({ opciones, valor, onChange }) {
-  return (
-    <View style={styles.options}>
-      {opciones.map((opcion) => (
-        <Pressable
-          key={opcion.valor}
-          accessibilityRole="button"
-          accessibilityState={{
-            selected: valor === opcion.valor,
-          }}
-          onPress={() => onChange(opcion.valor)}
-          style={({ pressed }) => [
-            styles.option,
-            valor === opcion.valor && styles.selected,
-            pressed && styles.pressed,
-          ]}
-        >
-          <Text
-            style={[
-              styles.optionText,
-              valor === opcion.valor && styles.selectedText,
-            ]}
-          >
-            {opcion.nombre}
-          </Text>
-        </Pressable>
-      ))}
-    </View>
-  );
-}
 
 function ayer() {
   const fecha = new Date();
@@ -413,10 +386,8 @@ export default function FormularioPublicacion({
   return (
     <>
       {!editando && (
-        <View style={styles.section}>
-          <Text style={styles.title}>{seccion('¿Qué querés publicar?')}</Text>
-
-          <Opciones
+        <Seccion titulo={seccion('¿Qué querés publicar?')}>
+          <GrupoOpciones
             opciones={[
               { valor: 'perdi', nombre: 'Perdí algo' },
               { valor: 'encontre', nombre: 'Encontré algo' },
@@ -424,33 +395,25 @@ export default function FormularioPublicacion({
             valor={tipo}
             onChange={setTipo}
           />
-        </View>
+        </Seccion>
       )}
 
-      <View style={styles.section}>
-        <Text style={styles.title}>{seccion('¿Qué es?')}</Text>
-
-        <Text style={styles.label}>Título</Text>
-
-        <TextInput
-          accessibilityLabel="Título"
-          style={styles.input}
+      <Seccion titulo={seccion('¿Qué es?')}>
+        <Campo
+          etiqueta="Título"
           value={titulo}
           onChangeText={(valor) => {
             setTitulo(valor);
             limpiarError('titulo');
           }}
+          error={errores.titulo}
           placeholder="Por ejemplo: Llavero azul con 3 llaves"
-          placeholderTextColor="#6B7280"
           maxLength={80}
         />
-        {!!errores.titulo && (
-          <Text style={styles.error}>{errores.titulo}</Text>
-        )}
 
-        <Text style={styles.label}>Categoría</Text>
-
-        <Opciones
+        <GrupoOpciones
+          etiqueta="Categoría"
+          error={errores.categoria}
           opciones={catalogo.categorias.map((nombre) => ({
             valor: nombre,
             nombre,
@@ -461,35 +424,25 @@ export default function FormularioPublicacion({
             limpiarError('categoria');
           }}
         />
-        {!!errores.categoria && (
-          <Text style={styles.error}>{errores.categoria}</Text>
-        )}
 
-        <Text style={styles.label}>Descripción</Text>
-
-        <TextInput
-          accessibilityLabel="Descripción"
-          style={[styles.input, styles.multiline]}
+        <Campo
+          etiqueta="Descripción"
           value={descripcion}
           onChangeText={(valor) => {
             setDescripcion(valor);
             limpiarError('descripcion');
           }}
+          error={errores.descripcion}
           placeholder="Color, marca, señas particulares…"
-          placeholderTextColor="#6B7280"
           multiline
           maxLength={500}
-          textAlignVertical="top"
         />
-        {!!errores.descripcion && (
-          <Text style={styles.error}>{errores.descripcion}</Text>
-        )}
-      </View>
+      </Seccion>
 
-      <View style={styles.section}>
-        <Text style={styles.title}>{seccion('¿Dónde?')}</Text>
-
-        <Opciones
+      <Seccion titulo={seccion('¿Dónde?')}>
+        <GrupoOpciones
+          etiqueta="Barrio"
+          error={errores.lugar}
           opciones={opcionesZona(catalogo, barrio).map(({ nombre }) => ({
             valor: nombre,
             nombre,
@@ -498,71 +451,55 @@ export default function FormularioPublicacion({
           onChange={elegirBarrio}
         />
 
-        <Button
-          title={
-            ubicando
-              ? 'Obteniendo ubicación…'
-              : 'Usar mi ubicación actual'
-          }
-          disabled={ubicando}
+        <Boton
+          titulo={ubicando ? 'Obteniendo ubicación…' : 'Usar mi ubicación actual'}
+          icono="crosshairs-gps"
+          variante="secundario"
+          cargando={ubicando}
           onPress={usarUbicacion}
         />
 
         {!!errorUbicacion && !coords && (
-          <Text accessibilityRole="alert" style={styles.error}>
-            {errorUbicacion}
-          </Text>
+          <Aviso tono="peligro" mensaje={errorUbicacion} accessibilityRole="alert" />
         )}
 
         {coords && (
-          <Text style={styles.help}>
-            Ubicación actual: {coords.latitud.toFixed(4)},{' '}
-            {coords.longitud.toFixed(4)}
-          </Text>
+          <Aviso
+            tono="info"
+            icono="map-marker-check-outline"
+            mensaje={`Ubicación actual: ${coords.latitud.toFixed(4)}, ${coords.longitud.toFixed(4)}`}
+          />
         )}
 
-        {!!errores.lugar && (
-          <Text style={styles.error}>{errores.lugar}</Text>
-        )}
-
-        <Text style={styles.label}>Dirección exacta (opcional)</Text>
-
-        <TextInput
+        <Campo
+          etiqueta="Dirección exacta (opcional)"
           accessibilityLabel="Dirección exacta"
-          style={styles.input}
+          ayuda="Solo la ve la persona cuyo reclamo aceptes. El resto de los usuarios ve únicamente el barrio."
           value={direccionExacta}
           onChangeText={setDireccionExacta}
           placeholder="Calle, altura o punto de referencia"
-          placeholderTextColor="#6B7280"
           maxLength={250}
         />
-        <Text style={styles.help}>
-          Solo la ve la persona cuyo reclamo aceptes. El resto de los usuarios
-          ve únicamente el barrio.
-        </Text>
-      </View>
+      </Seccion>
 
-      <View style={styles.section}>
-        <Text style={styles.title}>{seccion('¿Cuándo?')}</Text>
-
-        <Text style={styles.label}>Fecha (AAAA-MM-DD)</Text>
-
-        <TextInput
+      <Seccion titulo={seccion('¿Cuándo?')}>
+        <Campo
+          etiqueta="Fecha (AAAA-MM-DD)"
           accessibilityLabel="Fecha del suceso"
-          style={styles.input}
           value={fecha}
           onChangeText={(valor) => {
             setFecha(valor);
             limpiarError('fecha');
           }}
+          error={errores.fecha}
           placeholder={fechaLocal()}
-          placeholderTextColor="#6B7280"
           maxLength={10}
           autoCapitalize="none"
           keyboardType="numbers-and-punctuation"
         />
 
-        <Opciones
+        <GrupoOpciones
+          chico
           opciones={[
             { valor: fechaLocal(), nombre: 'Hoy' },
             { valor: ayer(), nombre: 'Ayer' },
@@ -573,13 +510,10 @@ export default function FormularioPublicacion({
             limpiarError('fecha');
           }}
         />
-        {!!errores.fecha && (
-          <Text style={styles.error}>{errores.fecha}</Text>
-        )}
 
-        <Text style={styles.label}>Franja horaria</Text>
-
-        <Opciones
+        <GrupoOpciones
+          etiqueta="Franja horaria"
+          error={errores.franja}
           opciones={FRANJAS}
           valor={franja}
           onChange={(valor) => {
@@ -587,153 +521,141 @@ export default function FormularioPublicacion({
             limpiarError('franja');
           }}
         />
-        {!!errores.franja && (
-          <Text style={styles.error}>{errores.franja}</Text>
-        )}
-      </View>
+      </Seccion>
 
-      <View style={styles.section}>
-        <Text style={styles.title}>{seccion('Fotos (opcional)')}</Text>
-
-        <Text style={styles.help}>
-          Hasta {MAX_FOTOS} fotos. {fotos.length} elegida(s).
-        </Text>
-
+      <Seccion
+        titulo={seccion('Fotos (opcional)')}
+        descripcion={`Hasta ${MAX_FOTOS} fotos. ${fotos.length} elegida(s).`}
+      >
         {fotos.length > 0 && (
-          <View style={styles.photos}>
+          <Fila>
             {fotos.map((uri) => (
-              <View key={uri} style={styles.photoBox}>
+              <View key={uri} style={styles.foto}>
                 <Image
                   source={{ uri }}
-                  style={styles.photo}
+                  style={styles.imagen}
                   accessibilityLabel="Foto elegida"
                 />
 
-                <Pressable
-                  accessibilityRole="button"
+                <Tocable
+                  radio={radios.pastilla}
                   accessibilityLabel="Quitar foto"
+                  colorOnda={colores.ondaInversa}
+                  hitSlop={8}
                   onPress={() => quitarFoto(uri)}
-                  style={styles.remove}
+                  estiloContenedor={styles.quitar}
+                  style={styles.quitarInterior}
                 >
-                  <Text style={styles.removeText}>✕</Text>
-                </Pressable>
+                  <Icono nombre="close" tamano={18} color={colores.textoInverso} />
+                </Tocable>
               </View>
             ))}
-          </View>
+          </Fila>
         )}
 
-        <Button
-          title="Sacar una foto"
+        <Boton
+          titulo="Sacar una foto"
+          icono="camera-outline"
+          variante="secundario"
           disabled={fotos.length >= MAX_FOTOS}
           onPress={sacarFoto}
         />
-
-        <Button
-          title="Elegir de la galería"
+        <Boton
+          titulo="Elegir de la galería"
+          icono="image-outline"
+          variante="secundario"
           disabled={fotos.length >= MAX_FOTOS}
           onPress={agregarFotos}
         />
 
-        {!!errorFotos && (
-          <Text style={styles.error}>{errorFotos}</Text>
-        )}
-      </View>
+        {!!errorFotos && <Aviso tono="peligro" mensaje={errorFotos} />}
+      </Seccion>
 
       {esHallazgo && (
-        <View style={styles.section}>
-          <Text style={styles.title}>{seccion('Verificación del dueño')}</Text>
-
-          <Text style={styles.help}>
-            Quien diga que el objeto es suyo tendrá que responder tu pregunta.
-            La respuesta nunca se muestra a otras personas: solo la ves vos y
-            sirve para compararla con lo que conteste quien reclame.
-          </Text>
-
-          <Text style={styles.label}>Pregunta de verificación</Text>
-
-          <TextInput
-            accessibilityLabel="Pregunta de verificación"
-            style={styles.input}
+        <Seccion
+          titulo={seccion('Verificación del dueño')}
+          descripcion="Quien diga que el objeto es suyo tendrá que responder tu pregunta. La respuesta nunca se muestra a otras personas: solo la ves vos y sirve para compararla con lo que conteste quien reclame."
+        >
+          <Campo
+            etiqueta="Pregunta de verificación"
             value={pregunta}
             onChangeText={(valor) => {
               setPregunta(valor);
               limpiarError('pregunta');
             }}
+            error={errores.pregunta}
             placeholder="Por ejemplo: ¿Qué figura en el llavero?"
-            placeholderTextColor="#6B7280"
             maxLength={200}
           />
-          {!!errores.pregunta && (
-            <Text style={styles.error}>{errores.pregunta}</Text>
-          )}
 
-          <Text style={styles.label}>Respuesta (privada)</Text>
-
-          <TextInput
+          <Campo
+            etiqueta="Respuesta (privada)"
             accessibilityLabel="Respuesta de verificación"
-            style={styles.input}
             value={respuesta}
             onChangeText={(valor) => {
               setRespuesta(valor);
               limpiarError('respuesta');
             }}
+            error={errores.respuesta}
             placeholder="La respuesta correcta"
-            placeholderTextColor="#6B7280"
             maxLength={200}
           />
-          {!!errores.respuesta && (
-            <Text style={styles.error}>{errores.respuesta}</Text>
-          )}
-        </View>
+        </Seccion>
       )}
 
       {Object.values(errores).some(Boolean) && (
-        <Text accessibilityRole="alert" style={styles.error}>
-          Revisá los campos marcados antes de {editando ? 'guardar' : 'publicar'}.
-        </Text>
+        <Aviso
+          tono="peligro"
+          mensaje={`Revisá los campos marcados antes de ${editando ? 'guardar' : 'publicar'}.`}
+          accessibilityRole="alert"
+        />
       )}
 
       {!!errorEnvio && (
-        <Text accessibilityRole="alert" style={styles.error}>
-          {errorEnvio}
-        </Text>
+        <Aviso tono="peligro" mensaje={errorEnvio} accessibilityRole="alert" />
       )}
 
       {!hayConexion && (
-        <Text accessibilityRole="alert" style={styles.avisoOffline}>
-          {puedeEncolar
-            ? '⚠️ Sin conexión: podés guardar la publicación y se enviará sola cuando vuelva la conexión.'
-            : `⚠️ Sin conexión: se necesita internet para ${
-                editando ? 'guardar los cambios' : 'publicar'
-              }.`}
-        </Text>
+        <Aviso
+          tono="aviso"
+          icono="wifi-off"
+          accessibilityRole="alert"
+          mensaje={
+            puedeEncolar
+              ? 'Sin conexión: podés guardar la publicación y se enviará sola cuando vuelva la conexión.'
+              : `Sin conexión: se necesita internet para ${
+                  editando ? 'guardar los cambios' : 'publicar'
+                }.`
+          }
+        />
       )}
 
-      <Button
-        title={
+      <Boton
+        titulo={
           enviando
             ? 'Guardando…'
             : !hayConexion && puedeEncolar
               ? 'Guardar para enviar después'
               : tituloBoton
         }
-        disabled={enviando || (!hayConexion && !puedeEncolar)}
+        cargando={enviando}
+        disabled={!hayConexion && !puedeEncolar}
         onPress={enviar}
       />
 
       {puedeEncolar && hayConexion && !!errorEnvio && (
-        <Button
-          title="Guardar para enviar después"
-          color="#6B7280"
+        <Boton
+          titulo="Guardar para enviar después"
+          variante="secundario"
           disabled={enviando}
           onPress={guardarParaDespues}
         />
       )}
 
       {onCancelar && (
-        <Button
-          title="Cancelar"
-          color="#6B7280"
+        <Boton
+          titulo="Cancelar"
+          variante="terciario"
           disabled={enviando}
           onPress={onCancelar}
         />
@@ -743,106 +665,19 @@ export default function FormularioPublicacion({
 }
 
 const styles = StyleSheet.create({
-  section: {
-    backgroundColor: '#FFFFFF',
-    padding: 20,
-    borderRadius: 16,
-    gap: 12,
+  foto: { width: 96, height: 96 },
+  imagen: {
+    width: 96,
+    height: 96,
+    borderRadius: radios.control,
+    backgroundColor: colores.primarioSuave,
   },
-  title: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#111827',
-  },
-  options: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  option: {
-    minHeight: 44,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: '#D1D5DB',
-    justifyContent: 'center',
-  },
-  selected: {
-    backgroundColor: '#DBEAFE',
-    borderColor: '#1D4ED8',
-  },
-  pressed: {
-    opacity: 0.7,
-  },
-  optionText: {
-    fontSize: 15,
-    color: '#374151',
-  },
-  selectedText: {
-    color: '#1D4ED8',
-    fontWeight: 'bold',
-  },
-  label: {
-    fontSize: 14,
-    color: '#4B5563',
-  },
-  help: {
-    fontSize: 14,
-    color: '#6B7280',
-    lineHeight: 20,
-  },
-  input: {
-    borderWidth: 1,
-    borderColor: '#9CA3AF',
-    borderRadius: 8,
-    padding: 12,
-    fontSize: 16,
-    color: '#111827',
-    minHeight: 48,
-  },
-  multiline: {
-    minHeight: 100,
-  },
-  error: {
-    color: '#DC2626',
-    fontSize: 15,
-  },
-  avisoOffline: {
-    fontSize: 14,
-    color: '#991B1B',
-    fontWeight: '600',
-    textAlign: 'center',
-  },
-  photos: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 10,
-  },
-  photoBox: {
-    width: 90,
-    height: 90,
-  },
-  photo: {
-    width: 90,
-    height: 90,
-    borderRadius: 10,
-    backgroundColor: '#DBEAFE',
-  },
-  remove: {
-    position: 'absolute',
-    top: -6,
-    right: -6,
+  quitar: { position: 'absolute', top: espacio.xxs, right: espacio.xxs },
+  quitarInterior: {
     width: 28,
     height: 28,
-    borderRadius: 14,
-    backgroundColor: '#DC2626',
-    justifyContent: 'center',
+    backgroundColor: colores.velo,
     alignItems: 'center',
-  },
-  removeText: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: 'bold',
+    justifyContent: 'center',
   },
 });

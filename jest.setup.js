@@ -53,6 +53,11 @@ jest.mock('expo-file-system', () => {
   return { Directory, File, Paths: { document: { uri: 'file:///documentos/' } } };
 });
 
+// Los íconos cargan su fuente al dibujarse: en las pruebas no aportan nada.
+jest.mock('@react-native-vector-icons/material-design-icons', () => ({
+  MaterialDesignIcons: () => null,
+}));
+
 // Navegación: dobles de los hooks de React Navigation. Las pruebas de hooks y pantallas no
 // montan un NavigationContainer; `__navegacion` expone el objeto que devuelve useNavigation
 // para verificar llamadas (navigate, goBack...) y `__ruta` los parámetros de useRoute.
@@ -61,6 +66,7 @@ jest.mock('@react-navigation/native', () => {
   const navegacion = {
     navigate: jest.fn(),
     goBack: jest.fn(),
+    popTo: jest.fn(),
     replace: jest.fn(),
     setOptions: jest.fn(),
     addListener: jest.fn(() => jest.fn()),

@@ -1,15 +1,6 @@
 import { useConexion } from '../context/ConexionContext';
 import { useState } from 'react';
-import {
-  ActivityIndicator,
-  Alert,
-  Button,
-  RefreshControl,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
+import { Alert, RefreshControl, StyleSheet, View } from 'react-native';
 import FormularioPublicacion, {
   FRANJAS,
   valoresDesdePublicacion,
@@ -18,11 +9,28 @@ import EncuentroReclamo from '../components/EncuentroReclamo';
 import EvidenciaReclamo from '../components/EvidenciaReclamo';
 import useGestionPublicacion from '../hooks/useGestionPublicacion';
 import { verificarConexion } from '../services/conexion';
+import { diasParaVencer, puedeRenovarse } from '../services/publicaciones';
+import { fechaSuceso } from '../components/TarjetaPublicacion';
 import {
-  NOMBRE_ESTADO_PUBLICACION,
-  diasParaVencer,
-  puedeRenovarse,
-} from '../services/publicaciones';
+  Aviso,
+  AvisoSinConexion,
+  Boton,
+  Cargando,
+  ESTADOS_RECLAMO,
+  ErrorConReintento,
+  Fila,
+  FilaDato,
+  InsigniaEstado,
+  InsigniaTipo,
+  NotaSinConexion,
+  Pantalla,
+  Seccion,
+  Separador,
+  Tarjeta,
+  Texto,
+  espacio,
+  estilosPantalla,
+} from '../components/ui';
 
 function formatearFecha(iso) {
   return iso ? new Date(iso).toLocaleDateString('es-AR') : '';
@@ -67,21 +75,15 @@ export default function GestionPublicacionScreen({ route, navigation }) {
   const [errorEdicion, setErrorEdicion] = useState('');
   const [mensaje, setMensaje] = useState('');
 
-  if (loading && !publicacion) {
-    return (
-      <View style={styles.centrado}>
-        <ActivityIndicator size="large" color="#1D4ED8" />
-      </View>
-    );
-  }
+  if (loading && !publicacion) return <Cargando pantalla />;
 
   if (!publicacion) {
     return (
-      <View style={styles.centrado}>
-        <Text style={styles.error}>
-          {error || 'No se encontró la publicación.'}
-        </Text>
-        <Button title="Reintentar" onPress={recargar} />
+      <View style={estilosPantalla.centrado}>
+        <ErrorConReintento
+          mensaje={error || 'No se encontró la publicación.'}
+          onReintentar={recargar}
+        />
       </View>
     );
   }
@@ -228,111 +230,77 @@ export default function GestionPublicacionScreen({ route, navigation }) {
     );
   }
 
+  const avisaVencimiento = publicacion.estado === 'vencida' || puedeRenovarse(publicacion);
+  const franja = FRANJAS.find((f) => f.valor === publicacion.franja)?.nombre || publicacion.franja;
+
   return (
-    <ScrollView
-      style={styles.screen}
-      contentContainerStyle={styles.content}
-      keyboardShouldPersistTaps="handled"
+    <Pantalla
       refreshControl={
         <RefreshControl refreshing={refrescando} onRefresh={recargar} />
       }
     >
       {!hayConexion && (
-        <View style={styles.bannerOffline}>
-          <Text style={styles.bannerOfflineIcon}>⚠️</Text>
-          <View style={styles.bannerOfflineTexto}>
-            <Text style={styles.bannerOfflineTitulo}>Modo sin conexión</Text>
-            <Text style={styles.bannerOfflineMensaje}>
-              Las acciones de edición, renovación, baja, aceptación de reclamos y resolución requieren conexión a internet y se encuentran deshabilitadas.
-            </Text>
-          </View>
-        </View>
+        <AvisoSinConexion
+          mensaje="Las acciones de edición, renovación, baja, aceptación de reclamos y resolución requieren conexión a internet y se encuentran deshabilitadas."
+        />
       )}
 
-      <View style={styles.card}>
-        <Text style={styles.tipo}>
-          {encontrado ? 'ENCONTRADO' : 'PERDIDO'}
-        </Text>
-        <Text style={styles.nombre}>{publicacion.titulo}</Text>
-        <Text style={styles.estado}>
-          Estado: {NOMBRE_ESTADO_PUBLICACION[publicacion.estado] || publicacion.estado}
-        </Text>
+      <Tarjeta>
+        <Fila>
+          <InsigniaTipo tipo={publicacion.tipo} />
+          <InsigniaEstado estado={publicacion.estado} />
+        </Fila>
+
+        <Texto variante="pantalla">{publicacion.titulo}</Texto>
+
         {vigencia !== '' && (
-          <Text
-            style={
-              publicacion.estado === 'vencida' || puedeRenovarse(publicacion)
-                ? styles.avisoVencimiento
-                : styles.dato
-            }
-          >
-            {vigencia}
-          </Text>
+          avisaVencimiento ? (
+            <Aviso tono="aviso" icono="clock-outline" mensaje={vigencia} />
+          ) : (
+            <Texto variante="cuerpoChico" tono="secundario">{vigencia}</Texto>
+          )
         )}
 
-        <Text style={styles.dato}>
-          {publicacion.categoria} · {publicacion.barrio} ·{' '}
-          {publicacion.fecha.split('-').reverse().join('/')} ·{' '}
-          {FRANJAS.find((f) => f.valor === publicacion.franja)?.nombre ||
-            publicacion.franja}
-        </Text>
+        <FilaDato
+          etiqueta="Datos del suceso"
+          valor={`${publicacion.categoria} · ${publicacion.barrio} · ${fechaSuceso(publicacion.fecha)} · ${franja}`}
+        />
 
-        <Text style={styles.dato}>
-          Dirección exacta:{' '}
-          {publicacion.direccionExacta || 'no cargaste una dirección exacta'}
-        </Text>
+        <FilaDato
+          etiqueta="Dirección exacta"
+          valor={publicacion.direccionExacta || 'No cargaste una dirección exacta'}
+        />
 
         {encontrado && !!publicacion.preguntaVerificacion && (
           <>
-            <Text style={styles.dato}>
-              Pregunta de verificación: {publicacion.preguntaVerificacion}
-            </Text>
-            <Text style={styles.dato}>
-              Tu respuesta (privada): {publicacion.respuestaVerificacion}
-            </Text>
+            <FilaDato etiqueta="Pregunta de verificación" valor={publicacion.preguntaVerificacion} />
+            <FilaDato etiqueta="Tu respuesta (privada)" valor={publicacion.respuestaVerificacion} />
           </>
         )}
 
-        {error !== '' && <Text style={styles.error}>{error}</Text>}
-        {mensaje !== '' && <Text style={styles.ok}>{mensaje}</Text>}
+        {error !== '' && <Aviso tono="peligro" mensaje={error} accessibilityRole="alert" />}
+        {mensaje !== '' && <Aviso tono="exito" mensaje={mensaje} />}
 
         {puedeRenovarse(publicacion) && (
-          <View style={styles.accion}>
-            <Button
-              title={procesando === 'renovar' ? 'Renovando…' : 'Renovar por 30 días'}
-              color={!hayConexion ? '#9CA3AF' : undefined}
+          <>
+            <Boton
+              titulo={procesando === 'renovar' ? 'Renovando…' : 'Renovar por 30 días'}
+              cargando={procesando === 'renovar'}
               disabled={ocupado || !hayConexion}
               onPress={manejarRenovar}
             />
             {!hayConexion && (
-              <Text style={styles.avisoAccionOffline}>
-                ⚠️ Se necesita conexión para renovar la publicación.
-              </Text>
+              <NotaSinConexion>Se necesita conexión para renovar la publicación.</NotaSinConexion>
             )}
-          </View>
+          </>
         )}
-      </View>
 
-      {editable &&
-        (editando ? (
-          <View style={styles.formulario}>
-            <FormularioPublicacion
-              modo="editar"
-              valoresIniciales={valoresDesdePublicacion(publicacion)}
-              enviando={procesando === 'guardar'}
-              errorEnvio={errorEdicion}
-              textoEnviar="Guardar cambios"
-              onEnviar={guardar}
-              onCancelar={() => {
-                setErrorEdicion('');
-                setEditando(false);
-              }}
-            />
-          </View>
-        ) : (
-          <View style={styles.card}>
-            <Button
-              title="Editar publicación"
-              color={!hayConexion ? '#9CA3AF' : undefined}
+        {editable && !editando && (
+          <>
+            <Boton
+              titulo="Editar publicación"
+              icono="pencil-outline"
+              variante="secundario"
               disabled={ocupado || !hayConexion}
               onPress={() => {
                 setMensaje('');
@@ -341,53 +309,63 @@ export default function GestionPublicacionScreen({ route, navigation }) {
               }}
             />
             {!hayConexion && (
-              <Text style={styles.avisoAccionOffline}>
-                ⚠️ Se necesita conexión para editar la publicación.
-              </Text>
+              <NotaSinConexion>Se necesita conexión para editar la publicación.</NotaSinConexion>
             )}
-          </View>
-        ))}
+          </>
+        )}
+      </Tarjeta>
 
-      <View style={styles.card}>
-        <Text style={styles.titulo}>Reclamos recibidos ({totalReclamos})</Text>
+      {editable && editando && (
+        <FormularioPublicacion
+          modo="editar"
+          valoresIniciales={valoresDesdePublicacion(publicacion)}
+          enviando={procesando === 'guardar'}
+          errorEnvio={errorEdicion}
+          textoEnviar="Guardar cambios"
+          onEnviar={guardar}
+          onCancelar={() => {
+            setErrorEdicion('');
+            setEditando(false);
+          }}
+        />
+      )}
 
+      <Seccion titulo={`Reclamos recibidos (${totalReclamos})`}>
         {reclamos.length === 0 && (
-          <Text style={styles.vacio}>Todavía no recibiste reclamos.</Text>
+          <Texto variante="cuerpoChico" tono="secundario">
+            Todavía no recibiste reclamos.
+          </Texto>
         )}
 
         {reclamos.map((r) => (
           <View key={r.id} style={styles.reclamo}>
-            <View style={styles.reclamoHeader}>
-              <Text style={styles.reclamoUsuario}>{r.usuario}</Text>
-              <Text style={styles.reclamoIntentos}>
-                Intento {r.intentos || 1} de {r.maxIntentos || 3}
-              </Text>
+            <Separador />
+
+            <View style={styles.reclamoCabecera}>
+              <View style={styles.reclamoPersona}>
+                <Texto variante="subtitulo">{r.usuario}</Texto>
+                <Texto variante="leyenda" tono="secundario">
+                  Intento {r.intentos || 1} de {r.maxIntentos || 3}
+                </Texto>
+              </View>
+              <InsigniaEstado estado={r.estado} estados={ESTADOS_RECLAMO} />
             </View>
+
             <EvidenciaReclamo reclamo={r} publicacion={publicacion} esDuenio />
 
             {r.estado === 'pendiente' && (
-              <Text style={styles.estadoPendiente}>
-                ⏳ Pendiente (vence automáticamente a las 48 hs)
-              </Text>
+              <Texto variante="cuerpoChico" tono="secundario">
+                Vence automáticamente a las 48 hs.
+              </Texto>
             )}
             {r.estado === 'aceptado' && (
-              <Text style={styles.ok}>
-                Aceptado.{' '}
-                {r.telefono
+              <Aviso
+                tono="exito"
+                icono="phone-outline"
+                mensaje={r.telefono
                   ? `Teléfono: ${r.telefono}`
                   : 'Esta persona prefiere comunicarse solo por la app.'}
-              </Text>
-            )}
-            {r.estado === 'rechazado' && (
-              <Text style={styles.vacio}>Rechazado</Text>
-            )}
-            {r.estado === 'cancelado' && (
-              <Text style={styles.vacio}>Cancelado</Text>
-            )}
-            {r.estado === 'vencido' && (
-              <Text style={styles.estadoVencido}>
-                ⏰ Vencido (venció a las 48 hs sin respuesta)
-              </Text>
+              />
             )}
 
             {r.estado === 'aceptado' && publicacion.estado === 'en_reclamo' && (
@@ -395,8 +373,10 @@ export default function GestionPublicacionScreen({ route, navigation }) {
             )}
 
             {r.estado === 'aceptado' && (
-              <Button
-                title="Mensajes"
+              <Boton
+                titulo="Mensajes"
+                icono="message-text-outline"
+                variante="secundario"
                 onPress={() =>
                   navigation.navigate('ConversacionReclamo', {
                     reclamoId: r.id,
@@ -409,24 +389,25 @@ export default function GestionPublicacionScreen({ route, navigation }) {
 
             {publicacion.estado === 'abierta' && r.estado === 'pendiente' && (
               <>
-                <View style={styles.fila}>
-                  <Button
-                    title={procesando === r.id ? 'Procesando…' : 'Aceptar'}
+                <Fila>
+                  <Boton
+                    titulo={procesando === r.id ? 'Procesando…' : 'Aceptar'}
+                    flexible
                     disabled={ocupado || !hayConexion}
-                    color={!hayConexion ? '#9CA3AF' : '#1D4ED8'}
                     onPress={() => manejarAceptar(r)}
                   />
-                  <Button
-                    title="Rechazar"
-                    color={!hayConexion ? '#9CA3AF' : '#DC2626'}
+                  <Boton
+                    titulo="Rechazar"
+                    variante="peligro"
+                    flexible
                     disabled={ocupado || !hayConexion}
                     onPress={() => manejarRechazar(r)}
                   />
-                </View>
+                </Fila>
                 {!hayConexion && (
-                  <Text style={styles.avisoAccionOffline}>
-                    ⚠️ Se necesita conexión para aceptar o rechazar reclamos.
-                  </Text>
+                  <NotaSinConexion>
+                    Se necesita conexión para aceptar o rechazar reclamos.
+                  </NotaSinConexion>
                 )}
               </>
             )}
@@ -434,143 +415,58 @@ export default function GestionPublicacionScreen({ route, navigation }) {
         ))}
 
         {hayMasReclamos && (
-          <Button
-            title={cargandoMas ? 'Cargando…' : 'Cargar más reclamos'}
-            disabled={cargandoMas || !hayConexion}
+          <Boton
+            titulo={cargandoMas ? 'Cargando…' : 'Cargar más reclamos'}
+            variante="terciario"
+            cargando={cargandoMas}
+            disabled={!hayConexion}
             onPress={cargarMasReclamos}
           />
         )}
 
         {publicacion.estado === 'en_reclamo' && aceptado && (
-          <View style={styles.accion}>
-            <Button
-              title={procesando === 'resolver' ? 'Confirmando…' : 'Confirmar devolución'}
-              color={!hayConexion ? '#9CA3AF' : undefined}
+          <>
+            <Boton
+              titulo={procesando === 'resolver' ? 'Confirmando…' : 'Confirmar devolución'}
+              cargando={procesando === 'resolver'}
               disabled={ocupado || !hayConexion}
               onPress={manejarResolver}
             />
             {!hayConexion && (
-              <Text style={styles.avisoAccionOffline}>
-                ⚠️ Se necesita conexión para confirmar la devolución.
-              </Text>
+              <NotaSinConexion>Se necesita conexión para confirmar la devolución.</NotaSinConexion>
             )}
-          </View>
+          </>
         )}
-      </View>
+      </Seccion>
 
       {publicacion.estado === 'resuelta' && (
-        <View style={styles.card}>
-          <Text style={styles.titulo}>Devolución concretada</Text>
-          <Text style={styles.vacio}>
-            Desde el historial podés valorar a la otra persona dentro de los 7
-            días posteriores a la devolución.
-          </Text>
-          <View style={styles.accion}>
-            <Button
-              title="Ver historial y valorar"
-              onPress={() => navigation.navigate('Historial')}
-            />
-          </View>
-        </View>
+        <Seccion
+          titulo="Devolución concretada"
+          descripcion="Desde el historial podés valorar a la otra persona dentro de los 7 días posteriores a la devolución."
+        >
+          <Boton
+            titulo="Ver historial y valorar"
+            variante="secundario"
+            onPress={() => navigation.navigate('Historial')}
+          />
+        </Seccion>
       )}
 
       {editable && (
-        <Button
-          title="Eliminar publicación"
-          color={!hayConexion ? '#9CA3AF' : '#DC2626'}
+        <Boton
+          titulo="Eliminar publicación"
+          icono="trash-can-outline"
+          variante="peligro"
           disabled={ocupado || !hayConexion}
           onPress={confirmarEliminar}
         />
       )}
-    </ScrollView>
+    </Pantalla>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: '#F3F4F6' },
-  content: { padding: 24, gap: 16 },
-  centrado: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#F3F4F6',
-    padding: 24,
-    gap: 12,
-  },
-  card: { backgroundColor: '#FFFFFF', borderRadius: 16, padding: 20, gap: 6 },
-  formulario: { gap: 16 },
-  titulo: { fontSize: 18, fontWeight: 'bold', color: '#111827', marginBottom: 12 },
-  tipo: { fontSize: 13, fontWeight: 'bold', color: '#6B7280' },
-  nombre: { fontSize: 20, fontWeight: 'bold', color: '#111827' },
-  estado: { fontSize: 16, fontWeight: 'bold', color: '#1D4ED8', marginTop: 4 },
-  dato: { fontSize: 15, color: '#374151', marginTop: 4 },
-  avisoVencimiento: { fontSize: 15, color: '#B45309', fontWeight: '600', marginTop: 4 },
-  accion: { marginTop: 12 },
-  reclamo: {
-    borderTopWidth: 1,
-    borderTopColor: '#E5E7EB',
-    paddingVertical: 12,
-    gap: 6,
-  },
-  reclamoUsuario: { fontSize: 16, fontWeight: 'bold', color: '#111827' },
-  reclamoHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  reclamoIntentos: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#6B7280',
-  },
-  estadoPendiente: {
-    fontSize: 13,
-    fontWeight: 'bold',
-    color: '#D97706',
-    marginTop: 4,
-  },
-  estadoVencido: {
-    fontSize: 13,
-    fontWeight: 'bold',
-    color: '#DC2626',
-    marginTop: 4,
-  },
-  fila: { flexDirection: 'row', gap: 12, marginBottom: 12 },
-  vacio: { color: '#6B7280' },
-  error: { color: '#DC2626', marginTop: 8 },
-  ok: { color: '#047857', marginTop: 4 },
-  bannerOffline: {
-    backgroundColor: '#FEF3C7',
-    borderColor: '#F59E0B',
-    borderWidth: 1,
-    borderRadius: 12,
-    padding: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  bannerOfflineIcon: {
-    fontSize: 22,
-  },
-  bannerOfflineTexto: {
-    flex: 1,
-  },
-  bannerOfflineTitulo: {
-    fontSize: 14,
-    fontWeight: 'bold',
-    color: '#92400E',
-    marginBottom: 2,
-  },
-  bannerOfflineMensaje: {
-    fontSize: 13,
-    color: '#78350F',
-    lineHeight: 18,
-  },
-  avisoAccionOffline: {
-    fontSize: 13,
-    color: '#991B1B',
-    fontWeight: '600',
-    marginTop: 6,
-    textAlign: 'center',
-  },
+  reclamo: { gap: espacio.sm },
+  reclamoCabecera: { flexDirection: 'row', alignItems: 'center', gap: espacio.xs },
+  reclamoPersona: { flex: 1 },
 });

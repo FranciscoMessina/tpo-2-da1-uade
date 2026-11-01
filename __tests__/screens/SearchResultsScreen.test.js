@@ -263,7 +263,7 @@ describe('SearchResultsScreen — acciones que siguen disponibles sin conexión'
     expect(navegacion.navigate).toHaveBeenCalledWith('CrearPublicacion', expect.any(Object));
 
     fireEvent.press(screen.getByText('Mis alertas'));
-    expect(navegacion.navigate).toHaveBeenCalledWith('Alertas');
+    expect(navegacion.popTo).toHaveBeenCalledWith('Principal', { screen: 'Alertas' });
   });
 
   test('reintentar la búsqueda sigue habilitado y vuelve a consultar', async () => {

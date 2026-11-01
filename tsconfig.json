@@ -14,13 +14,16 @@
   // Un archivo no listado igual se chequea si lo importa uno listado, por eso no hay exclusiones.
   "include": [
     "components/AgradecimientosPublicos.js",
-    "components/AuthUI.js",
     "components/BadgesCard.js",
+    "components/BloqueoBiometrico.js",
     "components/CasoResuelto.js",
+    "components/CodeStep.js",
     "components/EncuentroReclamo.js",
     "components/PuntoEncuentro.js",
     "components/ReputationCard.js",
     "components/SearchForm.js",
+    "components/TarjetaPublicacion.js",
+    "components/ui/index.js",
     "context/ConexionContext.js",
     "context/SearchContext.js",
     "hooks/useAlertas.js",

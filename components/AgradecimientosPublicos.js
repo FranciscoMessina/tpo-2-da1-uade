@@ -1,8 +1,17 @@
 import { useCallback, useState } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
-import { ActivityIndicator, Button, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import { obtenerAgradecimientos } from '../services/historial';
 import { mensajeErrorApi } from '../services/api';
+import {
+  Cargando,
+  ErrorConReintento,
+  Paginacion,
+  Seccion,
+  Separador,
+  Texto,
+  espacio,
+} from './ui';
 
 export default function AgradecimientosPublicos({ usuarioId }) {
   const [pagina, setPagina] = useState(1);
@@ -23,41 +32,43 @@ export default function AgradecimientosPublicos({ usuarioId }) {
   }, [usuarioId, pagina, intento]));
 
   return (
-    <View style={styles.card}>
-      <Text style={styles.titulo}>Agradecimientos</Text>
-      {cargando ? <ActivityIndicator color="#1D4ED8" /> : error ? (
-        <View>
-          <Text>{error}</Text>
-          <Button title="Reintentar" onPress={() => setIntento((n) => n + 1)} />
-        </View>
+    <Seccion titulo="Agradecimientos">
+      {cargando ? (
+        <Cargando chico />
+      ) : error ? (
+        <ErrorConReintento mensaje={error} onReintentar={() => setIntento((n) => n + 1)} />
       ) : (
-        <View style={styles.lista}>
-          {resultado.items.length === 0 && <Text>Todavía no recibió agradecimientos.</Text>}
-          {resultado.items.map((item) => (
-            <View key={item.id} style={styles.mensaje}>
-              <Text style={styles.autor}>{item.autor.name}</Text>
-              <Text>{item.mensaje}</Text>
-              <Text style={styles.fecha}>{new Date(item.createdAt).toLocaleDateString('es-AR')}</Text>
+        <>
+          {resultado.items.length === 0 && (
+            <Texto variante="cuerpoChico" tono="secundario">
+              Todavía no recibió agradecimientos.
+            </Texto>
+          )}
+
+          {resultado.items.map((item, indice) => (
+            <View key={item.id} style={styles.item}>
+              {indice > 0 && <Separador />}
+              <Texto variante="etiqueta">{item.autor.name}</Texto>
+              <Texto variante="cuerpoChico">{item.mensaje}</Texto>
+              <Texto variante="leyenda" tono="secundario">
+                {new Date(item.createdAt).toLocaleDateString('es-AR')}
+              </Texto>
             </View>
           ))}
+
           {resultado.totalPages > 1 && (
-            <View>
-              <Text>Página {pagina} de {resultado.totalPages}</Text>
-              <Button title="Anterior" disabled={pagina === 1} onPress={() => setPagina(pagina - 1)} />
-              <Button title="Siguiente" disabled={pagina >= resultado.totalPages} onPress={() => setPagina(pagina + 1)} />
-            </View>
+            <Paginacion
+              pagina={pagina}
+              totalPaginas={resultado.totalPages}
+              onCambiar={setPagina}
+            />
           )}
-        </View>
+        </>
       )}
-    </View>
+    </Seccion>
   );
 }
 
 const styles = StyleSheet.create({
-  card: { backgroundColor: '#FFFFFF', borderRadius: 16, padding: 20, marginBottom: 16, gap: 12 },
-  titulo: { fontSize: 18, fontWeight: 'bold', color: '#111827' },
-  lista: { gap: 16 },
-  mensaje: { borderTopWidth: 1, borderTopColor: '#E5E7EB', paddingTop: 12, gap: 6 },
-  autor: { fontWeight: '600', color: '#111827' },
-  fecha: { color: '#6B7280', fontSize: 12 },
+  item: { gap: espacio.xxs },
 });

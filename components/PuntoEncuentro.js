@@ -1,5 +1,13 @@
 import { useState } from 'react';
-import { Button, Linking, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Linking } from 'react-native';
+import {
+  Aviso,
+  Boton,
+  Campo,
+  NotaSinConexion,
+  Panel,
+  Texto,
+} from './ui';
 
 export default function PuntoEncuentro({
   reclamoAceptado = false,
@@ -81,91 +89,107 @@ export default function PuntoEncuentro({
 
   if (!reclamoAceptado) {
     return (
-      <View style={styles.card}>
-        <Text style={styles.title}>Punto de encuentro</Text>
-        <Text style={styles.help}>Primero debe aceptarse el reclamo para coordinar la devolución.</Text>
-      </View>
+      <Panel>
+        <Texto variante="subtitulo">Punto de encuentro</Texto>
+        <Texto variante="cuerpoChico" tono="secundario">
+          Primero debe aceptarse el reclamo para coordinar la devolución.
+        </Texto>
+      </Panel>
     );
   }
 
   return (
-    <View style={styles.card}>
-      <Text style={styles.title}>Punto de encuentro</Text>
+    <Panel>
+      <Texto variante="subtitulo">Punto de encuentro</Texto>
 
       {encuentro ? (
         <>
-          <Text style={styles.label}>
+          <Texto variante="etiqueta" tono="secundario">
             {aceptado ? 'Encuentro acordado' : 'Propuesta de encuentro'}
-          </Text>
-          <Text selectable style={styles.address}>{encuentro.direccion}</Text>
+          </Texto>
+          <Texto selectable>{encuentro.direccion}</Texto>
           {pendiente && (
-            <Text style={styles.help}>
+            <Texto variante="cuerpoChico" tono="secundario">
               {puedeResponder
                 ? 'Podés aceptar este lugar o sugerir otro.'
                 : 'Esperando la respuesta de la otra persona.'}
-            </Text>
+            </Texto>
           )}
-          <Button title="Cómo llegar" onPress={comoLlegar} disabled={!encuentro.direccion?.trim()} />
+          <Boton
+            titulo="Cómo llegar"
+            icono="map-marker-path"
+            variante="secundario"
+            chico
+            onPress={comoLlegar}
+            disabled={!encuentro.direccion?.trim()}
+          />
         </>
       ) : (
-        <Text style={styles.help}>
+        <Texto variante="cuerpoChico" tono="secundario">
           {puedeProponer
             ? 'Proponé un lugar para devolver el objeto.'
             : 'La persona que tiene el objeto debe proponer un lugar.'}
-        </Text>
+        </Texto>
       )}
 
       {responder && !alternativa && (
         <>
-          <Button title={ocupado ? 'Guardando…' : 'Aceptar encuentro'}
-            color={!hayConexion ? '#9CA3AF' : undefined}
-            onPress={aceptar} disabled={ocupado || !hayConexion || typeof onAceptar !== 'function'} />
-          <Button title="Sugerir otro lugar" color={!hayConexion ? '#9CA3AF' : '#6B7280'}
+          <Boton
+            titulo={ocupado ? 'Guardando…' : 'Aceptar encuentro'}
+            chico
+            cargando={ocupado}
+            disabled={!hayConexion || typeof onAceptar !== 'function'}
+            onPress={aceptar}
+          />
+          <Boton
+            titulo="Sugerir otro lugar"
+            variante="terciario"
+            chico
             disabled={ocupado || !hayConexion || typeof onProponer !== 'function'}
-            onPress={() => { setErrorLocal(''); setAlternativa(true); }} />
+            onPress={() => { setErrorLocal(''); setAlternativa(true); }}
+          />
         </>
       )}
 
       {mostrarFormulario && (
         <>
-          <Text style={styles.label}>Dirección y localidad</Text>
-          <TextInput
+          <Campo
+            etiqueta="Dirección y localidad"
             accessibilityLabel="Dirección y localidad del punto de encuentro"
-            style={styles.input}
             value={direccion}
             onChangeText={(texto) => { setDireccion(texto); setErrorLocal(''); }}
             placeholder="Ej.: Av. Santa Fe 1234, CABA"
-            placeholderTextColor="#6B7280"
             maxLength={200}
             editable={!ocupado}
           />
-          <Button title={ocupado ? 'Enviando…' : 'Enviar propuesta'}
-            color={!hayConexion ? '#9CA3AF' : undefined}
-            onPress={proponer} disabled={ocupado || !hayConexion || typeof onProponer !== 'function'} />
+          <Boton
+            titulo={ocupado ? 'Enviando…' : 'Enviar propuesta'}
+            chico
+            cargando={ocupado}
+            disabled={!hayConexion || typeof onProponer !== 'function'}
+            onPress={proponer}
+          />
           {alternativa && (
-            <Button title="Cancelar" color="#6B7280" disabled={ocupado}
-              onPress={() => { setAlternativa(false); setDireccion(''); setErrorLocal(''); }} />
+            <Boton
+              titulo="Cancelar"
+              variante="terciario"
+              chico
+              disabled={ocupado}
+              onPress={() => { setAlternativa(false); setDireccion(''); setErrorLocal(''); }}
+            />
           )}
         </>
       )}
 
       {!hayConexion && (responder || mostrarFormulario) && (
-        <Text style={styles.error}>⚠️ Se necesita conexión a internet para coordinar el punto de encuentro.</Text>
+        <NotaSinConexion>
+          Se necesita conexión a internet para coordinar el punto de encuentro.
+        </NotaSinConexion>
       )}
 
       {!!(errorLocal || error) && (
-        <Text accessibilityRole="alert" style={styles.error}>{errorLocal || error}</Text>
+        <Aviso tono="peligro" mensaje={errorLocal || error} accessibilityRole="alert" />
       )}
-    </View>
+    </Panel>
   );
 }
-
-const styles = StyleSheet.create({
-  card: { backgroundColor: '#FFFFFF', borderRadius: 16, padding: 20, gap: 12 },
-  title: { fontSize: 18, fontWeight: 'bold', color: '#111827' },
-  label: { fontSize: 15, fontWeight: '600', color: '#374151' },
-  address: { fontSize: 16, color: '#111827' },
-  help: { fontSize: 14, color: '#6B7280', lineHeight: 20 },
-  input: { borderWidth: 1, borderColor: '#D1D5DB', borderRadius: 8, padding: 12, color: '#111827' },
-  error: { color: '#DC2626' },
-});
