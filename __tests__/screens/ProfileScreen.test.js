@@ -13,12 +13,6 @@ jest.mock('../../context/ConexionContext');
 jest.mock('expo-image-picker', () => ({ launchImageLibraryAsync: jest.fn() }));
 
 // Componentes con datos propios que no son objeto de estas pruebas.
-jest.mock('../../components/MisPublicaciones', () => {
-  const { Text } = require('react-native');
-  return function MisPublicacionesDoble() {
-    return <Text>Mis publicaciones</Text>;
-  };
-});
 jest.mock('../../components/ReputationCard', () => () => null);
 jest.mock('../../components/BadgesCard', () => () => null);
 
@@ -141,6 +135,9 @@ describe('ProfileScreen — acciones que siguen disponibles sin conexión', () =
 
     expect(screen.getByText('Editar perfil')).not.toBeDisabled();
     expect(screen.queryByText(AVISO)).toBeNull();
+
+    fireEvent.press(screen.getByText('Mis publicaciones'));
+    expect(navegacion.navigate).toHaveBeenCalledWith('MisPublicaciones');
 
     fireEvent.press(screen.getByText('Historial de devoluciones'));
     expect(navegacion.navigate).toHaveBeenCalledWith('Historial');

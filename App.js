@@ -27,6 +27,7 @@ import { ColaPublicacionesProvider } from './context/ColaPublicacionesContext';
 import AlertasScreen from './screens/AlertasScreen';
 import SeguidasScreen from './screens/SeguidasScreen';
 import PublicationDetailScreen from './screens/PublicationDetailScreen';
+import MisPublicacionesScreen from './screens/MisPublicacionesScreen';
 import MisReclamosScreen from './screens/MisReclamosScreen';
 import HistorialScreen from './screens/HistorialScreen';
 import ConversacionReclamoScreen from './screens/ConversacionReclamoScreen';
@@ -277,6 +278,12 @@ function AppContenido() {
                 name="CrearPublicacion"
                 component={CreatePostScreen}
                 options={{ title: 'Nueva publicación' }}
+              />
+
+              <Stack.Screen
+                name="MisPublicaciones"
+                component={MisPublicacionesScreen}
+                options={{ title: 'Mis publicaciones' }}
               />
 
               <Stack.Screen

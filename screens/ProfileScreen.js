@@ -6,7 +6,6 @@ import { conActividadExterna } from '../services/actividadExterna';
 import ReputationCard from '../components/ReputationCard';
 import BadgesCard from '../components/BadgesCard';
 import usePerfil from '../hooks/usePerfil';
-import MisPublicaciones from '../components/MisPublicaciones';
 import useAuth from '../hooks/useAuth';
 import { useConexion } from '../context/ConexionContext';
 import { estaConectado } from '../services/conexion';
@@ -287,13 +286,17 @@ export default function ProfileScreen({ navigation }) {
             />
           </Tarjeta>
 
-          <MisPublicaciones navigation={navigation} />
-
           <ReputationCard reputacion={perfil.reputation} />
 
           <BadgesCard insignias={perfil.badges} />
 
           <Tarjeta sinRelleno>
+            <FilaMenu
+              titulo="Mis publicaciones"
+              icono="file-document-outline"
+              onPress={() => navigation.navigate('MisPublicaciones')}
+            />
+            <Separador />
             <FilaMenu
               titulo="Ver mi perfil público"
               icono="account-outline"
