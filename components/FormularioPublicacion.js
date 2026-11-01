@@ -1,9 +1,10 @@
-import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Alert, Image, Keyboard, StyleSheet, View } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { conActividadExterna } from '../services/actividadExterna';
 import CamaraModal from './CamaraModal';
 import SelectorBarrio from './SelectorBarrio';
+import SelectorCategoria from './SelectorCategoria';
 import SelectorFecha from './SelectorFecha';
 import { fechaLocal, fechaValida } from '../data/busqueda';
 import useUbicacionActual from '../hooks/useUbicacionActual';
@@ -11,10 +12,8 @@ import { useConexion } from '../context/ConexionContext';
 import { verificarConexion } from '../services/conexion';
 import {
   buscarZona,
-  catalogoActual,
   coordenadasPropias,
   iniciarCatalogo,
-  suscribirCatalogo,
 } from '../services/catalogos';
 import { describirUbicacion } from '../services/ubicacion';
 import {
@@ -134,9 +133,7 @@ export default function FormularioPublicacion({
   const editando = modo === 'editar';
   const puedeEncolar = !editando && typeof onEncolar === 'function';
   const { hayConexion } = useConexion();
-  // Mismo catálogo que el formulario de búsqueda; sin conexión, el último válido (no bloquea publicar).
-  const catalogo = useSyncExternalStore(suscribirCatalogo, catalogoActual);
-
+  // Sin conexión se usa el último catálogo válido: no bloquea publicar.
   useEffect(() => {
     iniciarCatalogo();
   }, []);
@@ -620,13 +617,8 @@ export default function FormularioPublicacion({
             maxLength={80}
           />
 
-          <GrupoOpciones
-            etiqueta="Categoría"
+          <SelectorCategoria
             error={errores.categoria}
-            opciones={catalogo.categorias.map((nombre) => ({
-              valor: nombre,
-              nombre,
-            }))}
             valor={categoria}
             onChange={(valor) => {
               setCategoria(valor);

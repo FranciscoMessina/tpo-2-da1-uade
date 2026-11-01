@@ -1,4 +1,4 @@
-import { useRef, useState, useSyncExternalStore } from 'react';
+import { useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import {
   PERIODOS,
@@ -11,9 +11,9 @@ import {
   validarFiltros,
 } from '../data/busqueda';
 import useUbicacionActual from '../hooks/useUbicacionActual';
-import { catalogoActual, suscribirCatalogo } from '../services/catalogos';
 import { describirUbicacion } from '../services/ubicacion';
 import SelectorBarrio from './SelectorBarrio';
+import SelectorCategoria from './SelectorCategoria';
 import SelectorFecha from './SelectorFecha';
 import {
   Aviso,
@@ -50,9 +50,6 @@ export default function SearchForm({
   // donde barrio es null si ninguno del catálogo queda cerca.
   const [cerca, setCerca] = useState(null);
   const consultaGps = useRef(0);
-  // Mismo catálogo que el formulario de publicación; sin conexión, el último válido.
-  // SelectorBarrio lo inicia por su cuenta.
-  const catalogo = useSyncExternalStore(suscribirCatalogo, catalogoActual);
   const {
     obtener: obtenerUbicacion,
     cargando: ubicando,
@@ -157,11 +154,7 @@ export default function SearchForm({
       </Seccion>
 
       <Seccion titulo="2. ¿Qué es?">
-        <GrupoOpciones
-          opciones={catalogo.categorias.map((nombre) => ({
-            valor: nombre,
-            nombre,
-          }))}
+        <SelectorCategoria
           valor={filtros.categoria}
           onChange={(valor) => cambiar('categoria', valor)}
         />
