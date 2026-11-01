@@ -14,9 +14,10 @@ import * as ImagePicker from 'expo-image-picker';
 import { conActividadExterna } from '../services/actividadExterna';
 import ReputationCard from '../components/ReputationCard';
 import { fechaSuceso } from '../components/TarjetaPublicacion';
+import { nombreFranja, textoHora } from '../data/franjas';
 import usePublicacion from '../hooks/usePublicacion';
 import { mensajeErrorApi } from '../services/api';
-import { ZONAS } from '../data/searchDemo';
+import SelectorBarrio from '../components/SelectorBarrio';
 import {
   Avatar,
   Aviso,
@@ -27,7 +28,6 @@ import {
   ErrorConReintento,
   Fila,
   FilaDato,
-  GrupoOpciones,
   Icono,
   InsigniaEstado,
   InsigniaTipo,
@@ -44,12 +44,6 @@ import {
   radios,
   tonos,
 } from '../components/ui';
-
-const FRANJAS = {
-  manana: 'Mañana (6 a 12 h)',
-  tarde: 'Tarde (12 a 19 h)',
-  noche: 'Noche (19 a 6 h)',
-};
 
 export default function PublicationDetailScreen({ route, navigation }) {
   return (
@@ -186,15 +180,13 @@ function DetallePublicacion({ route, navigation }) {
       const datosReclamo = encontrado
         ? {
             respuestaVerificacion: preguntaVerificacion ? respuesta.trim() : '',
-            mensaje: preguntaVerificacion
-              ? (descripcion.trim().length >= 5 ? descripcion.trim() : 'Respondí la pregunta de verificación.')
-              : descripcion.trim(),
+            mensaje: descripcion.trim(),
             fotoUri,
           }
         : {
             barrio: barrio.trim(),
             fotoUri,
-            mensaje: mensaje.trim() || `Encontré tu objeto en ${barrio.trim()}.`,
+            mensaje: mensaje.trim(),
           };
 
       const reclamo = await reclamar(datosReclamo);
@@ -219,7 +211,6 @@ function DetallePublicacion({ route, navigation }) {
     }
   }
 
-  const opcionesBarrio = ZONAS.map((zona) => ({ valor: zona.nombre, nombre: zona.nombre }));
   const tituloModal = encontrado ? 'Reclamar como tuyo' : 'Avisar que lo encontraste';
 
   return (
@@ -285,15 +276,20 @@ function DetallePublicacion({ route, navigation }) {
 
         <Tarjeta>
           <FilaDato etiqueta="Categoría" valor={publicacion.categoria} />
-          <FilaDato etiqueta="Fecha del suceso" valor={fechaSuceso(publicacion.fecha)} />
           <FilaDato
-            etiqueta="Franja horaria"
-            valor={FRANJAS[publicacion.franja] || publicacion.franja}
+            etiqueta="Fecha del suceso"
+            valor={[fechaSuceso(publicacion.fecha), textoHora(publicacion.hora)].filter(Boolean).join(' · ')}
           />
+          <FilaDato etiqueta="Franja horaria" valor={nombreFranja(publicacion.franja)} />
           <FilaDato etiqueta="Barrio" valor={publicacion.barrio} />
           <FilaDato
             etiqueta="Dirección exacta"
-            valor={publicacion.direccionExacta || 'Se muestra cuando el reclamo sea aceptado.'}
+            valor={
+              publicacion.direccionExacta ||
+              (esPropia || reclamoAceptado
+                ? 'No informada'
+                : 'Se muestra cuando el reclamo sea aceptado.')
+            }
           />
         </Tarjeta>
 
@@ -529,10 +525,12 @@ function DetallePublicacion({ route, navigation }) {
               Para que el dueño pueda confirmar si se trata de lo suyo, adjuntá una foto clara del objeto e indicá el barrio donde lo encontraste.
             </Texto>
 
-            <Texto variante="etiqueta" tono="secundario">
-              Barrio donde lo encontraste (obligatorio, elegí uno de la lista)
-            </Texto>
-            <GrupoOpciones opciones={opcionesBarrio} valor={barrio} onChange={setBarrio} chico />
+            <SelectorBarrio
+              etiqueta="Barrio donde lo encontraste (obligatorio)"
+              accessibilityLabel="Barrio donde lo encontraste"
+              valor={barrio}
+              onChange={setBarrio}
+            />
 
             <Texto variante="etiqueta" tono="secundario">
               Foto del objeto encontrado (obligatoria)

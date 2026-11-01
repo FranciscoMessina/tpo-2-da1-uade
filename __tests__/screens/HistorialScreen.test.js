@@ -86,3 +86,45 @@ describe('HistorialScreen', () => {
     expect(errores).not.toHaveBeenCalled();
   });
 });
+
+describe('HistorialScreen: filtro por fechas', () => {
+  function elegirFecha(etiqueta, fecha) {
+    fireEvent.press(screen.getByLabelText(etiqueta));
+    act(() => screen.getByTestId('datetimepicker').props.onValueChange({}, fecha));
+    fireEvent.press(screen.getByText('Listo'));
+  }
+
+  test('filtra por las fechas elegidas, en AAAA-MM-DD, y las muestra como DD/MM/AAAA', async () => {
+    obtenerHistorial.mockResolvedValue(respuesta());
+    render(<HistorialScreen navigation={navegacion} />);
+    await act(async () => {});
+    expect(screen.queryByText(/AAAA-MM-DD/)).toBeNull();
+
+    elegirFecha('Fecha desde', new Date(2026, 9, 1));
+    elegirFecha('Fecha hasta', new Date(2026, 9, 20));
+    expect(screen.getByText('01/10/2026')).toBeTruthy();
+    expect(screen.getByText('20/10/2026')).toBeTruthy();
+
+    await act(async () => { fireEvent.press(screen.getByText('Filtrar')); });
+
+    expect(obtenerHistorial).toHaveBeenLastCalledWith({
+      desde: '2026-10-01',
+      hasta: '2026-10-20',
+      tipo: 'devolvi',
+      page: 1,
+    });
+  });
+
+  test('«Limpiar fechas» quita el filtro y vuelve a los placeholders', async () => {
+    obtenerHistorial.mockResolvedValue(respuesta());
+    render(<HistorialScreen navigation={navegacion} />);
+    await act(async () => {});
+
+    elegirFecha('Fecha desde', new Date(2026, 9, 1));
+    await act(async () => { fireEvent.press(screen.getByText('Filtrar')); });
+    await act(async () => { fireEvent.press(screen.getByText('Limpiar fechas')); });
+
+    expect(screen.getByText('Desde')).toBeTruthy();
+    expect(obtenerHistorial).toHaveBeenLastCalledWith({ tipo: 'devolvi', page: 1 });
+  });
+});

@@ -8,7 +8,7 @@ import SearchForm from '../components/SearchForm';
 import TarjetaPublicacion from '../components/TarjetaPublicacion';
 import { useConexion } from '../context/ConexionContext';
 import { useSearch } from '../context/SearchContext';
-import { claveBusqueda, resumenBusqueda } from '../data/searchDemo';
+import { claveBusqueda, resumenBusqueda } from '../data/busqueda';
 import {
   AvisoSinConexion,
   Boton,

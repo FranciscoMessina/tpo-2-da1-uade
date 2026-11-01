@@ -3,7 +3,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { Alert, FlatList, StyleSheet, View } from 'react-native';
 import { useConexion } from '../context/ConexionContext';
 import { useSearch } from '../context/SearchContext';
-import { resumenBusqueda } from '../data/searchDemo';
+import { resumenBusqueda } from '../data/busqueda';
 import {
   Aviso,
   AvisoSinConexion,

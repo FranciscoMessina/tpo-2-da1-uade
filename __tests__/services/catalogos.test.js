@@ -1,11 +1,11 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { act, render, screen } from '@testing-library/react-native';
+import { act, fireEvent, render, screen } from '@testing-library/react-native';
 import { AxiosError } from 'axios';
 import SearchForm from '../../components/SearchForm';
 import FormularioPublicacion, {
   valoresDesdePublicacion,
 } from '../../components/FormularioPublicacion';
-import { CATEGORIAS, ZONAS, filtrosIniciales } from '../../data/searchDemo';
+import { CATEGORIAS, ZONAS, filtrosIniciales } from '../../data/busqueda';
 import { api } from '../../services/api';
 import {
   CLAVE_CATALOGO,
@@ -14,6 +14,7 @@ import {
   cargarCatalogoGuardado,
   catalogoActual,
   catalogoIncluido,
+  coordenadasPropias,
   iniciarCatalogo,
   opcionesZona,
   restablecerCatalogo,
@@ -21,6 +22,7 @@ import {
   validarCatalogo,
   versionDeCatalogo,
 } from '../../services/catalogos';
+import { abrirSelectorBarrio } from '../components/ayudas';
 import * as conexion from '../../services/conexion';
 import { simularConectividad } from '../hooks/entorno';
 
@@ -33,10 +35,10 @@ jest.mock('../../hooks/useUbicacionActual', () => ({
 // Huella del catálogo que trae la app. Es la misma que declara el backend para el suyo
 // (tests/app.test.ts, «las respuestas declaran la versión del catálogo»): si cambia a propósito la
 // lista, hay que actualizar los dos valores.
-const VERSION_INCLUIDA = 'fe067df2';
+const VERSION_INCLUIDA = '3c78e368';
 
 const CATEGORIAS_API = ['Documentos', 'Llaves', 'Electrónica', 'Mascotas', 'Ropa', 'Otros', 'Bicicletas'];
-const VILLA = { nombre: 'Villa Urquiza', latitud: -34.5731, longitud: -58.4887 };
+const VILLA = { nombre: 'Ciudad Evita', latitud: -34.5731, longitud: -58.4887 };
 const ZONAS_API = [...ZONAS, VILLA];
 const VERSION_API = 'abc12345';
 
@@ -75,12 +77,13 @@ beforeEach(() => {
 afterEach(() => jest.restoreAllMocks());
 
 describe('catálogo incluido en la app', () => {
-  test('es el catálogo de data/searchDemo, con origen y versión conocidos', () => {
+  test('es el catálogo de data/busqueda, con origen y versión conocidos', () => {
     const incluido = catalogoIncluido();
 
     expect(incluido).toMatchObject({ origen: 'incluido', version: VERSION_INCLUIDA });
     expect(incluido.categorias).toEqual(CATEGORIAS);
     expect(incluido.zonas).toEqual(ZONAS);
+    expect(ZONAS).toHaveLength(91);
     expect(catalogoActual()).toBe(incluido);
   });
 
@@ -98,7 +101,7 @@ describe('catálogo incluido en la app', () => {
 
   test('conserva los nombres y el orden históricos que guardan publicaciones y alertas', () => {
     expect(CATEGORIAS).toEqual(['Documentos', 'Llaves', 'Electrónica', 'Mascotas', 'Ropa', 'Otros']);
-    expect(nombres(catalogoIncluido())).toEqual([
+    expect(nombres(catalogoIncluido()).slice(0, 6)).toEqual([
       'Centro',
       'Palermo',
       'Recoleta',
@@ -119,7 +122,7 @@ describe('actualizarCatalogo: con conexión', () => {
 
     expect(catalogo).toMatchObject({ origen: 'api', version: VERSION_API });
     expect(catalogo.categorias).toEqual(CATEGORIAS_API);
-    expect(nombres(catalogo)).toContain('Villa Urquiza');
+    expect(nombres(catalogo)).toContain('Ciudad Evita');
     expect(catalogoActual()).toBe(catalogo);
     expect(oyente).toHaveBeenCalledTimes(1);
     // Es un catálogo público: se pide sin el token de sesión.
@@ -185,7 +188,7 @@ describe('catálogo sin conexión y con errores', () => {
 
     expect(get).not.toHaveBeenCalled();
     expect(catalogo).toMatchObject({ origen: 'cache', version: VERSION_API });
-    expect(nombres(catalogo)).toContain('Villa Urquiza');
+    expect(nombres(catalogo)).toContain('Ciudad Evita');
     expect(catalogoActual()).toBe(catalogo);
   });
 
@@ -340,16 +343,16 @@ describe('barrios y nombres históricos', () => {
   test('buscarZona encuentra el barrio sin importar tildes ni mayúsculas y devuelve el nombre canónico', () => {
     expect(buscarZona('PALERMO')).toEqual(ZONAS[1]);
     expect(buscarZona('  pálermo ')).toEqual(ZONAS[1]);
-    expect(buscarZona('Villa Urquiza')).toBeUndefined();
+    expect(buscarZona('Ciudad Evita')).toBeUndefined();
   });
 
   test('un nombre histórico sigue resolviéndose aunque el catálogo nuevo ya no lo liste', async () => {
     backend({ zonas: [VILLA] });
     const catalogo = await actualizarCatalogo();
 
-    expect(nombres(catalogo)).toEqual(['Villa Urquiza']);
+    expect(nombres(catalogo)).toEqual(['Ciudad Evita']);
     expect(buscarZona('Palermo', catalogo)).toEqual(ZONAS[1]);
-    expect(buscarZona('Villa Urquiza', catalogo)).toEqual(VILLA);
+    expect(buscarZona('Ciudad Evita', catalogo)).toEqual(VILLA);
   });
 
   test('si el catálogo vigente tiene un barrio, manda sobre el incluido de igual nombre', async () => {
@@ -371,10 +374,10 @@ describe('barrios y nombres históricos', () => {
     backend({ zonas: [VILLA] });
     const catalogo = await actualizarCatalogo();
 
-    expect(opcionesZona(catalogo, '').map((z) => z.nombre)).toEqual(['Villa Urquiza']);
-    expect(opcionesZona(catalogo, 'Palermo').map((z) => z.nombre)).toEqual(['Villa Urquiza', 'Palermo']);
-    expect(opcionesZona(catalogo, 'Villa Urquiza').map((z) => z.nombre)).toEqual(['Villa Urquiza']);
-    expect(opcionesZona(catalogo, 'Barrio inventado').map((z) => z.nombre)).toEqual(['Villa Urquiza']);
+    expect(opcionesZona(catalogo, '').map((z) => z.nombre)).toEqual(['Ciudad Evita']);
+    expect(opcionesZona(catalogo, 'Palermo').map((z) => z.nombre)).toEqual(['Ciudad Evita', 'Palermo']);
+    expect(opcionesZona(catalogo, 'Ciudad Evita').map((z) => z.nombre)).toEqual(['Ciudad Evita']);
+    expect(opcionesZona(catalogo, 'Barrio inventado').map((z) => z.nombre)).toEqual(['Ciudad Evita']);
   });
 });
 
@@ -387,26 +390,47 @@ describe('SearchForm y FormularioPublicacion usan el mismo catálogo', () => {
       />
     );
 
-  const montarPublicacion = () => render(<FormularioPublicacion onEnviar={jest.fn()} />);
+  // La publicación es un asistente: las categorías están en el paso 3 y el barrio en el 4.
+  const montarPublicacion = () =>
+    render(<FormularioPublicacion valoresIniciales={{ paso: 3 }} onEnviar={jest.fn()} />);
+
+  // Ambos formularios ofrecen los barrios en un desplegable con buscador (la lista solo dibuja unas
+  // filas por vez).
+  const verBarrios = (formulario) => {
+    if (formulario === 'publicación') {
+      screen.unmount();
+      render(<FormularioPublicacion valoresIniciales={{ paso: 4 }} onEnviar={jest.fn()} />);
+    }
+    abrirSelectorBarrio();
+  };
+  const ofrece = (formulario, barrio) => {
+    fireEvent.changeText(screen.getByLabelText('Buscar barrio'), barrio);
+
+    return screen.queryByText(barrio) !== null;
+  };
 
   test.each([
     ['búsqueda', montarBusqueda],
     ['publicación', montarPublicacion],
-  ])('el formulario de %s ofrece el catálogo incluido sin conexión', (_nombre, montar) => {
+  ])('el formulario de %s ofrece el catálogo incluido sin conexión', (nombre, montar) => {
     simularConectividad(false);
     montar();
 
-    for (const nombre of [...CATEGORIAS, ...ZONAS.map((z) => z.nombre)]) {
-      expect(screen.getByText(nombre)).toBeTruthy();
+    for (const categoria of CATEGORIAS) {
+      expect(screen.getByText(categoria)).toBeTruthy();
     }
-    expect(screen.queryByText('Villa Urquiza')).toBeNull();
     expect(screen.queryByText('Bicicletas')).toBeNull();
+    verBarrios(nombre);
+    for (const zona of ZONAS) {
+      expect(ofrece(nombre, zona.nombre)).toBe(true);
+    }
+    expect(ofrece(nombre, 'Ciudad Evita')).toBe(false);
   });
 
   test.each([
     ['búsqueda', montarBusqueda],
     ['publicación', montarPublicacion],
-  ])('el formulario de %s se actualiza cuando llega el catálogo de la API', async (_nombre, montar) => {
+  ])('el formulario de %s se actualiza cuando llega el catálogo de la API', async (nombre, montar) => {
     simularConectividad(false);
     backend();
     montar();
@@ -414,9 +438,9 @@ describe('SearchForm y FormularioPublicacion usan el mismo catálogo', () => {
     await act(async () => {
       await actualizarCatalogo();
     });
-
-    expect(screen.getByText('Villa Urquiza')).toBeTruthy();
     expect(screen.getByText('Bicicletas')).toBeTruthy();
+    verBarrios(nombre);
+    expect(ofrece(nombre, 'Ciudad Evita')).toBe(true);
   });
 
   test('ambos formularios muestran lo mismo desde la copia guardada, sin conexión', async () => {
@@ -430,13 +454,15 @@ describe('SearchForm y FormularioPublicacion usan el mismo catálogo', () => {
     await act(async () => {
       await iniciarCatalogo();
     });
-    expect(screen.getByText('Villa Urquiza')).toBeTruthy();
+    abrirSelectorBarrio();
+    expect(ofrece('búsqueda', 'Ciudad Evita')).toBe(true);
     expect(screen.getByText('Bicicletas')).toBeTruthy();
     busqueda.unmount();
 
     montarPublicacion();
-    expect(screen.getByText('Villa Urquiza')).toBeTruthy();
     expect(screen.getByText('Bicicletas')).toBeTruthy();
+    verBarrios('publicación');
+    expect(ofrece('publicación', 'Ciudad Evita')).toBe(true);
   });
 
   test('al editar, un barrio guardado con otra grafía se reconoce y uno sin barrio conserva sus coordenadas', async () => {
@@ -450,5 +476,25 @@ describe('SearchForm y FormularioPublicacion usan el mismo catálogo', () => {
       barrio: '',
       coords: ubicacion,
     });
+  });
+});
+
+describe('coordenadasPropias', () => {
+  const centro = { latitud: -34.5889, longitud: -58.4306 };
+
+  test('el centro del barrio no cuenta como coordenadas propias', () => {
+    expect(coordenadasPropias('Palermo', centro)).toBeNull();
+    expect(coordenadasPropias('palermo', centro)).toBeNull();
+  });
+
+  test('otras coordenadas, aunque haya barrio, sí son propias', () => {
+    const gps = { latitud: -34.6, longitud: -58.4 };
+    expect(coordenadasPropias('Palermo', gps)).toEqual(gps);
+    expect(coordenadasPropias('Barrio inexistente', centro)).toEqual(centro);
+  });
+
+  test('sin ubicación o con una inválida no hay coordenadas', () => {
+    expect(coordenadasPropias('Palermo', null)).toBeNull();
+    expect(coordenadasPropias('Palermo', { latitud: '1', longitud: 2 })).toBeNull();
   });
 });

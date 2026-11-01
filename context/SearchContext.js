@@ -12,7 +12,7 @@ import {
   View,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { claveBusqueda, radioValido } from '../data/searchDemo';
+import { claveBusqueda, radioValido } from '../data/busqueda';
 import useAlertas from '../hooks/useAlertas';
 import useAuth from '../hooks/useAuth';
 import useSeguidas from '../hooks/useSeguidas';
@@ -87,6 +87,7 @@ export function SearchProvider({ children }) {
     porAlerta: novedadesPorAlerta,
     porPublicacion: novedadesPorPublicacion,
     porReclamo: novedadesPorReclamo,
+    mensajesPorReclamo,
     loading: novedadesLoading,
     error: novedadesError,
     guardando: novedadesGuardando,
@@ -222,6 +223,7 @@ export function SearchProvider({ children }) {
         novedadesPorAlerta,
         novedadesPorPublicacion,
         novedadesPorReclamo,
+        mensajesPorReclamo,
         novedadesLoading,
         novedadesError,
         novedadesGuardando,

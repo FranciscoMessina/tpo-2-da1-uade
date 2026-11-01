@@ -29,6 +29,7 @@ import {
   EstadoVacio,
   Fila,
   Icono,
+  Insignia,
   InsigniaEstado,
   InsigniaTipo,
   NotaSinConexion,
@@ -73,7 +74,13 @@ const hayCache = (cache) => !!cache && (cache.enviados.length > 0 || cache.recib
 
 export default function MisReclamosScreen({ navigation }) {
   const { hayConexion } = useConexion();
-  const { novedadesPorReclamo } = useSearch();
+  const {
+    novedadesPorReclamo,
+    mensajesPorReclamo,
+    novedadesLoading,
+    novedadesGuardando,
+    marcarReclamoLeido,
+  } = useSearch();
   const { usuario } = useAuth();
   const alcance = usuario?.id ?? null;
   const [tab, setTab] = useState('recibidos'); // 'recibidos' | 'enviados'
@@ -326,10 +333,12 @@ export default function MisReclamosScreen({ navigation }) {
   function renderItem({ item }) {
     const pub = item.publicacion;
     const esRecibido = tab === 'recibidos';
-    const sinLeer = novedadesPorReclamo.get(item.id);
+    // Todo lo nuevo del reclamo (mensajes, reclamo, encuentros y devolución) y, aparte, los mensajes
+    const novedades = novedadesPorReclamo.get(item.id) || 0;
+    const sinLeer = mensajesPorReclamo.get(item.id) || 0;
 
     return (
-      <Tarjeta>
+      <Tarjeta destacada={novedades > 0}>
         {/* Publicación vinculada */}
         {pub && (
           <>
@@ -370,6 +379,13 @@ export default function MisReclamosScreen({ navigation }) {
           <InsigniaEstado estado={item.estado} estados={ESTADOS_RECLAMO} />
         </View>
 
+        {novedades > 0 && (
+          <Insignia
+            tono="info"
+            texto={novedades === 1 ? '1 novedad pendiente' : `${novedades} novedades pendientes`}
+          />
+        )}
+
         {/* Mensaje y evidencia del reclamo (respuesta, barrio y foto de prueba) */}
         <EvidenciaReclamo
           reclamo={item}
@@ -390,6 +406,17 @@ export default function MisReclamosScreen({ navigation }) {
 
         {item.estado === 'aceptado' && pub?.estado === 'en_reclamo' && (
           <EncuentroReclamo reclamoId={item.id} actualizacion={actualizacion} />
+        )}
+
+        {novedades > 0 && (
+          <Boton
+            titulo="Marcar novedades como leídas"
+            variante="secundario"
+            chico
+            onPress={() => marcarReclamoLeido(item.id)}
+            disabled={novedadesGuardando || novedadesLoading}
+            requiereConexion
+          />
         )}
 
         {item.estado === 'aceptado' && (
@@ -491,6 +518,7 @@ export default function MisReclamosScreen({ navigation }) {
         <FlatList
           contentContainerStyle={estilosPantalla.contenido}
           data={items}
+          extraData={[novedadesPorReclamo, mensajesPorReclamo, novedadesGuardando, novedadesLoading]}
           keyExtractor={(item) => String(item.id)}
           renderItem={renderItem}
           refreshControl={

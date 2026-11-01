@@ -12,7 +12,7 @@ const resumen = ({ alertas = [], publicaciones = [], reclamos = [], corte = 'c1'
   corte,
   alertas: alertas.map(([alertaId, sinLeer]) => ({ alertaId, sinLeer })),
   publicaciones: publicaciones.map(([publicacionId, sinLeer]) => ({ publicacionId, sinLeer })),
-  reclamos: reclamos.map(([reclamoId, sinLeer]) => ({ reclamoId, sinLeer })),
+  reclamos: reclamos.map(([reclamoId, sinLeer, mensajes = 0]) => ({ reclamoId, sinLeer, mensajes })),
 });
 const deUnaPublicacion = (id, cantidad = 1) => resumen({ publicaciones: [[id, cantidad]] });
 
@@ -51,6 +51,34 @@ describe('useNovedades: carga y cuentas', () => {
     expect(result.current.porPublicacion.get('p1')).toBe(2);
     expect(result.current.porReclamo.get('r1')).toBe(3);
     expect(result.current.porPublicacion.has('p2')).toBe(false);
+  });
+
+  test('porReclamo cuenta todo lo nuevo del reclamo y mensajesPorReclamo solo los mensajes del chat', async () => {
+    controlarAppState();
+    obtenerResumenNotificaciones.mockResolvedValue(resumen({
+      reclamos: [['r1', 4, 3], ['r2', 2, 0], ['r3', 1, 1]],
+    }));
+
+    const { result } = renderHook(() => useNovedades('u1'));
+    await act(async () => {});
+
+    expect(Object.fromEntries(result.current.porReclamo)).toEqual({ r1: 4, r2: 2, r3: 1 });
+    expect(Object.fromEntries(result.current.mensajesPorReclamo)).toEqual({ r1: 3, r3: 1 });
+    expect(result.current.mensajesPorReclamo.has('r2')).toBe(false);
+  });
+
+  test('si el servidor no informa mensajes, mensajesPorReclamo queda vacío', async () => {
+    controlarAppState();
+    obtenerResumenNotificaciones.mockResolvedValue({
+      corte: 'c1',
+      reclamos: [{ reclamoId: 'r1', sinLeer: 2 }],
+    });
+
+    const { result } = renderHook(() => useNovedades('u1'));
+    await act(async () => {});
+
+    expect(result.current.porReclamo.get('r1')).toBe(2);
+    expect(result.current.mensajesPorReclamo.size).toBe(0);
   });
 
   test('cambiar de cuenta durante una petición no muestra datos de la cuenta anterior', async () => {
@@ -294,6 +322,7 @@ describe('useNovedades: marcar como leídas', () => {
 
     expect(marcarGrupoLeido).toHaveBeenCalledWith({ tipo: 'reclamo', id: 'r1', corte: '4@t4' });
     expect(result.current.porReclamo.size).toBe(0);
+    expect(result.current.mensajesPorReclamo.size).toBe(0);
   });
 
   test('si el grupo no tiene pendientes no escribe nada', async () => {

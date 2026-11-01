@@ -7,7 +7,7 @@ import { useSearch } from '../context/SearchContext';
 import {
   filtrosIniciales,
   resumenBusqueda,
-} from '../data/searchDemo';
+} from '../data/busqueda';
 import {
   FilaMenu,
   Pantalla,

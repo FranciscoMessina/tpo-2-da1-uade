@@ -32,6 +32,16 @@ function contadores(resumen, grupo) {
   return cantidades;
 }
 
+// De cada reclamo, solo los mensajes del chat sin leer (`sinLeer` suma además reclamos, encuentros
+// y devolución).
+function contadoresMensajes(resumen) {
+  const cantidades = new Map();
+  (resumen?.reclamos ?? []).forEach((item) => {
+    if (item.reclamoId && item.mensajes > 0) cantidades.set(item.reclamoId, item.mensajes);
+  });
+  return cantidades;
+}
+
 export default function useNovedades(usuarioId) {
   const alcance = useMemo(() => ({ usuarioId }), [usuarioId]);
   const [estado, setEstado] = useState({
@@ -156,13 +166,17 @@ export default function useNovedades(usuarioId) {
   const resumen = estado.alcance === alcance && usuarioId ? estado.resumen : null;
   const porAlerta = useMemo(() => contadores(resumen, 'alerta'), [resumen]);
   const porPublicacion = useMemo(() => contadores(resumen, 'publicacion'), [resumen]);
+  // Todo lo nuevo de cada reclamo (mensajes, reclamos, encuentros y devolución)
   const porReclamo = useMemo(() => contadores(resumen, 'reclamo'), [resumen]);
+  // Solo los mensajes del chat
+  const mensajesPorReclamo = useMemo(() => contadoresMensajes(resumen), [resumen]);
 
   const vigente = estado.alcance === alcance;
   return {
     porAlerta,
     porPublicacion,
     porReclamo,
+    mensajesPorReclamo,
     loading: !!usuarioId && (!vigente || estado.loading),
     error: usuarioId && vigente ? estado.error : '',
     guardando: !!usuarioId && operacion.alcance === alcance && operacion.guardando,

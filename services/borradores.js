@@ -48,7 +48,8 @@ export function normalizarValores(valores) {
         : null,
     direccionExacta: texto(origen.direccionExacta),
     fecha: texto(origen.fecha),
-    franja: texto(origen.franja),
+    hora: texto(origen.hora),
+    paso: Number.isInteger(origen.paso) && origen.paso >= 1 ? origen.paso : 1,
     fotos: Array.isArray(origen.fotos)
       ? origen.fotos.filter((foto) => typeof foto === 'string' && foto)
       : [],
@@ -71,7 +72,7 @@ export function borradorVacio(valores) {
     v.barrio ||
     v.coords ||
     v.direccionExacta.trim() ||
-    v.franja ||
+    v.hora ||
     v.fotos.length > 0 ||
     v.preguntaVerificacion.trim() ||
     v.respuestaVerificacion.trim()

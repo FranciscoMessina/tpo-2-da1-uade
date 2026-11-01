@@ -115,3 +115,15 @@ beforeEach(async () => {
   Object.values(navegacion.__navegacion).forEach((f) => f.mockClear());
   navegacion.__ruta.params = {};
 });
+
+// Selector nativo de fecha y hora: en Android se abre por la API imperativa (`open`), en iOS es un
+// componente. Las pruebas leen las props con que se lo llamó y disparan sus eventos a mano.
+jest.mock('@react-native-community/datetimepicker', () => {
+  const React = require('react');
+  const { View } = require('react-native');
+  return {
+    __esModule: true,
+    default: (props) => React.createElement(View, { testID: 'datetimepicker', ...props }),
+    DateTimePickerAndroid: { open: jest.fn(), dismiss: jest.fn() },
+  };
+});

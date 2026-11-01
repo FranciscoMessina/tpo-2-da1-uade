@@ -67,6 +67,9 @@ Se usa la letra del sistema y se respeta el tamaño elegido en el dispositivo: l
 | `Icono` | Material Design Icons, por nombre |
 | `Tarjeta`, `Seccion`, `Panel`, `Separador`, `Fila` | Estructura de contenido |
 | `Campo` | Texto con etiqueta, ayuda y error |
+| `CampoSeleccion` | Campo que abre un selector al tocarlo (base de `SelectorBarrio` y `SelectorFecha`, en `components/`) |
+| `SelectorBarrio` (en `components/`) | Barrio: lista con buscador sobre el catálogo; el único selector de barrio de la app |
+| `SelectorFecha` (en `components/`) | Fecha (`AAAA-MM-DD`) u hora (`HH:MM`) con el selector nativo; se ve como `DD/MM/AAAA` |
 | `Chip`, `GrupoOpciones` | Selección entre opciones visibles |
 | `Pestanas` | Vistas hermanas dentro de una pantalla |
 | `Insignia`, `InsigniaTipo`, `InsigniaEstado` | Tipo y estado de una publicación o reclamo |

@@ -1,13 +1,18 @@
 import { act, fireEvent, render, screen } from '@testing-library/react-native';
 import { AxiosError } from 'axios';
+import * as ImagePicker from 'expo-image-picker';
+import * as archivosLocales from '../../services/archivosLocales';
 import CreatePostScreen from '../../screens/CreatePostScreen';
 import { api } from '../../services/api';
-import { leerBorrador } from '../../services/borradores';
+import { claveBorrador, leerBorrador } from '../../services/borradores';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { fechaLocal } from '../../data/busqueda';
 import { ESTADOS, leerCola } from '../../services/colaPublicaciones';
 import * as conexion from '../../services/conexion';
 import { procesarCola } from '../../services/procesadorCola';
 import { __navegacion as navegacion } from '@react-navigation/native';
 import { diferida, simularConectividad } from '../hooks/entorno';
+import { elegirBarrio, elegirHora } from '../components/ayudas';
 
 // Recorridos de la pantalla de alta con la cola, el borrador y el servicio de publicaciones reales.
 // Solo se reemplazan los bordes: la sesión, el GPS, el contexto que dispara el procesador y la red
@@ -30,6 +35,8 @@ jest.mock('../../context/ColaPublicacionesContext', () => ({
 jest.mock('../../context/ConexionContext', () => ({
   useConexion: () => ({ hayConexion: mockHayConexion, comprobarConexion: async () => mockHayConexion }),
 }));
+
+jest.mock('expo-image-picker', () => ({ launchImageLibraryAsync: jest.fn() }));
 
 jest.mock('../../hooks/useUbicacionActual', () => ({
   __esModule: true,
@@ -77,12 +84,20 @@ const cambiar = (etiqueta, valor) => fireEvent.changeText(screen.getByLabelText(
 const tocar = (texto) => fireEvent.press(screen.getByText(texto));
 const presionar = (texto) => act(async () => { fireEvent.press(screen.getByText(texto)); });
 
+/**
+ * Recorre los pasos del asistente (tipo, fotos, datos, ubicación) y deja la pantalla en el último
+ * paso de una pérdida: la ubicación. Para un hallazgo, 'Siguiente' lleva a la verificación.
+ */
 function completarFormulario(titulo = 'Llavero azul con tres llaves') {
+  tocar('Siguiente');
+  tocar('Siguiente');
   cambiar('Título', titulo);
   tocar('Llaves');
   cambiar('Descripción', 'Tres llaves con un llavero de color azul.');
-  tocar('Palermo');
-  tocar('Tarde (12 a 19)');
+  elegirHora('10:30');
+  tocar('Siguiente');
+  elegirBarrio('Palermo');
+  cambiar('Dirección exacta', 'Av. Santa Fe 3000');
 }
 
 function montar(params = {}) {
@@ -113,8 +128,10 @@ describe('CreatePostScreen: borrador', () => {
 
     const guardado = await leerBorrador('cuenta-a');
     expect(guardado.valores).toMatchObject({
-      titulo: 'Llavero azul con tres llaves', categoria: 'Llaves', barrio: 'Palermo', franja: 'tarde',
+      titulo: 'Llavero azul con tres llaves', categoria: 'Llaves', barrio: 'Palermo', hora: '10:30',
+      direccionExacta: 'Av. Santa Fe 3000', paso: 4,
     });
+    expect(guardado.valores).not.toHaveProperty('franja');
 
     // «Reiniciar la app»: se monta una pantalla nueva y la persona decide qué hacer con el borrador.
     montar();
@@ -123,8 +140,14 @@ describe('CreatePostScreen: borrador', () => {
     expect(screen.getByText(/Llavero azul con tres llaves/)).toBeTruthy();
 
     await presionar('Retomar borrador');
+    // Vuelve al paso donde se estaba, con los mismos datos en los pasos anteriores.
+    expect(screen.getByText('Paso 4 de 4')).toBeTruthy();
+    expect(screen.getByLabelText('Dirección exacta').props.value).toBe('Av. Santa Fe 3000');
+    expect(screen.getByLabelText('Barrio').props.accessibilityValue.text).toBe('Palermo');
+    tocar('Atrás');
     expect(screen.getByLabelText('Título').props.value).toBe('Llavero azul con tres llaves');
     expect(screen.getByLabelText('Descripción').props.value).toBe('Tres llaves con un llavero de color azul.');
+    expect(screen.getByLabelText('Hora del suceso').props.accessibilityValue.text).toBe('10:30');
   });
 
   test('descartar el borrador lo elimina y deja el formulario vacío', async () => {
@@ -141,6 +164,9 @@ describe('CreatePostScreen: borrador', () => {
     await presionar('Descartar y empezar de nuevo');
 
     expect(await leerBorrador('cuenta-a')).toBeNull();
+    expect(screen.getByText('Paso 1 de 4')).toBeTruthy();
+    tocar('Siguiente');
+    tocar('Siguiente');
     expect(screen.getByLabelText('Título').props.value).toBe('');
   });
 
@@ -156,7 +182,6 @@ describe('CreatePostScreen: borrador', () => {
     const deB = montar();
     await cargado();
     expect(screen.queryByText('Tenés un borrador sin publicar')).toBeNull();
-    expect(screen.getByLabelText('Título').props.value).toBe('');
     completarFormulario('Mochila de la cuenta B');
     deB.unmount();
     await cargado();
@@ -170,6 +195,64 @@ describe('CreatePostScreen: borrador', () => {
     await cargado();
     expect(screen.getByText(/Llavero de la cuenta A/)).toBeTruthy();
     expect(screen.queryByText(/Mochila de la cuenta B/)).toBeNull();
+  });
+});
+
+describe('CreatePostScreen: borrador por pasos', () => {
+  test('retoma el paso en el que se estaba, con las fotos y los datos de los pasos anteriores', async () => {
+    servidor();
+    jest.spyOn(archivosLocales, 'existeArchivo').mockReturnValue(true);
+    jest.mocked(ImagePicker.launchImageLibraryAsync).mockResolvedValue({
+      canceled: false,
+      assets: [{ uri: 'file:///galeria/llavero.jpg' }],
+    });
+    const primera = montar();
+    await cargado();
+    tocar('Siguiente');
+    await presionar('Elegir de la galería');
+    expect(screen.getAllByLabelText('Foto elegida')).toHaveLength(1);
+    tocar('Siguiente');
+    cambiar('Título', 'Llavero con foto');
+    primera.unmount();
+    await cargado();
+
+    const guardado = await leerBorrador('cuenta-a');
+    expect(guardado.valores).toMatchObject({ paso: 3, titulo: 'Llavero con foto' });
+    expect(guardado.valores.fotos).toHaveLength(1);
+
+    montar();
+    await cargado();
+    await presionar('Retomar borrador');
+
+    expect(screen.getByText('Paso 3 de 4')).toBeTruthy();
+    expect(screen.getByLabelText('Título').props.value).toBe('Llavero con foto');
+    tocar('Atrás');
+    expect(screen.getAllByLabelText('Foto elegida')).toHaveLength(1);
+  });
+
+  test('un borrador de una versión anterior (con franja, sin hora ni paso) se retoma y pide la hora', async () => {
+    servidor();
+    await AsyncStorage.setItem(claveBorrador('cuenta-a'), JSON.stringify({
+      version: 1,
+      guardadoAt: Date.now(),
+      clientId: 'app-viejo',
+      fotosSubidas: {},
+      valores: {
+        tipo: 'perdi', titulo: 'Llavero viejo', categoria: 'Llaves', descripcion: 'Tres llaves con un llavero azul.',
+        barrio: 'Palermo', fecha: fechaLocal(), franja: 'tarde', direccionExacta: 'Calle 1', fotos: [],
+        preguntaVerificacion: '', respuestaVerificacion: '',
+      },
+    }));
+    montar();
+    await cargado();
+    await presionar('Retomar borrador');
+
+    expect(screen.getByText('Paso 1 de 4')).toBeTruthy();
+    tocar('Siguiente');
+    tocar('Siguiente');
+    tocar('Siguiente');
+    expect(screen.getByText('Paso 3 de 4')).toBeTruthy();
+    expect(screen.getByText('Elegí la hora del suceso.')).toBeTruthy();
   });
 });
 
@@ -190,7 +273,10 @@ describe('CreatePostScreen: sin conexión y reintento', () => {
     expect(mockProcesarAhora).toHaveBeenCalledTimes(1);
     const cola = await leerCola('cuenta-a');
     expect(cola).toHaveLength(1);
-    expect(cola[0]).toMatchObject({ estado: ESTADOS.PENDIENTE, datos: { titulo: 'Llavero azul con tres llaves', tipo: 'perdi' } });
+    expect(cola[0]).toMatchObject({ estado: ESTADOS.PENDIENTE, datos: {
+        titulo: 'Llavero azul con tres llaves', tipo: 'perdi', barrio: 'Palermo', hora: '10:30', direccionExacta: 'Av. Santa Fe 3000',
+      },
+    });
     expect(await leerBorrador('cuenta-a')).toBeNull();
     // Otra cuenta del mismo dispositivo no ve la cola ajena.
     expect(await leerCola('cuenta-b')).toEqual([]);
@@ -260,10 +346,14 @@ describe('CreatePostScreen: sin conexión y reintento', () => {
 
     await presionar('Publicar mi pérdida');
     expect(screen.getByText('¡Pérdida publicada!')).toBeTruthy();
+    expect(screen.getByText(/Llaves · Palermo · \d\d\/\d\d\/\d{4} · 10:30 h/)).toBeTruthy();
     expect(llamadas).toHaveLength(2);
     expect(llamadas[1].clientId).toBe(llamadas[0].clientId);
     expect(publicaciones.size).toBe(1);
     expect(await leerBorrador('cuenta-a')).toBeNull();
+    // El cuerpo lleva barrio, dirección y hora; la franja la deriva el servidor.
+    expect(llamadas[0].cuerpo).toMatchObject({ barrio: 'Palermo', direccionExacta: 'Av. Santa Fe 3000', hora: '10:30' });
+    expect(llamadas[0].cuerpo).not.toHaveProperty('franja');
   });
 
   test('un segundo toque mientras se envía no dispara otra alta', async () => {

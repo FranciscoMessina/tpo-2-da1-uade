@@ -1,12 +1,13 @@
 import { useCallback, useState } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import { FlatList, StyleSheet, View } from 'react-native';
+import SelectorFecha from '../components/SelectorFecha';
 import CasoResuelto from '../components/CasoResuelto';
+import { fechaLocal } from '../data/busqueda';
 import { obtenerHistorial } from '../services/historial';
 import { mensajeErrorApi } from '../services/api';
 import {
   Boton,
-  Campo,
   Cargando,
   ErrorConReintento,
   EstadoVacio,
@@ -17,11 +18,6 @@ import {
   espacio,
   estilosPantalla,
 } from '../components/ui';
-
-function fechaValida(fecha) {
-  return /^\d{4}-\d{2}-\d{2}$/.test(fecha) &&
-    !Number.isNaN(Date.parse(fecha)) && new Date(fecha).toISOString().slice(0, 10) === fecha;
-}
 
 export default function HistorialScreen({ navigation }) {
   const [tipo, setTipo] = useState('devolvi');
@@ -47,12 +43,8 @@ export default function HistorialScreen({ navigation }) {
   }, [tipo, filtros, pagina, actualizacion]));
 
   function aplicarFiltros() {
-    const inicio = desde.trim();
-    const fin = hasta.trim();
-    if ((inicio && !fechaValida(inicio)) || (fin && !fechaValida(fin))) {
-      setErrorFiltro('Usá fechas válidas con formato AAAA-MM-DD.');
-      return;
-    }
+    const inicio = desde;
+    const fin = hasta;
     if (inicio && fin && inicio > fin) {
       setErrorFiltro('La fecha desde debe ser anterior o igual a hasta.');
       return;
@@ -79,25 +71,30 @@ export default function HistorialScreen({ navigation }) {
       />
 
       <View style={styles.filtros}>
-        <Texto variante="etiqueta" tono="secundario">Fecha de devolución (AAAA-MM-DD)</Texto>
+        <Texto variante="etiqueta" tono="secundario">Fecha de devolución</Texto>
 
         <View style={styles.fila}>
-          <Campo
-            estilo={styles.fecha}
-            placeholder="Desde"
-            accessibilityLabel="Fecha desde"
-            value={desde}
-            onChangeText={setDesde}
-            maxLength={10}
-          />
-          <Campo
-            estilo={styles.fecha}
-            placeholder="Hasta"
-            accessibilityLabel="Fecha hasta"
-            value={hasta}
-            onChangeText={setHasta}
-            maxLength={10}
-          />
+          <View style={styles.fecha}>
+            <SelectorFecha
+              placeholder="Desde"
+              accessibilityLabel="Fecha desde"
+              valor={desde}
+              onChange={setDesde}
+              maximo={hasta || fechaLocal()}
+              permitirVaciar
+            />
+          </View>
+          <View style={styles.fecha}>
+            <SelectorFecha
+              placeholder="Hasta"
+              accessibilityLabel="Fecha hasta"
+              valor={hasta}
+              onChange={setHasta}
+              minimo={desde || undefined}
+              maximo={fechaLocal()}
+              permitirVaciar
+            />
+          </View>
         </View>
 
         {!!errorFiltro && <Texto variante="cuerpoChico" tono="peligro">{errorFiltro}</Texto>}

@@ -18,9 +18,8 @@ let mockAuth;
 let mockConexion;
 jest.mock('../../hooks/useAuth', () => ({ __esModule: true, default: () => mockAuth }));
 jest.mock('../../context/ConexionContext', () => ({ useConexion: () => mockConexion }));
-jest.mock('../../context/SearchContext', () => ({
-  useSearch: () => ({ novedadesPorReclamo: new Map() }),
-}));
+let mockBusqueda;
+jest.mock('../../context/SearchContext', () => ({ useSearch: () => mockBusqueda }));
 jest.mock('../../components/EvidenciaReclamo', () => {
   const { Text } = require('react-native');
   function EvidenciaDoble({ reclamo }) {
@@ -81,6 +80,13 @@ beforeEach(() => {
   simularConectividad(true);
   mockAuth = { usuario: { id: 'u1' } };
   mockConexion = { hayConexion: true };
+  mockBusqueda = {
+    novedadesPorReclamo: new Map(),
+    mensajesPorReclamo: new Map(),
+    novedadesLoading: false,
+    novedadesGuardando: false,
+    marcarReclamoLeido: jest.fn(),
+  };
   enFoco = true;
   jest.spyOn(nav, 'useIsFocused').mockImplementation(() => enFoco);
   servidor = { recibidos: [[reclamo('r1')]], enviados: [[]] };
@@ -490,5 +496,80 @@ describe('MisReclamosScreen: encuentro de un reclamo aceptado', () => {
     await avanzar(120000);
 
     expect(obtenerEncuentro.mock.calls).toHaveLength(inicial);
+  });
+});
+
+describe('MisReclamosScreen: novedades del reclamo', () => {
+  const conNovedades = (porReclamo, mensajes = {}) => {
+    mockBusqueda.novedadesPorReclamo = new Map(Object.entries(porReclamo));
+    mockBusqueda.mensajesPorReclamo = new Map(Object.entries(mensajes));
+  };
+
+  test('sin novedades la tarjeta no se destaca ni ofrece marcar como leído', async () => {
+    servidor.recibidos = [[reclamo('r1', { estado: 'aceptado' })]];
+    render(pantalla());
+    await act(async () => {});
+
+    expect(screen.queryByText(/novedad/)).toBeNull();
+    expect(screen.queryByText('Marcar novedades como leídas')).toBeNull();
+    expect(screen.getByText('Mensajes')).toBeTruthy();
+  });
+
+  test('el botón de mensajes cuenta solo los mensajes, no el total de novedades', async () => {
+    servidor.recibidos = [[reclamo('r1', { estado: 'aceptado' })]];
+    conNovedades({ r1: 4 }, { r1: 3 });
+    render(pantalla());
+    await act(async () => {});
+
+    expect(screen.getByText('Mensajes (3 sin leer)')).toBeTruthy();
+    expect(screen.getByText('4 novedades pendientes')).toBeTruthy();
+  });
+
+  test('con novedades que no son mensajes el botón no muestra contador', async () => {
+    servidor.recibidos = [[reclamo('r1', { estado: 'aceptado' })]];
+    conNovedades({ r1: 1 });
+    render(pantalla());
+    await act(async () => {});
+
+    expect(screen.getByText('1 novedad pendiente')).toBeTruthy();
+    expect(screen.getByText('Mensajes')).toBeTruthy();
+  });
+
+  test('marca el reclamo como leído con la misma acción de las seguidas', async () => {
+    servidor.recibidos = [[reclamo('r1', { estado: 'aceptado' }), reclamo('r2')]];
+    conNovedades({ r1: 2 });
+    render(pantalla());
+    await act(async () => {});
+
+    expect(screen.getAllByText('Marcar novedades como leídas')).toHaveLength(1);
+    fireEvent.press(screen.getByText('Marcar novedades como leídas'));
+
+    expect(mockBusqueda.marcarReclamoLeido).toHaveBeenCalledWith('r1');
+  });
+
+  test('también se destaca y se marca en la bandeja de enviados', async () => {
+    servidor.recibidos = [[]];
+    servidor.enviados = [[reclamo('e1', { usuario: 'yo', estado: 'pendiente' })]];
+    conNovedades({ e1: 1 });
+    render(pantalla());
+    await act(async () => {});
+    fireEvent.press(screen.getByText(/Enviados/));
+
+    fireEvent.press(screen.getByText('Marcar novedades como leídas'));
+
+    expect(mockBusqueda.marcarReclamoLeido).toHaveBeenCalledWith('e1');
+  });
+
+  test('sin conexión no se puede marcar como leído', async () => {
+    servidor.recibidos = [[reclamo('r1')]];
+    conNovedades({ r1: 1 });
+    mockConexion = { hayConexion: false };
+    render(pantalla());
+    await act(async () => {});
+
+    fireEvent.press(screen.getByText('Marcar novedades como leídas'));
+
+    expect(screen.getByText('Marcar novedades como leídas')).toBeDisabled();
+    expect(mockBusqueda.marcarReclamoLeido).not.toHaveBeenCalled();
   });
 });

@@ -6,6 +6,7 @@ import {
   armarCuerpoPublicacion,
   buscarPublicacionesConCache,
   crearPublicacion,
+  enviarReclamo,
   generarClientId,
   obtenerPublicacion,
 } from '../../services/publicaciones';
@@ -248,7 +249,7 @@ describe('armarCuerpoPublicacion', () => {
     descripcion: ' Con llavero ',
     barrio: ' Palermo ',
     fecha: '2026-10-01',
-    franja: 'mañana',
+    hora: '18:30',
     direccionExacta: '  ',
     preguntaVerificacion: ' ¿Cuántas? ',
     respuestaVerificacion: ' Tres ',
@@ -290,6 +291,13 @@ describe('armarCuerpoPublicacion', () => {
     expect(cuerpo.respuestaVerificacion).toBeNull();
   });
 
+  test('envía la hora y ya no envía la franja, que deriva el servidor', () => {
+    const cuerpo = armarCuerpoPublicacion({ ...datosBase, tipo: 'perdi', franja: 'tarde' }, []);
+
+    expect(cuerpo.hora).toBe('18:30');
+    expect(cuerpo).not.toHaveProperty('franja');
+  });
+
   test('incluye la ubicación solo si hay', () => {
     const ubicacion = { latitud: -34.6, longitud: -58.4 };
 
@@ -309,7 +317,7 @@ describe('crearPublicacion', () => {
     });
 
     const creada = await crearPublicacion(
-      { tipo: 'perdi', titulo: 'T', categoria: 'C', descripcion: 'D', fecha: '2026-10-01', franja: 'tarde',
+      { tipo: 'perdi', titulo: 'T', categoria: 'C', descripcion: 'D', fecha: '2026-10-01', hora: '15:00',
         fotos: ['file:///documentos/a.jpg', 'file:///documentos/ya-subida.jpg'] },
       {
         clientId: 'app-fijo',
@@ -388,5 +396,28 @@ describe('generarClientId', () => {
     const ids = new Set(Array.from({ length: 100 }, generarClientId));
     expect(ids.size).toBe(100);
     ids.forEach((id) => expect(id).toMatch(FORMATO));
+  });
+});
+
+describe('enviarReclamo: mensaje opcional', () => {
+  afterEach(() => jest.restoreAllMocks());
+
+  test.each([undefined, '', '   '])('no envía mensaje si la persona no escribió nada (%j)', async (mensaje) => {
+    const post = jest.spyOn(api, 'post').mockResolvedValue({ data: { id: 'c1' } });
+
+    await expect(enviarReclamo('p1', { mensaje, respuestaVerificacion: ' roja ' })).resolves.toEqual({ id: 'c1' });
+
+    expect(post).toHaveBeenCalledWith('/publicaciones/p1/reclamos', { respuestaVerificacion: 'roja' });
+  });
+
+  test('envía el mensaje recortado cuando hay uno, junto con barrio', async () => {
+    const post = jest.spyOn(api, 'post').mockResolvedValue({ data: {} });
+
+    await enviarReclamo('p1', { mensaje: '  Lo tengo yo  ', barrio: ' Palermo ' });
+
+    expect(post).toHaveBeenCalledWith('/publicaciones/p1/reclamos', {
+      mensaje: 'Lo tengo yo',
+      barrio: 'Palermo',
+    });
   });
 });

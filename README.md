@@ -111,7 +111,7 @@ npm run android      # abre la app en el emulador o dispositivo Android conectad
 
 **Publicaciones**
 
-- Alta de publicaciones de objetos o mascotas, con fotos (galería o cámara), categoría, zona, ubicación y dirección exacta opcional; en los hallazgos son obligatorias una pregunta de verificación y su respuesta privada (`CreatePostScreen`, `components/FormularioPublicacion.js`, `hooks/useCrearPublicacion.js`, `services/publicaciones.js`). La cámara está dentro de la app (`components/CamaraModal.js`, `expo-camera`: requiere un dev client reconstruido), las fotos de la galería se eligen con `expo-image-picker` y la ubicación se obtiene con `expo-location`.
+- Alta de publicaciones de objetos o mascotas como asistente de pasos: tipo, fotos (galería o cámara, opcionales), datos (título, descripción, categoría, fecha y hora del suceso), ubicación (barrio y dirección exacta, ambos obligatorios; «Usar mi ubicación actual» guarda las coordenadas y completa el barrio y la dirección) y, en los hallazgos, una pregunta de verificación con su respuesta privada. La franja horaria la deriva el servidor a partir de la hora (`CreatePostScreen`, `components/FormularioPublicacion.js`, `hooks/useCrearPublicacion.js`, `services/publicaciones.js`). La cámara está dentro de la app (`components/CamaraModal.js`, `expo-camera`: requiere un dev client reconstruido), las fotos de la galería se eligen con `expo-image-picker` y la ubicación se obtiene con `expo-location`.
 - Borrador automático del alta y cola de publicaciones para enviar después cuando no hay conexión (ver «Conexión y caché offline»).
 - Mis publicaciones, filtradas por estado (`hooks/useMisPublicaciones.js`).
 - Gestión de la publicación propia: editar, eliminar y renovar, con aviso de vencimiento (`GestionPublicacionScreen`, `hooks/useGestionPublicacion.js`).
@@ -157,7 +157,7 @@ screens/              pantallas
 components/           componentes de dominio (formularios, tarjetas, reclamos)
 components/ui/        sistema de diseño: tema.js (tokens), controles y patrones compartidos
 services/             cliente HTTP (api.js) y llamadas a la API por dominio
-data/searchDemo.js    constantes (categorías, zonas, periodos) y validación de filtros de búsqueda;
+data/busqueda.js    constantes (categorías, zonas, periodos) y validación de filtros de búsqueda;
                       el nombre es histórico y el archivo no contiene datos de prueba
 ```
 

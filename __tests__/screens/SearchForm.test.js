@@ -1,6 +1,8 @@
 import { act, fireEvent, render, screen } from '@testing-library/react-native';
 import SearchForm from '../../components/SearchForm';
-import { filtrosIniciales } from '../../data/searchDemo';
+import { fechaLocal, filtrosIniciales } from '../../data/busqueda';
+import { elegirBarrio } from '../components/ayudas';
+import { barrioMasCercano } from '../../services/catalogos';
 import useUbicacionActual from '../../hooks/useUbicacionActual';
 
 // El GPS se reemplaza: la prueba no pide permisos ni usa el dispositivo.
@@ -8,6 +10,13 @@ jest.mock('../../hooks/useUbicacionActual', () => ({
   __esModule: true,
   default: jest.fn(),
 }));
+
+// Sin geocodificador disponible (sin red): el barrio sale de la cercanía.
+jest.mock('expo-location', () => ({
+  reverseGeocodeAsync: jest.fn().mockRejectedValue(new Error('sin red')),
+}));
+
+const deDate = (fecha) => fechaLocal(fecha);
 
 const CENTRO = { latitud: -34.6, longitud: -58.4 };
 const ETIQUETA_RADIO = 'Radio de búsqueda en kilómetros';
@@ -53,7 +62,7 @@ describe('SearchForm: radio al elegir GPS', () => {
   test('elegir un barrio nunca pide GPS', () => {
     const onSubmit = montar();
 
-    fireEvent.press(screen.getByText('Palermo'));
+    elegirBarrio('Palermo');
     buscar();
 
     expect(obtener).not.toHaveBeenCalled();
@@ -168,7 +177,7 @@ describe('SearchForm: barrio limpia GPS y radio', () => {
     await usarGps();
     fireEvent.changeText(radio(), '40');
 
-    fireEvent.press(screen.getByText('Recoleta'));
+    elegirBarrio('Recoleta');
 
     expect(screen.queryByLabelText(ETIQUETA_RADIO)).toBeNull();
     buscar();
@@ -178,7 +187,7 @@ describe('SearchForm: barrio limpia GPS y radio', () => {
 
   test('al elegir GPS después de un barrio se limpia el barrio y el radio vuelve al inicial', async () => {
     const onSubmit = montar();
-    fireEvent.press(screen.getByText('Recoleta'));
+    elegirBarrio('Recoleta');
 
     await usarGps();
     buscar();
@@ -194,7 +203,7 @@ describe('SearchForm: barrio limpia GPS y radio', () => {
     const onSubmit = montar();
     await usarGps();
     fireEvent.changeText(radio(), '40');
-    fireEvent.press(screen.getByText('Recoleta'));
+    elegirBarrio('Recoleta');
     await usarGps();
 
     expect(radio().props.value).toBe('10');
@@ -209,5 +218,89 @@ describe('SearchForm: barrio limpia GPS y radio', () => {
     await usarGps();
 
     expect(screen.queryByLabelText(ETIQUETA_RADIO)).toBeNull();
+  });
+});
+
+describe('SearchForm: barrio cercano al GPS', () => {
+  test('con GPS informa el barrio más cercano sin elegirlo como filtro', async () => {
+    const onSubmit = montar();
+
+    await usarGps();
+
+    const esperado = barrioMasCercano(CENTRO).nombre;
+    expect(await screen.findByText(`Cerca de: ${esperado}`)).toBeTruthy();
+    buscar();
+    expect(onSubmit.mock.calls[0][0]).toMatchObject({ zona: '', ubicacion: CENTRO, radioKm: 10 });
+  });
+
+  test('elegir «Sin barrio» con el GPS activo no lo quita', async () => {
+    const onSubmit = montar();
+    await usarGps();
+
+    fireEvent.press(screen.getByLabelText('Barrio'));
+    fireEvent.press(screen.getByLabelText('Sin barrio'));
+
+    expect(radio().props.value).toBe('10');
+    buscar();
+    expect(onSubmit.mock.calls[0][0]).toMatchObject({ ubicacion: CENTRO });
+  });
+
+  test('elegir un barrio quita el aviso «Cerca de»', async () => {
+    montar();
+    await usarGps();
+    await screen.findByText(/Cerca de:/);
+
+    elegirBarrio('Recoleta');
+
+    expect(screen.queryByText(/Cerca de:/)).toBeNull();
+  });
+});
+
+describe('SearchForm: rango de fechas con selector nativo', () => {
+  const RANGO = {
+    ...filtrosIniciales(),
+    categoria: 'Llaves',
+    zona: 'Palermo',
+    periodo: 'rango',
+    desde: '2026-10-01',
+    hasta: '2026-10-05',
+  };
+
+  function elegirFecha(etiqueta, fecha) {
+    fireEvent.press(screen.getByLabelText(etiqueta));
+    act(() => screen.getByTestId('datetimepicker').props.onValueChange({}, fecha));
+    fireEvent.press(screen.getByText('Listo'));
+  }
+
+  test('muestra las fechas como DD/MM/AAAA y no hay campos de texto', () => {
+    montar(RANGO);
+
+    expect(screen.getByText('01/10/2026')).toBeTruthy();
+    expect(screen.getByText('05/10/2026')).toBeTruthy();
+    expect(screen.queryByDisplayValue('2026-10-01')).toBeNull();
+    expect(screen.queryByText(/AAAA-MM-DD/)).toBeNull();
+  });
+
+  test('elegir las fechas las envía en AAAA-MM-DD', () => {
+    const onSubmit = montar(RANGO);
+
+    elegirFecha('Fecha desde', new Date(2026, 9, 2));
+    elegirFecha('Fecha hasta', new Date(2026, 9, 4));
+    buscar();
+
+    expect(onSubmit.mock.calls[0][0]).toMatchObject({ desde: '2026-10-02', hasta: '2026-10-04' });
+  });
+
+  test('desde no puede superar a hasta y hasta no puede ser futura ni anterior a desde', () => {
+    montar(RANGO);
+
+    fireEvent.press(screen.getByLabelText('Fecha desde'));
+    expect(deDate(screen.getByTestId('datetimepicker').props.maximumDate)).toBe('2026-10-05');
+    fireEvent.press(screen.getByText('Cancelar'));
+
+    fireEvent.press(screen.getByLabelText('Fecha hasta'));
+    const props = screen.getByTestId('datetimepicker').props;
+    expect(deDate(props.minimumDate)).toBe('2026-10-01');
+    expect(deDate(props.maximumDate)).toBe(fechaLocal());
   });
 });

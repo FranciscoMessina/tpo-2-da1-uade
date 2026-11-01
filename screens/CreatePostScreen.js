@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { View } from 'react-native';
-import FormularioPublicacion, { FRANJAS } from '../components/FormularioPublicacion';
+import FormularioPublicacion from '../components/FormularioPublicacion';
+import { nombreFranja, textoHora } from '../data/franjas';
 import useAuth from '../hooks/useAuth';
 import useBorradorPublicacion from '../hooks/useBorradorPublicacion';
 import useCrearPublicacion from '../hooks/useCrearPublicacion';
@@ -24,6 +25,7 @@ export default function CreatePostScreen({ route, navigation }) {
   const { usuario } = useAuth();
   const uid = usuario?.id !== undefined && usuario?.id !== null ? String(usuario.id) : null;
   const pendienteId = route.params?.pendienteId ?? null;
+  const scrollRef = useRef(null);
 
   const [publicada, setPublicada] = useState(null);
   // Valores con los que arranca el formulario: los de un borrador retomado o los de un
@@ -90,9 +92,10 @@ export default function CreatePostScreen({ route, navigation }) {
   }
 
   if (publicada) {
-    const franja = FRANJAS.find((f) => f.valor === publicada.franja)?.nombre;
-    const lugar = publicada.barrio || 'Ubicación actual';
+    const franja = nombreFranja(publicada.franja);
+    const hora = textoHora(publicada.hora);
     const fecha = publicada.fecha.split('-').reverse().join('/');
+    const cuando = [fecha, hora, franja].filter(Boolean).join(' · ');
 
     return (
       <Pantalla>
@@ -103,7 +106,7 @@ export default function CreatePostScreen({ route, navigation }) {
             titulo={publicada.tipo === 'perdido' ? '¡Pérdida publicada!' : '¡Hallazgo publicado!'}
             mensaje={`Tu publicación "${publicada.titulo}" ya está registrada. Te avisaremos si aparece una coincidencia.
 
-${publicada.categoria} · ${lugar} · ${fecha} · ${franja}
+${publicada.categoria} · ${publicada.barrio} · ${cuando}
 
 ${publicada.fotos.length} foto(s) adjunta(s).`}
           >
@@ -196,7 +199,7 @@ ${publicada.fotos.length} foto(s) adjunta(s).`}
   }
 
   return (
-    <Pantalla>
+    <Pantalla ref={scrollRef}>
       {pendienteId && (
         <Aviso
           tono="info"
@@ -212,6 +215,7 @@ ${publicada.fotos.length} foto(s) adjunta(s).`}
         onEnviar={enviar}
         onEncolar={guardarParaDespues}
         alCambiar={borrador.guardar}
+        alCambiarPaso={() => scrollRef.current?.scrollTo?.({ y: 0, animated: false })}
         copiarFoto={borrador.copiarFoto}
         alQuitarFoto={borrador.quitarFoto}
       />
