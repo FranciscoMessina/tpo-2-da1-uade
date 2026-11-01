@@ -287,7 +287,10 @@ function distanciaKm(a, b) {
  * `null` si ninguno queda a `maxKm` o menos o las coordenadas no son válidas. Funciona sin red.
  * Es una referencia aproximada: los centros no son límites de barrio.
  */
-export function barrioMasCercano({ latitud, longitud } = {}, catalogo = actual, maxKm = 20) {
+export function barrioMasCercano(coords, catalogo = actual, maxKm = 20) {
+  /** @type {{ latitud?: number, longitud?: number }} */
+  const { latitud, longitud } = coords ?? {};
+
   if (!coordenadaValida(latitud, 90) || !coordenadaValida(longitud, 180)) return null;
 
   let mejor = null;

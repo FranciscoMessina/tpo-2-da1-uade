@@ -110,7 +110,7 @@ export default function SelectorFecha({
     if (Platform.OS === 'android') {
       DateTimePickerAndroid.open({
         value: fecha,
-        mode: modo,
+        mode: /** @type {'date' | 'time'} */ (modo),
         is24Hour: true,
         ...(!esHora && limiteMinimo && { minimumDate: limiteMinimo }),
         ...(finMaximo && { maximumDate: finMaximo }),
@@ -151,7 +151,7 @@ export default function SelectorFecha({
 
               <DateTimePicker
                 value={borrador}
-                mode={modo}
+                mode={/** @type {'date' | 'time'} */ (modo)}
                 display="spinner"
                 locale="es-AR"
                 is24Hour
