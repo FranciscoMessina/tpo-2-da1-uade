@@ -2,6 +2,7 @@ import { useRef, useState, useSyncExternalStore } from 'react';
 import { StyleSheet, View } from 'react-native';
 import {
   PERIODOS,
+  fechaLocal,
   RADIO_KM_INICIAL,
   formatearRadio,
   parsearRadio,
@@ -13,6 +14,7 @@ import useUbicacionActual from '../hooks/useUbicacionActual';
 import { catalogoActual, suscribirCatalogo } from '../services/catalogos';
 import { describirUbicacion } from '../services/ubicacion';
 import SelectorBarrio from './SelectorBarrio';
+import SelectorFecha from './SelectorFecha';
 import {
   Aviso,
   Boton,
@@ -234,26 +236,21 @@ export default function SearchForm({
 
         {filtros.periodo === 'rango' && (
           <View style={styles.fechas}>
-            <Campo
-              etiqueta="Desde (AAAA-MM-DD)"
+            <SelectorFecha
+              etiqueta="Desde"
               accessibilityLabel="Fecha desde"
-              value={filtros.desde}
-              onChangeText={(valor) => cambiar('desde', valor)}
-              placeholder="2026-10-01"
-              maxLength={10}
-              autoCapitalize="none"
-              keyboardType="numbers-and-punctuation"
+              valor={filtros.desde}
+              onChange={(valor) => cambiar('desde', valor)}
+              maximo={filtros.hasta && filtros.hasta < fechaLocal() ? filtros.hasta : fechaLocal()}
             />
 
-            <Campo
-              etiqueta="Hasta (AAAA-MM-DD)"
+            <SelectorFecha
+              etiqueta="Hasta"
               accessibilityLabel="Fecha hasta"
-              value={filtros.hasta}
-              onChangeText={(valor) => cambiar('hasta', valor)}
-              placeholder="2026-10-13"
-              maxLength={10}
-              autoCapitalize="none"
-              keyboardType="numbers-and-punctuation"
+              valor={filtros.hasta}
+              onChange={(valor) => cambiar('hasta', valor)}
+              minimo={filtros.desde || undefined}
+              maximo={fechaLocal()}
             />
           </View>
         )}

@@ -207,7 +207,7 @@ export function validarFiltros(filtros) {
       !fechaValida(filtros.desde) ||
       !fechaValida(filtros.hasta)
     ) {
-      return 'Ingresá fechas válidas con formato AAAA-MM-DD.';
+      return 'Elegí las fechas desde y hasta del rango.';
     }
 
     if (filtros.desde > filtros.hasta) {
