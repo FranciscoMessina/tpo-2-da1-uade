@@ -89,6 +89,130 @@ describe('red del dispositivo', () => {
   });
 });
 
+describe('orden de la lectura inicial y los eventos', () => {
+  // Lectura inicial que resuelve cuando el test lo decide, como una consulta lenta al sistema
+  function lecturaDiferida() {
+    let resolver;
+    let rechazar;
+    const promesa = new Promise((res, rej) => {
+      resolver = res;
+      rechazar = rej;
+    });
+    jest.mocked(Network.getNetworkStateAsync).mockReturnValueOnce(promesa);
+    return { resolver, rechazar };
+  }
+
+  test('un evento online no lo pisa una lectura inicial offline que llega tarde', async () => {
+    const lectura = lecturaDiferida();
+    const detener = iniciarMonitorRed();
+
+    Network.__emitir({ isConnected: false });
+    Network.__emitir({ isConnected: true });
+    lectura.resolver({ isConnected: false });
+    await vaciar();
+
+    expect(hayInternet()).toBe(true);
+    detener();
+  });
+
+  test('un evento offline no lo pisa una lectura inicial online que llega tarde', async () => {
+    const lectura = lecturaDiferida();
+    const detener = iniciarMonitorRed();
+
+    Network.__emitir({ isConnected: false });
+    lectura.resolver({ isConnected: true });
+    await vaciar();
+
+    expect(hayInternet()).toBe(false);
+    detener();
+  });
+
+  test('sin eventos la lectura inicial sí se aplica', async () => {
+    const lectura = lecturaDiferida();
+    const detener = iniciarMonitorRed();
+
+    lectura.resolver({ isConnected: false });
+    await vaciar();
+
+    expect(hayInternet()).toBe(false);
+    detener();
+  });
+
+  test('si la lectura inicial falla, los eventos siguen funcionando', async () => {
+    const lectura = lecturaDiferida();
+    const detener = iniciarMonitorRed();
+
+    lectura.rechazar(new Error('sin módulo'));
+    await vaciar();
+    Network.__emitir({ isConnected: false });
+
+    expect(hayInternet()).toBe(false);
+    detener();
+  });
+
+  test('si no se puede instalar el listener la lectura inicial igual se aplica', async () => {
+    jest.mocked(Network.addNetworkStateListener).mockImplementationOnce(() => {
+      throw new Error('sin listener');
+    });
+    const lectura = lecturaDiferida();
+    const detener = iniciarMonitorRed();
+
+    lectura.resolver({ isConnected: false });
+    await vaciar();
+
+    expect(hayInternet()).toBe(false);
+    detener();
+  });
+
+  test('un monitor detenido antes de que resuelva la lectura no escribe nada', async () => {
+    const lectura = lecturaDiferida();
+    const detener = iniciarMonitorRed();
+    detener();
+
+    lectura.resolver({ isConnected: false });
+    await vaciar();
+
+    expect(hayInternet()).toBe(true);
+  });
+
+  test('un monitor reiniciado no hereda el evento del anterior', async () => {
+    const primera = lecturaDiferida();
+    const detenerPrimero = iniciarMonitorRed();
+    Network.__emitir({ isConnected: true });
+    detenerPrimero();
+    primera.resolver({ isConnected: true });
+    await vaciar();
+
+    // El segundo monitor no vio ningún evento: su lectura inicial es la que vale
+    const segunda = lecturaDiferida();
+    const detenerSegundo = iniciarMonitorRed();
+    segunda.resolver({ isConnected: false });
+    await vaciar();
+
+    expect(hayInternet()).toBe(false);
+    detenerSegundo();
+  });
+
+  test('tras reconectar y llegar una lectura offline vieja se puede consultar al backend', async () => {
+    controlarAppState('background');
+    const lectura = lecturaDiferida();
+    const detener = iniciarSondeo();
+
+    Network.__emitir({ isConnected: false });
+    Network.__emitir({ isConnected: true });
+    await vaciar();
+    api.get.mockClear();
+
+    lectura.resolver({ isConnected: false });
+    await vaciar();
+
+    expect(hayInternet()).toBe(true);
+    expect(await verificarConexion()).toBe(true);
+    expect(api.get).toHaveBeenCalledTimes(1);
+    detener();
+  });
+});
+
 describe('mensajes según la red', () => {
   test('con red y sin respuesta del servidor dice que el servidor no está disponible', () => {
     expect(mensajeErrorApi(sinRespuesta())).toBe(MENSAJE_SERVIDOR_NO_DISPONIBLE);
