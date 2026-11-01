@@ -1,8 +1,8 @@
-import { render, screen } from '@testing-library/react-native';
+import { act, render, screen, waitFor } from '@testing-library/react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Text } from 'react-native';
 import AlertasScreen from '../../screens/AlertasScreen';
-import { SearchProvider, useSearch } from '../../context/SearchContext';
+import { SearchProvider, claveRecientes, useSearch } from '../../context/SearchContext';
 import { api } from '../../services/api';
 import {
   crearAlerta,
@@ -17,9 +17,10 @@ import {
 } from '../../data/busqueda';
 
 // Los hooks de datos se reemplazan: estas pruebas miran el resumen y el historial, no la red.
+let mockUsuario = { id: 7 };
 jest.mock('../../hooks/useAuth', () => ({
   __esModule: true,
-  default: () => ({ usuario: null }),
+  default: () => ({ usuario: mockUsuario }),
 }));
 jest.mock('../../hooks/useAlertas', () => ({
   __esModule: true,
@@ -325,7 +326,11 @@ describe('resumen de la alerta en pantalla', () => {
 });
 
 describe('búsquedas recientes guardadas', () => {
-  const CLAVE = '@hallado:busquedas-recientes:v1';
+  const CLAVE = claveRecientes(7);
+
+  beforeEach(() => {
+    mockUsuario = { id: 7 };
+  });
 
   function Recientes() {
     const { recientes } = useSearch();
@@ -371,5 +376,74 @@ describe('búsquedas recientes guardadas', () => {
     const radios = await cargar([guardada(porGps(2)), guardada(porGps(3))]);
 
     expect(radios).toEqual([2, 3]);
+  });
+
+  describe('al cambiar de cuenta', () => {
+    // Elemento nuevo en cada render: React no vuelve a renderizar uno idéntico y el mock de useAuth no se releería
+    const arbol = () => (
+      <SearchProvider>
+        <Recientes />
+        <Grabar />
+      </SearchProvider>
+    );
+
+    let grabar;
+    function Grabar() {
+      grabar = useSearch().recordarBusqueda;
+      return null;
+    }
+
+    const leer = async (esperados) =>
+      waitFor(() =>
+        expect(JSON.parse(screen.getByTestId('recientes').props.children)).toEqual(esperados)
+      );
+
+    test('cada cuenta ve solo su historial y lo guarda en su propia clave', async () => {
+      await AsyncStorage.setItem(claveRecientes(7), JSON.stringify([guardada(porGps(7))]));
+      await AsyncStorage.setItem(claveRecientes(8), JSON.stringify([guardada(porGps(4))]));
+
+      const { rerender } = render(arbol());
+      await leer([7]);
+
+      mockUsuario = { id: 8 };
+      rerender(arbol());
+      await leer([4]);
+
+      act(() => grabar(porGps(9)));
+      await leer([9, 4]);
+      await waitFor(async () =>
+        expect(JSON.parse(await AsyncStorage.getItem(claveRecientes(8)))).toHaveLength(2)
+      );
+      expect(JSON.parse(await AsyncStorage.getItem(claveRecientes(7)))).toHaveLength(1);
+    });
+
+    test('al cerrar sesión el historial queda vacío y no se escribe en ninguna cuenta', async () => {
+      await AsyncStorage.setItem(claveRecientes(7), JSON.stringify([guardada(porGps(7))]));
+
+      const { rerender } = render(arbol());
+      await leer([7]);
+
+      mockUsuario = null;
+      rerender(arbol());
+      await leer([]);
+
+      act(() => grabar(porGps(9)));
+      await leer([]);
+      expect(JSON.parse(await AsyncStorage.getItem(claveRecientes(7)))).toHaveLength(1);
+    });
+
+    test('descarta el historial global de versiones anteriores', async () => {
+      await AsyncStorage.setItem(
+        '@hallado:busquedas-recientes:v1',
+        JSON.stringify([guardada(porGps(3))])
+      );
+
+      render(arbol());
+      await leer([]);
+
+      await waitFor(async () =>
+        expect(await AsyncStorage.getItem('@hallado:busquedas-recientes:v1')).toBeNull()
+      );
+    });
   });
 });
