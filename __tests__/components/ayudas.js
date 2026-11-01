@@ -15,6 +15,12 @@ export function elegirBarrio(nombre, etiqueta = 'Barrio') {
   fireEvent.press(screen.getByLabelText(nombre));
 }
 
+// Abre el desplegable de categorías (SelectorCategoria) y elige una de la lista.
+export function elegirCategoria(nombre, etiqueta = 'Categoría') {
+  fireEvent.press(screen.getByLabelText(etiqueta));
+  fireEvent.press(screen.getByLabelText(nombre));
+}
+
 // Abre el selector de hora (SelectorFecha en modo «time») y confirma `valor` (HH:MM). En iOS, que es
 // la plataforma de las pruebas, el selector es una hoja con «Listo».
 export function elegirHora(valor, etiqueta = 'Hora del suceso') {

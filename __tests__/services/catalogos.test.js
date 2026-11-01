@@ -403,6 +403,15 @@ describe('SearchForm y FormularioPublicacion usan el mismo catálogo', () => {
     }
     abrirSelectorBarrio();
   };
+  // Las categorías también van en un desplegable: se abre, se mira la lista y se cierra.
+  const categoriasOfrecidas = () => {
+    fireEvent.press(screen.getByLabelText('Categoría'));
+    const ofrecidas = screen.queryByLabelText('Bicicletas') !== null;
+    const faltantes = CATEGORIAS.filter((nombre) => screen.queryByLabelText(nombre) === null);
+    fireEvent.press(screen.getByLabelText('Cerrar'));
+
+    return { bicicletas: ofrecidas, faltantes };
+  };
   const ofrece = (formulario, barrio) => {
     fireEvent.changeText(screen.getByLabelText('Buscar barrio'), barrio);
 
@@ -416,10 +425,7 @@ describe('SearchForm y FormularioPublicacion usan el mismo catálogo', () => {
     simularConectividad(false);
     montar();
 
-    for (const categoria of CATEGORIAS) {
-      expect(screen.getByText(categoria)).toBeTruthy();
-    }
-    expect(screen.queryByText('Bicicletas')).toBeNull();
+    expect(categoriasOfrecidas()).toEqual({ bicicletas: false, faltantes: [] });
     verBarrios(nombre);
     for (const zona of ZONAS) {
       expect(ofrece(nombre, zona.nombre)).toBe(true);
@@ -438,7 +444,7 @@ describe('SearchForm y FormularioPublicacion usan el mismo catálogo', () => {
     await act(async () => {
       await actualizarCatalogo();
     });
-    expect(screen.getByText('Bicicletas')).toBeTruthy();
+    expect(categoriasOfrecidas().bicicletas).toBe(true);
     verBarrios(nombre);
     expect(ofrece(nombre, 'Ciudad Evita')).toBe(true);
   });
@@ -454,13 +460,13 @@ describe('SearchForm y FormularioPublicacion usan el mismo catálogo', () => {
     await act(async () => {
       await iniciarCatalogo();
     });
+    expect(categoriasOfrecidas().bicicletas).toBe(true);
     abrirSelectorBarrio();
     expect(ofrece('búsqueda', 'Ciudad Evita')).toBe(true);
-    expect(screen.getByText('Bicicletas')).toBeTruthy();
     busqueda.unmount();
 
     montarPublicacion();
-    expect(screen.getByText('Bicicletas')).toBeTruthy();
+    expect(categoriasOfrecidas().bicicletas).toBe(true);
     verBarrios('publicación');
     expect(ofrece('publicación', 'Ciudad Evita')).toBe(true);
   });

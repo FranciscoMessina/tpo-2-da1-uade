@@ -12,7 +12,7 @@ import * as conexion from '../../services/conexion';
 import { procesarCola } from '../../services/procesadorCola';
 import { __navegacion as navegacion } from '@react-navigation/native';
 import { diferida, simularConectividad } from '../hooks/entorno';
-import { elegirBarrio, elegirHora } from '../components/ayudas';
+import { elegirBarrio, elegirCategoria, elegirHora } from '../components/ayudas';
 
 // Recorridos de la pantalla de alta con la cola, el borrador y el servicio de publicaciones reales.
 // Solo se reemplazan los bordes: la sesión, el GPS, el contexto que dispara el procesador y la red
@@ -92,7 +92,7 @@ function completarFormulario(titulo = 'Llavero azul con tres llaves') {
   tocar('Siguiente');
   tocar('Siguiente');
   cambiar('Título', titulo);
-  tocar('Llaves');
+  elegirCategoria('Llaves');
   cambiar('Descripción', 'Tres llaves con un llavero de color azul.');
   elegirHora('10:30');
   tocar('Siguiente');

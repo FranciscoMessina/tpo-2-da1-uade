@@ -6,7 +6,7 @@ import { fechaLocal } from '../../data/busqueda';
 import * as conexion from '../../services/conexion';
 import { describirUbicacion } from '../../services/ubicacion';
 import { diferida } from '../hooks/entorno';
-import { elegirBarrio, elegirHora } from './ayudas';
+import { elegirBarrio, elegirCategoria, elegirHora } from './ayudas';
 
 // Asistente de publicación por pasos: se prueba el formulario solo, con el GPS y el geocodificador
 // reemplazados. Los recorridos completos con borrador y cola están en screens/CreatePostScreen.test.js.
@@ -42,7 +42,7 @@ const montar = (props = {}) => {
 
 const textosDeDatos = () => {
   cambiar('Título', 'Llavero azul');
-  tocar('Llaves');
+  elegirCategoria('Llaves');
   cambiar('Descripción', 'Tres llaves con un llavero azul.');
   elegirHora('00:00');
 };
