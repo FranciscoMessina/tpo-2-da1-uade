@@ -1,8 +1,14 @@
 import { useState } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import useAuth, { emailValido, validarContraseña } from '../hooks/useAuth';
-import { AuthButton, AuthError, AuthField } from '../components/AuthUI';
 import CodeStep from '../components/CodeStep';
+import {
+  Aviso,
+  Boton,
+  Campo,
+  IndicadorPasos,
+  Pantalla,
+  Tarjeta,
+} from '../components/ui';
 
 export default function ForgotPasswordScreen({ navigation }) {
   const {
@@ -49,30 +55,23 @@ export default function ForgotPasswordScreen({ navigation }) {
   }
 
   return (
-    <ScrollView
-      style={styles.screen}
-      contentContainerStyle={styles.content}
-      keyboardShouldPersistTaps="handled"
-    >
-      <Text style={styles.title}>Recuperar contraseña</Text>
-      <Text style={styles.step}>Paso {listo ? 3 : paso} de 3</Text>
+    <Pantalla>
+      <IndicadorPasos paso={listo ? 3 : paso} total={3} />
 
-      <View style={styles.card}>
-        <AuthError message={error} />
+      <Tarjeta>
+        {!!error && <Aviso tono="peligro" mensaje={error} accessibilityRole="alert" />}
 
         {listo ? (
           <>
-            <Text style={styles.ok}>
-              Tu contraseña se actualizó. Ya podés ingresar.
-            </Text>
-            <AuthButton title="Volver a ingresar" onPress={() => navigation.popToTop()} />
+            <Aviso tono="exito" mensaje="Tu contraseña se actualizó. Ya podés ingresar." />
+            <Boton titulo="Volver a ingresar" onPress={() => navigation.popToTop()} />
           </>
         ) : (
           <>
             {paso === 1 && (
               <>
-                <AuthField
-                  label="Email"
+                <Campo
+                  etiqueta="Email"
                   value={email}
                   onChangeText={(t) => {
                     setEmail(t);
@@ -85,7 +84,7 @@ export default function ForgotPasswordScreen({ navigation }) {
                   placeholder="tu@email.com"
                   onSubmitEditing={enviarEmail}
                 />
-                <AuthButton title="Enviar código" onPress={enviarEmail} loading={loading} />
+                <Boton titulo="Enviar código" onPress={enviarEmail} cargando={loading} />
               </>
             )}
 
@@ -104,8 +103,8 @@ export default function ForgotPasswordScreen({ navigation }) {
 
             {paso === 3 && (
               <>
-                <AuthField
-                  label="Nueva contraseña"
+                <Campo
+                  etiqueta="Nueva contraseña"
                   value={contraseña}
                   onChangeText={setContraseña}
                   error={errores.contraseña}
@@ -113,8 +112,8 @@ export default function ForgotPasswordScreen({ navigation }) {
                   autoCapitalize="none"
                   placeholder="Mínimo 8 caracteres, letras y números"
                 />
-                <AuthField
-                  label="Confirmar contraseña"
+                <Campo
+                  etiqueta="Confirmar contraseña"
                   value={confirmacion}
                   onChangeText={setConfirmacion}
                   error={errores.confirmacion}
@@ -123,21 +122,12 @@ export default function ForgotPasswordScreen({ navigation }) {
                   placeholder="Repetí la contraseña"
                   onSubmitEditing={guardar}
                 />
-                <AuthButton title="Guardar contraseña" onPress={guardar} loading={loading} />
+                <Boton titulo="Guardar contraseña" onPress={guardar} cargando={loading} />
               </>
             )}
           </>
         )}
-      </View>
-    </ScrollView>
+      </Tarjeta>
+    </Pantalla>
   );
 }
-
-const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: '#F3F4F6' },
-  content: { padding: 24 },
-  title: { fontSize: 24, fontWeight: 'bold', color: '#111827' },
-  step: { fontSize: 14, color: '#6B7280', marginBottom: 20 },
-  card: { backgroundColor: '#FFFFFF', borderRadius: 16, padding: 20 },
-  ok: { fontSize: 16, color: '#111827', marginBottom: 16 },
-});

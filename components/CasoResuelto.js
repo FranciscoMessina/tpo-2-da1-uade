@@ -1,9 +1,30 @@
 import { useState } from 'react';
-import { Alert, Button, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Alert, StyleSheet, View } from 'react-native';
 import { agradecerDevolucion, valorarDevolucion } from '../services/historial';
 import { verificarConexion } from '../services/conexion';
 import { mensajeErrorApi } from '../services/api';
 import { useConexion } from '../context/ConexionContext';
+import {
+  Boton,
+  Campo,
+  GrupoOpciones,
+  Separador,
+  Tarjeta,
+  Texto,
+  espacio,
+} from './ui';
+
+function Bloque({ titulo, children }) {
+  return (
+    <>
+      <Separador />
+      <View style={styles.bloque}>
+        <Texto variante="subtitulo">{titulo}</Texto>
+        {children}
+      </View>
+    </>
+  );
+}
 
 export default function CasoResuelto({ caso, navigation, onGuardar }) {
   const { hayConexion } = useConexion();
@@ -34,66 +55,104 @@ export default function CasoResuelto({ caso, navigation, onGuardar }) {
   }
 
   return (
-    <View style={styles.card}>
-      <Text style={styles.titulo}>{caso.objeto.titulo}</Text>
-      <Text>{caso.objeto.categoria} · {caso.objeto.tipo === 'encontrado' ? 'Encontrado' : 'Perdido'}</Text>
-      <Text>Devolución: {new Date(caso.fecha).toLocaleDateString('es-AR')}</Text>
-      <Text>{caso.tipo === 'devolvi' ? 'Recuperó' : 'Devolvió'}: {caso.contraparte.name}</Text>
-      <Button title="Ver perfil" onPress={() => navigation.navigate('PerfilPublico', {
-        usuario: caso.contraparte.id,
-      })} />
+    <Tarjeta>
+      <View style={styles.datos}>
+        <Texto variante="subtitulo">{caso.objeto.titulo}</Texto>
+        <Texto variante="cuerpoChico" tono="secundario">
+          {caso.objeto.categoria} · {caso.objeto.tipo === 'encontrado' ? 'Encontrado' : 'Perdido'}
+        </Texto>
+        <Texto variante="cuerpoChico" tono="secundario">
+          Devolución: {new Date(caso.fecha).toLocaleDateString('es-AR')}
+        </Texto>
+        <Texto variante="cuerpoChico" tono="secundario">
+          {caso.tipo === 'devolvi' ? 'Recuperó' : 'Devolvió'}: {caso.contraparte.name}
+        </Texto>
+      </View>
+
+      <Boton
+        titulo="Ver perfil"
+        variante="terciario"
+        chico
+        ajustado
+        onPress={() => navigation.navigate('PerfilPublico', { usuario: caso.contraparte.id })}
+      />
 
       {caso.valoracion ? (
-        <View style={styles.seccion}>
-          <Text style={styles.subtitulo}>Tu valoración: {caso.valoracion.positiva ? 'Positiva' : 'Negativa'}</Text>
-          {!!caso.valoracion.comentario && <Text>{caso.valoracion.comentario}</Text>}
-        </View>
+        <Bloque titulo={`Tu valoración: ${caso.valoracion.positiva ? 'Positiva' : 'Negativa'}`}>
+          {!!caso.valoracion.comentario && (
+            <Texto variante="cuerpoChico">{caso.valoracion.comentario}</Texto>
+          )}
+        </Bloque>
       ) : caso.puedeValorar ? (
-        <View style={styles.seccion}>
-          <Text style={styles.subtitulo}>Valorar a {caso.contraparte.name}</Text>
-          <Text>Hasta el {new Date(caso.limiteValoracion).toLocaleString('es-AR')}.</Text>
-          <View style={styles.fila}>
-            <Button title={positiva === true ? '✓ Positiva' : 'Positiva'} disabled={guardando}
-              onPress={() => setPositiva(true)} color="#166534" />
-            <Button title={positiva === false ? '✓ Negativa' : 'Negativa'} disabled={guardando}
-              onPress={() => setPositiva(false)} color="#B91C1C" />
-          </View>
-          <TextInput style={styles.input} placeholder="Comentario opcional" accessibilityLabel="Comentario de la valoración"
-            value={comentario} onChangeText={setComentario} maxLength={500} multiline editable={!guardando} />
-          <Button title={guardando ? 'Guardando…' : 'Enviar valoración'}
-            color={!hayConexion ? '#9CA3AF' : undefined}
-            disabled={guardando || !hayConexion || positiva === null} onPress={() => guardar(false)} />
-        </View>
-      ) : <Text>Terminó el plazo de 7 días para valorar.</Text>}
+        <Bloque titulo={`Valorar a ${caso.contraparte.name}`}>
+          <Texto variante="cuerpoChico" tono="secundario">
+            Hasta el {new Date(caso.limiteValoracion).toLocaleString('es-AR')}.
+          </Texto>
+          <GrupoOpciones
+            opciones={[
+              { valor: true, nombre: 'Positiva' },
+              { valor: false, nombre: 'Negativa' },
+            ]}
+            valor={positiva}
+            onChange={setPositiva}
+            disabled={guardando}
+          />
+          <Campo
+            accessibilityLabel="Comentario de la valoración"
+            placeholder="Comentario opcional"
+            value={comentario}
+            onChangeText={setComentario}
+            maxLength={500}
+            multiline
+            editable={!guardando}
+          />
+          <Boton
+            titulo={guardando ? 'Guardando…' : 'Enviar valoración'}
+            cargando={guardando}
+            disabled={!hayConexion || positiva === null}
+            onPress={() => guardar(false)}
+          />
+        </Bloque>
+      ) : (
+        <Texto variante="cuerpoChico" tono="secundario">
+          Terminó el plazo de 7 días para valorar.
+        </Texto>
+      )}
 
       {caso.agradecimiento ? (
-        <View style={styles.seccion}>
-          <Text style={styles.subtitulo}>Tu agradecimiento público</Text>
-          <Text>{caso.agradecimiento.mensaje}</Text>
-        </View>
+        <Bloque titulo="Tu agradecimiento público">
+          <Texto variante="cuerpoChico">{caso.agradecimiento.mensaje}</Texto>
+        </Bloque>
       ) : caso.tipo === 'recupere' && (
-        <View style={styles.seccion}>
-          <Text style={styles.subtitulo}>Agradecimiento público</Text>
-          <Text>Se verá en el perfil de {caso.contraparte.name}.</Text>
-          <TextInput style={styles.input} placeholder="Escribí tu agradecimiento" accessibilityLabel="Agradecimiento público"
-            value={mensaje} onChangeText={setMensaje} maxLength={500} multiline editable={!guardando} />
-          <Button title="Publicar agradecimiento" color={!hayConexion ? '#9CA3AF' : undefined}
+        <Bloque titulo="Agradecimiento público">
+          <Texto variante="cuerpoChico" tono="secundario">
+            Se verá en el perfil de {caso.contraparte.name}.
+          </Texto>
+          <Campo
+            accessibilityLabel="Agradecimiento público"
+            placeholder="Escribí tu agradecimiento"
+            value={mensaje}
+            onChangeText={setMensaje}
+            maxLength={500}
+            multiline
+            editable={!guardando}
+          />
+          <Boton
+            titulo="Publicar agradecimiento"
+            variante="secundario"
             disabled={guardando || !hayConexion || !mensaje.trim()}
             onPress={() => Alert.alert('Publicar agradecimiento', 'El mensaje será público. ¿Querés publicarlo?', [
               { text: 'Cancelar', style: 'cancel' },
               { text: 'Publicar', onPress: () => guardar(true) },
-            ])} />
-        </View>
+            ])}
+          />
+        </Bloque>
       )}
-    </View>
+    </Tarjeta>
   );
 }
 
 const styles = StyleSheet.create({
-  card: { backgroundColor: '#FFFFFF', borderRadius: 16, padding: 16, gap: 10 },
-  titulo: { fontSize: 18, fontWeight: 'bold', color: '#111827' },
-  subtitulo: { fontWeight: '600', color: '#111827' },
-  seccion: { borderTopWidth: 1, borderTopColor: '#E5E7EB', paddingTop: 12, gap: 10 },
-  fila: { flexDirection: 'row', justifyContent: 'space-around' },
-  input: { borderWidth: 1, borderColor: '#D1D5DB', borderRadius: 8, padding: 12, color: '#111827', minHeight: 48 },
+  datos: { gap: 2 },
+  bloque: { gap: espacio.xs },
 });

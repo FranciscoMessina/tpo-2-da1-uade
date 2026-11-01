@@ -1,7 +1,17 @@
-import { ActivityIndicator, Alert, Button, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, StyleSheet, View } from 'react-native';
 import { useColaPublicaciones } from '../context/ColaPublicacionesContext';
 import { useConexion } from '../context/ConexionContext';
 import { ESTADOS, describirEstado } from '../services/colaPublicaciones';
+import {
+  Boton,
+  EstadoVacio,
+  Fila,
+  Seccion,
+  Separador,
+  Texto,
+  colores,
+  espacio,
+} from './ui';
 
 // Publicaciones guardadas para enviar: pendientes, enviándose o rechazadas por el servidor.
 // No muestra nada si la cola está vacía (salvo `mostrarVacio`).
@@ -11,10 +21,12 @@ export default function PublicacionesPendientes({ navigation, mostrarVacio = fal
 
   if (cola.length === 0) {
     return mostrarVacio ? (
-      <View style={styles.card}>
-        <Text style={styles.title}>Publicaciones pendientes</Text>
-        <Text style={styles.empty}>No tenés publicaciones pendientes de envío.</Text>
-      </View>
+      <EstadoVacio
+        icono="cloud-check-outline"
+        tono="exito"
+        titulo="Publicaciones pendientes"
+        mensaje="No tenés publicaciones pendientes de envío."
+      />
     ) : null;
   }
 
@@ -30,97 +42,95 @@ export default function PublicacionesPendientes({ navigation, mostrarVacio = fal
   }
 
   return (
-    <View style={styles.card}>
-      <Text style={styles.title}>Publicaciones pendientes</Text>
+    <Seccion
+      titulo="Publicaciones pendientes"
+      descripcion="Se guardaron en tu dispositivo y se envían solas, en orden, cuando hay conexión."
+    >
+      {cola.map((item) => {
+        const conError = item.estado === ESTADOS.ERROR;
 
-      <Text style={styles.help}>
-        Se guardaron en tu dispositivo y se envían solas, en orden, cuando hay conexión.
-      </Text>
+        return (
+          <View key={item.id} style={styles.item}>
+            <Separador />
 
-      {cola.map((item) => (
-        <View key={item.id} style={styles.item}>
-          <Text style={styles.itemTitle}>{item.datos.titulo}</Text>
+            <Texto variante="subtitulo">{item.datos.titulo}</Texto>
 
-          <Text style={styles.itemMeta}>
-            {item.datos.tipo === 'encontre' || item.datos.tipo === 'encontrado'
-              ? 'Encontrado'
-              : 'Perdido'}{' '}
-            · {item.datos.barrio || 'Ubicación actual'} · {(item.datos.fotos || []).length} foto(s)
-          </Text>
+            <Texto variante="cuerpoChico" tono="secundario">
+              {item.datos.tipo === 'encontre' || item.datos.tipo === 'encontrado'
+                ? 'Encontrado'
+                : 'Perdido'}{' '}
+              · {item.datos.barrio || 'Ubicación actual'} · {(item.datos.fotos || []).length} foto(s)
+            </Texto>
 
-          <View style={styles.estadoFila}>
-            {item.estado === ESTADOS.ENVIANDO && <ActivityIndicator color="#1D4ED8" />}
-            <Text
-              style={[styles.estado, item.estado === ESTADOS.ERROR && styles.estadoError]}
-              accessibilityRole={item.estado === ESTADOS.ERROR ? 'alert' : undefined}
-            >
-              {describirEstado(item, hayConexion)}
-            </Text>
+            <View style={styles.estado}>
+              {item.estado === ESTADOS.ENVIANDO && (
+                <ActivityIndicator size="small" color={colores.primario} />
+              )}
+              <Texto
+                variante={conError ? 'etiqueta' : 'cuerpoChico'}
+                tono={conError ? 'peligro' : 'aviso'}
+                accessibilityRole={conError ? 'alert' : undefined}
+                style={styles.estadoTexto}
+              >
+                {describirEstado(item, hayConexion)}
+              </Texto>
+            </View>
+
+            {item.estado === ESTADOS.PENDIENTE && (
+              <Fila>
+                <Boton
+                  titulo="Enviar ahora"
+                  variante="secundario"
+                  chico
+                  flexible
+                  disabled={!hayConexion}
+                  onPress={procesarAhora}
+                />
+                <Boton
+                  titulo="Descartar"
+                  variante="peligro"
+                  chico
+                  flexible
+                  onPress={() => confirmarDescarte(item)}
+                />
+              </Fila>
+            )}
+
+            {conError && (
+              <Fila>
+                <Boton
+                  titulo="Editar"
+                  variante="secundario"
+                  chico
+                  flexible
+                  onPress={() => navigation.navigate('CrearPublicacion', { pendienteId: item.id })}
+                />
+                <Boton
+                  titulo="Reintentar"
+                  variante="secundario"
+                  chico
+                  flexible
+                  disabled={!hayConexion}
+                  onPress={() => reintentarItem(item.id)}
+                />
+                <Boton
+                  titulo="Descartar"
+                  variante="peligro"
+                  chico
+                  flexible
+                  onPress={() => confirmarDescarte(item)}
+                />
+              </Fila>
+            )}
           </View>
-
-          {item.estado === ESTADOS.PENDIENTE && (
-            <View style={styles.acciones}>
-              <Button
-                title="Enviar ahora"
-                color={!hayConexion ? '#9CA3AF' : undefined}
-                disabled={!hayConexion}
-                onPress={procesarAhora}
-              />
-              <Button title="Descartar" color="#DC2626" onPress={() => confirmarDescarte(item)} />
-            </View>
-          )}
-
-          {item.estado === ESTADOS.ERROR && (
-            <View style={styles.acciones}>
-              <Button
-                title="Editar"
-                onPress={() => navigation.navigate('CrearPublicacion', { pendienteId: item.id })}
-              />
-              <Button
-                title="Reintentar"
-                color={!hayConexion ? '#9CA3AF' : '#6B7280'}
-                disabled={!hayConexion}
-                onPress={() => reintentarItem(item.id)}
-              />
-              <Button title="Descartar" color="#DC2626" onPress={() => confirmarDescarte(item)} />
-            </View>
-          )}
-        </View>
-      ))}
-    </View>
+        );
+      })}
+    </Seccion>
   );
 }
 
 const styles = StyleSheet.create({
-  card: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 16,
-  },
-  title: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#111827',
-    marginBottom: 8,
-  },
-  help: {
-    fontSize: 14,
-    color: '#6B7280',
-    lineHeight: 20,
-    marginBottom: 8,
-  },
-  empty: { color: '#6B7280' },
-  item: {
-    borderTopWidth: 1,
-    borderTopColor: '#E5E7EB',
-    paddingVertical: 12,
-    gap: 6,
-  },
-  itemTitle: { fontSize: 16, color: '#111827' },
-  itemMeta: { fontSize: 14, color: '#6B7280' },
-  estadoFila: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  estado: { fontSize: 14, color: '#92400E', flexShrink: 1 },
-  estadoError: { color: '#DC2626', fontWeight: '600' },
-  acciones: { gap: 8, marginTop: 4 },
+  item: { gap: espacio.xs },
+  estado: { flexDirection: 'row', alignItems: 'center', gap: espacio.xs },
+  estadoTexto: { flexShrink: 1 },
 });

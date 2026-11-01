@@ -1,18 +1,17 @@
-import {
-  ActivityIndicator,
-  Button,
-  Pressable,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
 import PublicacionesPendientes from './PublicacionesPendientes';
+import TarjetaPublicacion from './TarjetaPublicacion';
 import useMisPublicaciones from '../hooks/useMisPublicaciones';
+import { DIAS_AVISO_VENCIMIENTO, diasParaVencer } from '../services/publicaciones';
 import {
-  DIAS_AVISO_VENCIMIENTO,
-  NOMBRE_ESTADO_PUBLICACION,
-  diasParaVencer,
-} from '../services/publicaciones';
+  Aviso,
+  Boton,
+  Cargando,
+  ErrorConReintento,
+  EstadoVacio,
+  GrupoOpciones,
+  Seccion,
+  Texto,
+} from './ui';
 
 const FILTROS = [
   { valor: '', nombre: 'Todas' },
@@ -71,139 +70,62 @@ export default function MisPublicaciones({ navigation }) {
     <>
       <PublicacionesPendientes navigation={navigation} />
 
-    <View style={styles.card}>
-      <Text style={styles.title}>Mis publicaciones</Text>
+      <Seccion titulo="Mis publicaciones">
+        <GrupoOpciones chico opciones={FILTROS} valor={estado} onChange={cambiarEstado} />
 
-      <View style={styles.filtros}>
-        {FILTROS.map((filtro) => (
-          <Pressable
-            key={filtro.valor}
-            onPress={() => cambiarEstado(filtro.valor)}
-            style={[styles.chip, estado === filtro.valor && styles.chipActivo]}
-            accessibilityRole="button"
-            accessibilityState={{ selected: estado === filtro.valor }}
-          >
-            <Text
-              style={[
-                styles.chipTexto,
-                estado === filtro.valor && styles.chipTextoActivo,
-              ]}
-            >
-              {filtro.nombre}
-            </Text>
-          </Pressable>
-        ))}
-      </View>
+        {porVencer > 0 && (
+          <Aviso
+            tono="aviso"
+            icono="clock-alert-outline"
+            mensaje={
+              porVencer === 1
+                ? 'Tenés 1 publicación por vencer. Abrila para renovarla.'
+                : `Tenés ${porVencer} publicaciones por vencer. Abrilas para renovarlas.`
+            }
+          />
+        )}
+      </Seccion>
 
-      {porVencer > 0 && (
-        <Text style={styles.aviso}>
-          {porVencer === 1
-            ? 'Tenés 1 publicación por vencer. Abrila para renovarla.'
-            : `Tenés ${porVencer} publicaciones por vencer. Abrilas para renovarlas.`}
-        </Text>
-      )}
+      {(loading || refrescando) && <Cargando chico />}
 
-      {(loading || refrescando) && <ActivityIndicator color="#1D4ED8" />}
-
-      {error !== '' && (
-        <>
-          <Text style={styles.error}>{error}</Text>
-          <Button title="Reintentar" onPress={recargar} />
-        </>
-      )}
+      {error !== '' && <ErrorConReintento mensaje={error} onReintentar={recargar} />}
 
       {!loading && error === '' && publicaciones.length === 0 && (
-        <Text style={styles.empty}>
-          {estado === ''
-            ? 'Todavía no publicaste nada.'
-            : 'No tenés publicaciones en este estado.'}
-        </Text>
+        <EstadoVacio
+          icono="file-document-outline"
+          mensaje={
+            estado === ''
+              ? 'Todavía no publicaste nada.'
+              : 'No tenés publicaciones en este estado.'
+          }
+        />
       )}
 
       {publicaciones.map((p) => {
         const aviso = vigencia(p);
 
         return (
-          <Pressable
+          <TarjetaPublicacion
             key={p.id}
-            style={styles.item}
-            onPress={() =>
-              navigation.navigate('GestionPublicacion', { publicacionId: p.id })
-            }
-            accessibilityRole="button"
+            publicacion={p}
+            mostrarEstado
+            onPress={() => navigation.navigate('GestionPublicacion', { publicacionId: p.id })}
           >
-            <Text style={styles.itemTitle}>{p.titulo}</Text>
-            <Text style={styles.itemMeta}>
-              {p.tipo === 'encontrado' ? 'Encontrado' : 'Perdido'} ·{' '}
-              {NOMBRE_ESTADO_PUBLICACION[p.estado] || p.estado} · {p.barrio}
-            </Text>
-            {aviso && <Text style={styles.itemAlerta}>{aviso}</Text>}
-          </Pressable>
+            {aviso && <Texto variante="etiqueta" tono="aviso">{aviso}</Texto>}
+          </TarjetaPublicacion>
         );
       })}
 
-      {errorMas !== '' && <Text style={styles.error}>{errorMas}</Text>}
+      {errorMas !== '' && <Aviso tono="peligro" mensaje={errorMas} accessibilityRole="alert" />}
 
       {hayMas && (
-        <Button
-          title={
-            cargandoMas
-              ? 'Cargando…'
-              : `Ver más (${publicaciones.length} de ${total})`
-          }
-          disabled={cargandoMas}
+        <Boton
+          titulo={cargandoMas ? 'Cargando…' : `Ver más (${publicaciones.length} de ${total})`}
+          variante="secundario"
+          cargando={cargandoMas}
           onPress={cargarMas}
         />
       )}
-    </View>
     </>
   );
 }
-
-const styles = StyleSheet.create({
-  card: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 16,
-  },
-  title: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#111827',
-    marginBottom: 12,
-  },
-  filtros: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-    marginBottom: 12,
-  },
-  chip: {
-    borderWidth: 1,
-    borderColor: '#9CA3AF',
-    borderRadius: 16,
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-  },
-  chipActivo: { backgroundColor: '#1D4ED8', borderColor: '#1D4ED8' },
-  chipTexto: { color: '#111827' },
-  chipTextoActivo: { color: '#FFFFFF' },
-  aviso: {
-    backgroundColor: '#FEF3C7',
-    color: '#92400E',
-    borderRadius: 8,
-    padding: 10,
-    marginBottom: 8,
-  },
-  item: {
-    borderTopWidth: 1,
-    borderTopColor: '#E5E7EB',
-    paddingVertical: 12,
-  },
-  itemTitle: { fontSize: 16, color: '#111827' },
-  itemMeta: { fontSize: 14, color: '#6B7280', marginTop: 2 },
-  itemAlerta: { fontSize: 14, color: '#B45309', fontWeight: '600', marginTop: 2 },
-  empty: { color: '#6B7280' },
-  error: { color: '#DC2626', marginBottom: 8 },
-});

@@ -3,63 +3,27 @@ import { estaConectado } from '../services/conexion';
 import { mensajeErrorApi } from '../services/api';
 import { useEffect } from 'react';
 import { useRef, useState } from 'react';
-import {
-  ActivityIndicator,
-  Alert,
-  Button,
-  FlatList,
-  Image,
-  Modal,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { Alert, FlatList, StyleSheet, View } from 'react-native';
 import SearchForm from '../components/SearchForm';
+import TarjetaPublicacion from '../components/TarjetaPublicacion';
 import { useConexion } from '../context/ConexionContext';
 import { useSearch } from '../context/SearchContext';
 import { claveBusqueda, resumenBusqueda } from '../data/searchDemo';
-
-const ICONOS_CATEGORIA = {
-  Documentos: '🪪',
-  Llaves: '🔑',
-  Electrónica: '🎧',
-  Mascotas: '🐕',
-  Ropa: '🧥',
-  Otros: '🎒',
-};
-
-function FotoTarjeta({ uri, categoria }) {
-  const [fallo, setFallo] = useState(false);
-  const mostrarFoto = Boolean(uri) && !fallo;
-
-  if (mostrarFoto) {
-    return (
-      <Image
-        source={{ uri }}
-        style={styles.photo}
-        resizeMode="cover"
-        accessibilityLabel={`Foto de ${categoria}`}
-        onError={() => setFallo(true)}
-      />
-    );
-  }
-
-  return (
-    <View
-      style={[styles.photo, styles.photoPlaceholder]}
-      accessibilityLabel={`Sin foto de ${categoria}`}
-    >
-      <Text style={styles.icon}>{ICONOS_CATEGORIA[categoria] || '📦'}</Text>
-
-      <Text style={styles.photoLabel}>
-        {uri ? 'No se pudo cargar la foto' : 'Sin foto'}
-      </Text>
-    </View>
-  );
-}
+import {
+  AvisoSinConexion,
+  Boton,
+  Cargando,
+  ErrorConReintento,
+  EstadoVacio,
+  Fila,
+  GrupoOpciones,
+  ModalPantalla,
+  Paginacion,
+  Texto,
+  espacio,
+  estilosPantalla,
+  irAPestana,
+} from '../components/ui';
 
 const MENSAJE_ALERTA_SIN_CONEXION =
   'Sin conexión: no se puede guardar la alerta. Podés seguir viendo los resultados y guardarla cuando vuelva la conexión.';
@@ -83,9 +47,9 @@ function UbicacionAproximada({ publicacion }) {
   if (!ubicacion) return null;
 
   return (
-    <Text style={styles.help}>
+    <Texto variante="leyenda" tono="secundario">
       Ubicación aproximada: {ubicacion.latitud}, {ubicacion.longitud}
-    </Text>
+    </Texto>
   );
 }
 
@@ -236,426 +200,233 @@ function ResultadosBusqueda({ route, navigation }) {
     );
   }
 
+  const tituloAlerta = alertaGuardada
+    ? 'Alerta guardada'
+    : alertasGuardando
+      ? 'Guardando alerta…'
+      : 'Guardar búsqueda como alerta';
+
   return (
-    <View style={styles.screen}>
+    <View style={estilosPantalla.pantalla}>
       <FlatList
         ref={listaRef}
         data={publicaciones}
         keyExtractor={(item) => item.id}
-        contentContainerStyle={styles.content}
+        contentContainerStyle={estilosPantalla.contenido}
         ListHeaderComponent={
-          <View style={styles.header}>
+          <View style={styles.encabezado}>
             {esOffline && (
-              <View style={styles.bannerOffline}>
-                <Text style={styles.bannerOfflineIcon}>⚠️</Text>
-                <View style={styles.bannerOfflineTexto}>
-                  <Text style={styles.bannerOfflineTitulo}>Modo sin conexión</Text>
-                  <Text style={styles.bannerOfflineMensaje}>
-                    {sinConexionSinCache
-                      ? 'No hay conexión a internet y no hay resultados guardados en el dispositivo.'
-                      : 'Estos son resultados guardados en el dispositivo, no los de tu búsqueda actual: pueden corresponder a otros filtros y estar desactualizados.'}
-                  </Text>
-                  {!sinConexionSinCache && resultado?.filtrosGuardados &&
-                    typeof resultado.filtrosGuardados.palabras === 'string' && (
-                    <Text style={styles.bannerOfflineMensaje}>
-                      Búsqueda guardada: {resumenBusqueda(resultado.filtrosGuardados)}
-                    </Text>
-                  )}
-                  {!sinConexionSinCache && resultado?.fechaGuardado && (
-                    <Text style={styles.bannerOfflineMensaje}>
-                      Guardados el {fechaHora(resultado.fechaGuardado)}
-                    </Text>
-                  )}
-                  <Button title="Reintentar" onPress={reintentar} />
-                </View>
-              </View>
+              <AvisoSinConexion
+                mensaje={
+                  sinConexionSinCache
+                    ? 'No hay conexión a internet y no hay resultados guardados en el dispositivo.'
+                    : 'Estos son resultados guardados en el dispositivo, no los de tu búsqueda actual: pueden corresponder a otros filtros y estar desactualizados.'
+                }
+                accion={{ titulo: 'Reintentar', onPress: reintentar }}
+              >
+                {!sinConexionSinCache && resultado?.filtrosGuardados &&
+                  typeof resultado.filtrosGuardados.palabras === 'string' && (
+                  <Texto variante="cuerpoChico" tono="aviso">
+                    Búsqueda guardada: {resumenBusqueda(resultado.filtrosGuardados)}
+                  </Texto>
+                )}
+                {!sinConexionSinCache && resultado?.fechaGuardado && (
+                  <Texto variante="cuerpoChico" tono="aviso">
+                    Guardados el {fechaHora(resultado.fechaGuardado)}
+                  </Texto>
+                )}
+              </AvisoSinConexion>
             )}
-            <Text style={styles.title}>
-              {filtros.situacion === 'perdi'
-                ? 'Publicaciones de hallazgos'
-                : 'Publicaciones de pérdidas'}
-            </Text>
 
-            <Text style={styles.help}>
-              {resumenBusqueda(filtros)}
-            </Text>
+            <View style={styles.resumen}>
+              <Texto variante="pantalla">
+                {filtros.situacion === 'perdi'
+                  ? 'Publicaciones de hallazgos'
+                  : 'Publicaciones de pérdidas'}
+              </Texto>
 
-            <Text style={styles.help}>
-              {cargandoResultados
-                ? 'Buscando…'
-                : esOffline
-                  ? `${publicaciones.length} resultados guardados`
-                  : errorBusqueda
-                    ? 'No se pudo completar la búsqueda'
-                    : `${resultado?.total ?? 0} coincidencias`}
-            </Text>
+              <Texto variante="cuerpoChico" tono="secundario">
+                {resumenBusqueda(filtros)}
+              </Texto>
 
-            <Button
-              title={
-                alertaGuardada
-                  ? 'Alerta guardada'
-                  : alertasGuardando
-                    ? 'Guardando alerta…'
-                    : 'Guardar búsqueda como alerta'
-              }
+              <Texto variante="etiqueta" tono="secundario">
+                {cargandoResultados
+                  ? 'Buscando…'
+                  : esOffline
+                    ? `${publicaciones.length} resultados guardados`
+                    : errorBusqueda
+                      ? 'No se pudo completar la búsqueda'
+                      : `${resultado?.total ?? 0} coincidencias`}
+              </Texto>
+            </View>
+
+            <Fila>
+              <Boton
+                titulo="Refinar filtros"
+                icono="filter-variant"
+                variante="secundario"
+                chico
+                flexible
+                onPress={() => setMostrarFiltros(true)}
+              />
+
+              <Boton
+                titulo="Mis alertas"
+                icono="bell-outline"
+                variante="secundario"
+                chico
+                flexible
+                onPress={() => irAPestana(navigation, 'Alertas')}
+              />
+            </Fila>
+
+            <Boton
+              titulo={tituloAlerta}
+              icono="bell-plus-outline"
+              variante="terciario"
+              chico
+              cargando={alertasGuardando}
               disabled={alertaDeshabilitada}
               onPress={guardarBusquedaComoAlerta}
             />
 
             {sinConexion && !alertaGuardada && (
-              <Text accessibilityRole="alert" style={styles.help}>
+              <Texto variante="cuerpoChico" tono="aviso" accessibilityRole="alert">
                 {MENSAJE_ALERTA_SIN_CONEXION}
-              </Text>
+              </Texto>
             )}
 
             {alertasError !== '' && (
-              <View style={styles.header}>
-                <Text accessibilityRole="alert" style={styles.error}>{alertasError}</Text>
-                <Button
-                  title="Reintentar carga de alertas"
+              <View style={styles.resumen}>
+                <Texto variante="cuerpoChico" tono="peligro" accessibilityRole="alert">
+                  {alertasError}
+                </Texto>
+                <Boton
+                  titulo="Reintentar carga de alertas"
+                  variante="terciario"
+                  chico
                   onPress={recargarAlertas}
                   disabled={alertasLoading || alertasGuardando}
                 />
               </View>
             )}
 
-            <Button
-              title="Mis alertas"
-              onPress={() => navigation.navigate('Alertas')}
+            <GrupoOpciones
+              chico
+              opciones={[
+                { valor: 'recientes', nombre: 'Más recientes' },
+                { valor: 'cercanos', nombre: 'Más cercanos' },
+              ]}
+              valor={orden}
+              onChange={elegirOrden}
             />
-
-            <Button
-              title="Refinar filtros"
-              onPress={() => setMostrarFiltros(true)}
-            />
-
-            <View style={styles.order}>
-              <View style={styles.orderButton}>
-                <Button
-                  title={
-                    orden === 'recientes'
-                      ? '✓ Más recientes'
-                      : 'Más recientes'
-                  }
-                  color={
-                    orden === 'recientes'
-                      ? '#1D4ED8'
-                      : '#6B7280'
-                  }
-                  onPress={() => elegirOrden('recientes')}
-                />
-              </View>
-
-              <View style={styles.orderButton}>
-                <Button
-                  title={
-                    orden === 'cercanos'
-                      ? '✓ Más cercanos'
-                      : 'Más cercanos'
-                  }
-                  color={
-                    orden === 'cercanos'
-                      ? '#1D4ED8'
-                      : '#6B7280'
-                  }
-                  onPress={() => elegirOrden('cercanos')}
-                />
-              </View>
-            </View>
 
             {orden === 'cercanos' && (
-              <Text style={styles.help}>
+              <Texto variante="cuerpoChico" tono="secundario">
                 Distancia desde{' '}
                 {filtros.zona || 'tu ubicación'}.
-              </Text>
+              </Texto>
             )}
           </View>
         }
         renderItem={({ item }) => (
-          <Pressable
-            style={styles.card}
-            accessibilityRole="button"
+          <TarjetaPublicacion
+            publicacion={item}
             onPress={() =>
               navigation.navigate('DetallePublicacion', {
                 publicacionId: item.id,
               })
             }
           >
-            <FotoTarjeta
-              uri={item.fotos?.[0]}
-              categoria={item.categoria}
-            />
+            <UbicacionAproximada publicacion={item} />
 
-            <View style={styles.details}>
-              <Text style={styles.type}>
-                {item.tipo === 'encontrado'
-                  ? 'ENCONTRADO'
-                  : 'PERDIDO'}
-              </Text>
-
-              <Text style={styles.cardTitle}>
-                {item.titulo}
-              </Text>
-
-              <Text style={styles.help}>
-                {item.categoria} · {item.barrio}
-              </Text>
-
-              <Text style={styles.help}>
-                Fecha del suceso:{' '}
-                {item.fecha.split('-').reverse().join('/')}
-              </Text>
-
-              <UbicacionAproximada publicacion={item} />
-
-              {orden === 'cercanos' && item.distancia != null && (
-                <Text style={styles.distance}>
-                  A {item.distancia.toFixed(1)} km del punto
-                  de referencia
-                </Text>
-              )}
-            </View>
-          </Pressable>
+            {orden === 'cercanos' && item.distancia != null && (
+              <Texto variante="etiqueta" tono="primario">
+                A {item.distancia.toFixed(1)} km del punto de referencia
+              </Texto>
+            )}
+          </TarjetaPublicacion>
         )}
         ListEmptyComponent={
           cargandoResultados ? (
-            <View style={styles.empty}>
-              <ActivityIndicator size="large" color="#1D4ED8" />
-              <Text style={styles.help}>Buscando publicaciones…</Text>
-            </View>
+            <Cargando etiqueta="Buscando publicaciones…" />
           ) : errorBusqueda ? (
-            <View style={styles.empty}>
-              <Text style={styles.title}>
-                No pudimos cargar los resultados
-              </Text>
-
-              <Text accessibilityRole="alert" style={styles.error}>
-                {errorBusqueda}
-              </Text>
-
-              <Button title="Reintentar" onPress={reintentar} />
-            </View>
+            <ErrorConReintento
+              titulo="No pudimos cargar los resultados"
+              mensaje={errorBusqueda}
+              onReintentar={reintentar}
+            />
           ) : sinConexionSinCache ? (
-            <View style={styles.empty}>
-              <Text style={styles.title}>
-                Sin conexión
-              </Text>
-
-              <Text style={styles.help}>
-                Conectate a internet para ver las publicaciones que
-                coinciden con tu búsqueda.
-              </Text>
-
-              <Button title="Reintentar" onPress={reintentar} />
-            </View>
+            <EstadoVacio
+              icono="wifi-off"
+              tono="aviso"
+              titulo="Sin conexión"
+              mensaje="Conectate a internet para ver las publicaciones que coinciden con tu búsqueda."
+            >
+              <Boton
+                titulo="Reintentar"
+                icono="refresh"
+                variante="secundario"
+                onPress={reintentar}
+              />
+            </EstadoVacio>
           ) : (
-            <View style={styles.empty}>
-              <Text style={styles.title}>
-                No encontramos coincidencias
-              </Text>
-
-              <Text style={styles.help}>
-                Podés ajustar los filtros, publicar lo que te
-                pasó o guardar esta búsqueda como alerta.
-              </Text>
-
-              <Button
-                title={
+            <EstadoVacio
+              icono="magnify"
+              titulo="No encontramos coincidencias"
+              mensaje="Podés ajustar los filtros, publicar lo que te pasó o guardar esta búsqueda como alerta."
+            >
+              <Boton
+                titulo={
                   filtros.situacion === 'perdi'
                     ? 'Publicar mi pérdida'
                     : 'Publicar mi hallazgo'
                 }
+                icono="plus"
                 onPress={publicar}
               />
 
-              <Button
-                title={
-                  alertaGuardada
-                    ? 'Alerta guardada'
-                    : alertasGuardando
-                      ? 'Guardando alerta…'
-                      : 'Guardar búsqueda como alerta'
-                }
+              <Boton
+                titulo={tituloAlerta}
+                icono="bell-plus-outline"
+                variante="secundario"
+                cargando={alertasGuardando}
                 disabled={alertaDeshabilitada}
                 onPress={guardarBusquedaComoAlerta}
               />
-            </View>
+            </EstadoVacio>
           )
         }
         ListFooterComponent={
           hayResultados && !esOffline ? (
-            <View style={styles.pagination}>
-              <Button
-                title="Anterior"
-                disabled={pagina <= 1}
-                onPress={() => cambiarPagina(pagina - 1)}
-              />
-
-              <Text style={styles.page}>
-                Página {pagina} de {totalPaginas}
-              </Text>
-
-              <Button
-                title="Siguiente"
-                disabled={pagina >= totalPaginas}
-                onPress={() => cambiarPagina(pagina + 1)}
-              />
-            </View>
+            <Paginacion
+              pagina={pagina}
+              totalPaginas={totalPaginas}
+              onCambiar={cambiarPagina}
+            />
           ) : null
         }
       />
 
-      <Modal
+      <ModalPantalla
         visible={mostrarFiltros}
-        animationType="slide"
-        onRequestClose={() => setMostrarFiltros(false)}
+        titulo="Refinar filtros"
+        onCerrar={() => setMostrarFiltros(false)}
       >
-        <SafeAreaView style={styles.screen}>
-          <ScrollView
-            contentContainerStyle={styles.content}
-            keyboardShouldPersistTaps="handled"
-          >
-            <Text style={styles.title}>
-              Refinar filtros
-            </Text>
-
-            <Button
-              title="Cancelar"
-              color="#6B7280"
-              onPress={() => setMostrarFiltros(false)}
-            />
-
-            {mostrarFiltros && (
-              <SearchForm
-                key={claveBusqueda(filtros)}
-                initialFilters={filtros}
-                onSubmit={aplicarFiltros}
-                submitLabel="Aplicar filtros"
-              />
-            )}
-          </ScrollView>
-        </SafeAreaView>
-      </Modal>
+        {mostrarFiltros && (
+          <SearchForm
+            key={claveBusqueda(filtros)}
+            initialFilters={filtros}
+            onSubmit={aplicarFiltros}
+            submitLabel="Aplicar filtros"
+          />
+        )}
+      </ModalPantalla>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: {
-    flex: 1,
-    backgroundColor: '#F3F4F6',
-  },
-  content: {
-    padding: 20,
-    gap: 16,
-  },
-  header: {
-    gap: 14,
-    marginBottom: 8,
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#111827',
-  },
-  error: { color: '#991B1B', fontSize: 15 },
-  help: {
-    fontSize: 15,
-    color: '#6B7280',
-    lineHeight: 22,
-  },
-  order: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 12,
-  },
-  orderButton: {
-    flexGrow: 1,
-  },
-  card: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    overflow: 'hidden',
-    marginBottom: 16,
-  },
-  photo: {
-    height: 140,
-    backgroundColor: '#DBEAFE',
-  },
-  photoPlaceholder: {
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: 8,
-  },
-  icon: {
-    fontSize: 48,
-  },
-  photoLabel: {
-    color: '#1D4ED8',
-    fontSize: 13,
-  },
-  details: {
-    padding: 18,
-    gap: 8,
-  },
-  type: {
-    color: '#1D4ED8',
-    fontSize: 12,
-    fontWeight: 'bold',
-  },
-  cardTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#111827',
-  },
-  distance: {
-    color: '#1D4ED8',
-    fontSize: 14,
-  },
-  empty: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 20,
-    gap: 18,
-  },
-  pagination: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 12,
-    marginBottom: 12,
-  },
-  page: {
-    color: '#374151',
-    fontSize: 14,
-  },
-  bannerOffline: {
-    backgroundColor: '#FEF3C7',
-    borderColor: '#F59E0B',
-    borderWidth: 1,
-    borderRadius: 12,
-    padding: 12,
-    marginBottom: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  bannerOfflineIcon: {
-    fontSize: 22,
-  },
-  bannerOfflineTexto: {
-    flex: 1,
-  },
-  bannerOfflineTitulo: {
-    fontSize: 14,
-    fontWeight: 'bold',
-    color: '#92400E',
-    marginBottom: 2,
-  },
-  bannerOfflineMensaje: {
-    fontSize: 13,
-    color: '#78350F',
-    lineHeight: 18,
-  },
+  encabezado: { gap: espacio.sm, marginBottom: espacio.xxs },
+  resumen: { gap: espacio.xxs },
 });

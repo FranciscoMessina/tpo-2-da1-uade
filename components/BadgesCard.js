@@ -1,72 +1,38 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
+import { Icono, Seccion, Texto, espacio, radios, tonos } from './ui';
 
 export default function BadgesCard({ insignias = [] }) {
   return (
-    <View style={styles.card}>
-      <Text style={styles.title}>Insignias</Text>
-
+    <Seccion titulo="Insignias">
       {insignias.length > 0 ? (
         insignias.map((insignia) => (
-          <View key={insignia.id} style={styles.badge}>
-            <Text style={styles.icon}>🏅</Text>
+          <View key={insignia.id} style={styles.insignia}>
+            <View style={styles.icono}>
+              <Icono nombre="medal-outline" tamano={22} color={tonos.aviso.texto} />
+            </View>
 
-            <Text style={styles.name}>{insignia.name}</Text>
-
-            <Text style={styles.description}>
-              {insignia.description}
-            </Text>
+            <View style={styles.datos}>
+              <Texto variante="subtitulo">{insignia.name}</Texto>
+              <Texto variante="cuerpoChico" tono="secundario">{insignia.description}</Texto>
+            </View>
           </View>
         ))
       ) : (
-        <Text style={styles.emptyText}>
-          Todavía no tiene insignias.
-        </Text>
+        <Texto variante="cuerpoChico" tono="secundario">Todavía no tiene insignias.</Texto>
       )}
-    </View>
+    </Seccion>
   );
 }
 
 const styles = StyleSheet.create({
-  card: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 16,
-  },
-  title: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#111827',
-    marginBottom: 16,
-  },
-  badge: {
-    backgroundColor: '#FFFBEB',
-    borderWidth: 1,
-    borderColor: '#FDE68A',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
+  insignia: { flexDirection: 'row', alignItems: 'center', gap: espacio.sm },
+  icono: {
+    width: 40,
+    height: 40,
+    borderRadius: radios.pastilla,
+    backgroundColor: tonos.aviso.fondo,
     alignItems: 'center',
+    justifyContent: 'center',
   },
-  icon: {
-    fontSize: 32,
-    marginBottom: 8,
-  },
-  name: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#92400E',
-    textAlign: 'center',
-  },
-  description: {
-    fontSize: 14,
-    color: '#78350F',
-    textAlign: 'center',
-    marginTop: 6,
-  },
-  emptyText: {
-    fontSize: 16,
-    color: '#6B7280',
-    textAlign: 'center',
-  },
+  datos: { flex: 1, gap: 2 },
 });

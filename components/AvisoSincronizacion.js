@@ -1,7 +1,16 @@
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import { useColaPublicaciones } from '../context/ColaPublicacionesContext';
 import useAuth from '../hooks/useAuth';
 import { textoResumenCola } from '../services/colaPublicaciones';
+import { Icono, Texto, Tocable, espacio, radios, tonos } from './ui';
+
+function AccionFranja({ titulo, color, onPress }) {
+  return (
+    <Tocable radio={radios.chico} hitSlop={12} onPress={onPress}>
+      <Texto variante="etiqueta" style={[styles.accion, { color }]}>{titulo}</Texto>
+    </Tocable>
+  );
+}
 
 // Franja inferior con lo que quedó pendiente de sincronizar: publicaciones recién enviadas,
 // sesión sin validar (restaurada sin conexión) y estado de la cola de publicaciones.
@@ -14,54 +23,73 @@ export default function AvisoSincronizacion({ navegar }) {
   const textoCola = textoResumenCola(resumen);
   if (!textoCola && !sesionOffline && avisos.length === 0) return null;
 
+  const tonoCola = tonos[resumen.conError > 0 ? 'peligro' : 'aviso'];
+
   return (
     <View>
       {avisos.map((aviso) => (
-        <View key={aviso.id} style={[styles.franja, styles.exito]} accessibilityRole="alert">
-          <Text style={styles.textoExito}>Se publicó "{aviso.titulo}".</Text>
+        <View key={aviso.id} style={[styles.franja, { backgroundColor: tonos.exito.fondo }]}>
+          <Icono nombre="check-circle-outline" tamano={20} color={tonos.exito.texto} />
+
+          <Texto
+            variante="cuerpoChico"
+            accessibilityRole="alert"
+            style={[styles.texto, { color: tonos.exito.texto }]}
+          >
+            Se publicó "{aviso.titulo}".
+          </Texto>
 
           {aviso.publicacionId && (
-            <Pressable
-              accessibilityRole="button"
+            <AccionFranja
+              titulo="Ver"
+              color={tonos.exito.texto}
               onPress={() => {
                 descartarAviso(aviso.id);
                 navegar('GestionPublicacion', { publicacionId: aviso.publicacionId });
               }}
-            >
-              <Text style={styles.accion}>Ver</Text>
-            </Pressable>
+            />
           )}
 
-          <Pressable
-            accessibilityRole="button"
+          <Tocable
+            radio={radios.pastilla}
             accessibilityLabel="Cerrar aviso"
+            hitSlop={12}
             onPress={() => descartarAviso(aviso.id)}
           >
-            <Text style={styles.accion}>✕</Text>
-          </Pressable>
+            <Icono nombre="close" tamano={20} color={tonos.exito.texto} />
+          </Tocable>
         </View>
       ))}
 
       {sesionOffline && (
-        <View style={[styles.franja, styles.neutro]}>
-          <Text style={styles.textoNeutro}>
+        <View style={[styles.franja, { backgroundColor: tonos.neutro.fondo }]}>
+          <Icono nombre="wifi-off" tamano={20} color={tonos.neutro.texto} />
+
+          <Texto variante="cuerpoChico" style={[styles.texto, { color: tonos.neutro.texto }]}>
             Sesión sin validar: estás viendo datos guardados en este dispositivo. Se validará al
             volver la conexión.
-          </Text>
+          </Texto>
         </View>
       )}
 
       {textoCola && (
-        <Pressable
-          accessibilityRole="button"
-          style={[styles.franja, resumen.conError > 0 ? styles.error : styles.aviso]}
+        <Tocable
+          radio={0}
+          style={[styles.franja, { backgroundColor: tonoCola.fondo }]}
           onPress={() => navegar('PublicacionesPendientes')}
         >
-          <Text style={resumen.conError > 0 ? styles.textoError : styles.textoAviso}>
+          <Icono
+            nombre={resumen.conError > 0 ? 'alert-circle-outline' : 'cloud-upload-outline'}
+            tamano={20}
+            color={tonoCola.texto}
+          />
+
+          <Texto variante="cuerpoChico" style={[styles.texto, { color: tonoCola.texto }]}>
             {textoCola}
-          </Text>
-          <Text style={styles.accion}>Ver</Text>
-        </Pressable>
+          </Texto>
+
+          <Texto variante="etiqueta" style={[styles.accion, { color: tonoCola.texto }]}>Ver</Texto>
+        </Tocable>
       )}
     </View>
   );
@@ -71,17 +99,11 @@ const styles = StyleSheet.create({
   franja: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-    paddingVertical: 10,
-    paddingHorizontal: 16,
+    gap: espacio.sm,
+    paddingVertical: espacio.xs,
+    paddingHorizontal: espacio.md,
+    minHeight: 44,
   },
-  exito: { backgroundColor: '#DCFCE7' },
-  neutro: { backgroundColor: '#E5E7EB' },
-  aviso: { backgroundColor: '#FEF3C7' },
-  error: { backgroundColor: '#FEE2E2' },
-  textoExito: { flex: 1, color: '#166534', fontSize: 14 },
-  textoNeutro: { flex: 1, color: '#374151', fontSize: 13 },
-  textoAviso: { flex: 1, color: '#92400E', fontSize: 14 },
-  textoError: { flex: 1, color: '#991B1B', fontSize: 14, fontWeight: '600' },
-  accion: { color: '#1D4ED8', fontWeight: 'bold', fontSize: 14 },
+  texto: { flex: 1 },
+  accion: { textDecorationLine: 'underline' },
 });

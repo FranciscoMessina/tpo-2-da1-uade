@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
-import { StyleSheet, Text } from 'react-native';
 import { SEGUNDOS_REENVIO } from '../hooks/useAuth';
-import { AuthButton, AuthField, AuthLink } from './AuthUI';
+import { Boton, Campo, Texto } from './ui';
 
 // Paso de código OTP con reenvío y cuenta regresiva (compartido por
 // Registro y Recuperar contraseña).
@@ -39,12 +38,12 @@ export default function CodeStep({
 
   return (
     <>
-      <Text style={styles.help}>
+      <Texto variante="cuerpoChico" tono="secundario">
         Te enviamos un código de 6 dígitos a {email}. (Prueba: 123456; con
         000000 se simula un código expirado.)
-      </Text>
-      <AuthField
-        label="Código de verificación"
+      </Texto>
+      <Campo
+        etiqueta="Código de verificación"
         value={codigo}
         onChangeText={(t) => setCodigo(t.replace(/\D/g, '').slice(0, 6))}
         error={errorLocal}
@@ -53,19 +52,15 @@ export default function CodeStep({
         placeholder="000000"
         autoComplete="one-time-code"
       />
-      <AuthButton title="Verificar código" onPress={verificar} loading={loading} />
-      <AuthLink
-        title={
-          segundos > 0 ? `Reenviar código en ${segundos}s` : 'Reenviar código'
-        }
+      <Boton titulo="Verificar código" onPress={verificar} cargando={loading} />
+      <Boton
+        titulo={segundos > 0 ? `Reenviar código en ${segundos}s` : 'Reenviar código'}
+        variante="terciario"
+        chico
         disabled={segundos > 0 || loading}
         onPress={reenviar}
       />
-      <AuthLink title="Cambiar email" onPress={onChangeEmail} />
+      <Boton titulo="Cambiar email" variante="terciario" chico onPress={onChangeEmail} />
     </>
   );
 }
-
-const styles = StyleSheet.create({
-  help: { fontSize: 14, color: '#6B7280', marginBottom: 16, lineHeight: 20 },
-});

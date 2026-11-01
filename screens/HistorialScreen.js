@@ -1,9 +1,22 @@
 import { useCallback, useState } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
-import { ActivityIndicator, Button, FlatList, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { FlatList, StyleSheet, View } from 'react-native';
 import CasoResuelto from '../components/CasoResuelto';
 import { obtenerHistorial } from '../services/historial';
 import { mensajeErrorApi } from '../services/api';
+import {
+  Boton,
+  Campo,
+  Cargando,
+  ErrorConReintento,
+  EstadoVacio,
+  Paginacion,
+  Pestanas,
+  Texto,
+  colores,
+  espacio,
+  estilosPantalla,
+} from '../components/ui';
 
 function fechaValida(fecha) {
   return /^\d{4}-\d{2}-\d{2}$/.test(fecha) &&
@@ -52,65 +65,100 @@ export default function HistorialScreen({ navigation }) {
   function recargar() { setActualizacion((n) => n + 1); }
 
   return (
-    <View style={styles.screen}>
+    <View style={estilosPantalla.pantalla}>
+      <Pestanas
+        opciones={[
+          { valor: 'devolvi', nombre: 'Devolví' },
+          { valor: 'recupere', nombre: 'Recuperé' },
+        ]}
+        valor={tipo}
+        onChange={(valor) => {
+          setTipo(valor);
+          setPagina(1);
+        }}
+      />
+
       <View style={styles.filtros}>
+        <Texto variante="etiqueta" tono="secundario">Fecha de devolución (AAAA-MM-DD)</Texto>
+
         <View style={styles.fila}>
-          {[['devolvi', 'Devolví'], ['recupere', 'Recuperé']].map(([valor, texto]) => (
-            <Pressable key={valor} accessibilityRole="button" accessibilityState={{ selected: tipo === valor }}
-              style={[styles.tab, tipo === valor && styles.tabActiva]}
-              onPress={() => { setTipo(valor); setPagina(1); }}>
-              <Text style={styles.tabTexto}>{texto}</Text>
-            </Pressable>
-          ))}
+          <Campo
+            estilo={styles.fecha}
+            placeholder="Desde"
+            accessibilityLabel="Fecha desde"
+            value={desde}
+            onChangeText={setDesde}
+            maxLength={10}
+          />
+          <Campo
+            estilo={styles.fecha}
+            placeholder="Hasta"
+            accessibilityLabel="Fecha hasta"
+            value={hasta}
+            onChangeText={setHasta}
+            maxLength={10}
+          />
         </View>
-        <Text>Fecha de devolución (AAAA-MM-DD)</Text>
+
+        {!!errorFiltro && <Texto variante="cuerpoChico" tono="peligro">{errorFiltro}</Texto>}
+
         <View style={styles.fila}>
-          <TextInput style={styles.input} placeholder="Desde" accessibilityLabel="Fecha desde"
-            value={desde} onChangeText={setDesde} maxLength={10} />
-          <TextInput style={styles.input} placeholder="Hasta" accessibilityLabel="Fecha hasta"
-            value={hasta} onChangeText={setHasta} maxLength={10} />
-        </View>
-        {!!errorFiltro && <Text style={styles.error}>{errorFiltro}</Text>}
-        <View style={styles.fila}>
-          <Button title="Filtrar" onPress={aplicarFiltros} />
-          <Button title="Limpiar fechas" onPress={() => {
-            setDesde(''); setHasta(''); setFiltros({}); setPagina(1); setErrorFiltro('');
-          }} />
+          <Boton titulo="Filtrar" variante="secundario" chico flexible onPress={aplicarFiltros} />
+          <Boton
+            titulo="Limpiar fechas"
+            variante="terciario"
+            chico
+            flexible
+            onPress={() => {
+              setDesde('');
+              setHasta('');
+              setFiltros({});
+              setPagina(1);
+              setErrorFiltro('');
+            }}
+          />
         </View>
       </View>
-      {cargando ? <ActivityIndicator style={styles.center} size="large" color="#1D4ED8" /> : error ? (
-        <View style={styles.center}>
-          <Text style={styles.error}>{error}</Text>
-          <Button title="Reintentar" onPress={recargar} />
+
+      {cargando ? (
+        <Cargando pantalla />
+      ) : error ? (
+        <View style={estilosPantalla.centrado}>
+          <ErrorConReintento mensaje={error} onReintentar={recargar} />
         </View>
       ) : (
-        <FlatList data={resultado.items} keyExtractor={(item) => item.id}
-          contentContainerStyle={styles.lista} refreshing={cargando} onRefresh={recargar}
+        <FlatList
+          data={resultado.items}
+          keyExtractor={(item) => item.id}
+          contentContainerStyle={estilosPantalla.contenido}
+          refreshing={cargando}
+          onRefresh={recargar}
           keyboardShouldPersistTaps="handled"
-          renderItem={({ item }) => <CasoResuelto caso={item} navigation={navigation} onGuardar={recargar} />}
-          ListEmptyComponent={<Text style={styles.center}>No hay casos resueltos para estos filtros.</Text>}
+          renderItem={({ item }) => (
+            <CasoResuelto caso={item} navigation={navigation} onGuardar={recargar} />
+          )}
+          ListEmptyComponent={
+            <EstadoVacio icono="history" mensaje="No hay casos resueltos para estos filtros." />
+          }
           ListFooterComponent={resultado.totalPages > 1 ? (
-            <View style={styles.paginacion}>
-              <Button title="Anterior" disabled={pagina === 1} onPress={() => setPagina(pagina - 1)} />
-              <Text>{pagina} / {resultado.totalPages}</Text>
-              <Button title="Siguiente" disabled={pagina >= resultado.totalPages} onPress={() => setPagina(pagina + 1)} />
-            </View>
-          ) : null} />
+            <Paginacion
+              pagina={pagina}
+              totalPaginas={resultado.totalPages}
+              onCambiar={setPagina}
+            />
+          ) : null}
+        />
       )}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: '#F3F4F6' },
-  filtros: { padding: 16, gap: 10, backgroundColor: '#FFFFFF' },
-  fila: { flexDirection: 'row', gap: 12 },
-  tab: { flex: 1, padding: 12, alignItems: 'center', borderBottomWidth: 3, borderBottomColor: '#E5E7EB' },
-  tabActiva: { borderBottomColor: '#1D4ED8', backgroundColor: '#DBEAFE' },
-  tabTexto: { fontWeight: '600', color: '#1D4ED8' },
-  input: { flex: 1, borderWidth: 1, borderColor: '#D1D5DB', borderRadius: 8, padding: 10, color: '#111827' },
-  lista: { padding: 16, gap: 16 },
-  center: { padding: 24, textAlign: 'center' },
-  error: { color: '#B91C1C', marginBottom: 8 },
-  paginacion: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 12 },
+  filtros: {
+    padding: espacio.md,
+    gap: espacio.xs,
+    backgroundColor: colores.superficie,
+  },
+  fila: { flexDirection: 'row', gap: espacio.xs },
+  fecha: { flex: 1 },
 });

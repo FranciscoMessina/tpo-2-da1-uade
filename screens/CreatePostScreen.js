@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Button, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { View } from 'react-native';
 import FormularioPublicacion, { FRANJAS } from '../components/FormularioPublicacion';
 import useAuth from '../hooks/useAuth';
 import useBorradorPublicacion from '../hooks/useBorradorPublicacion';
@@ -10,6 +10,15 @@ import {
   leerCola,
   valoresDesdeDatos,
 } from '../services/colaPublicaciones';
+import {
+  Aviso,
+  Boton,
+  Cargando,
+  EstadoVacio,
+  Pantalla,
+  Tarjeta,
+  estilosPantalla,
+} from '../components/ui';
 
 export default function CreatePostScreen({ route, navigation }) {
   const { usuario } = useAuth();
@@ -81,140 +90,118 @@ export default function CreatePostScreen({ route, navigation }) {
   }
 
   if (publicada) {
+    const franja = FRANJAS.find((f) => f.valor === publicada.franja)?.nombre;
+    const lugar = publicada.barrio || 'Ubicación actual';
+    const fecha = publicada.fecha.split('-').reverse().join('/');
+
     return (
-      <ScrollView contentContainerStyle={styles.content}>
-        <View style={styles.section}>
-          <Text style={styles.confirmIcon}>✅</Text>
+      <Pantalla>
+        <Tarjeta>
+          <EstadoVacio
+            icono="check-circle-outline"
+            tono="exito"
+            titulo={publicada.tipo === 'perdido' ? '¡Pérdida publicada!' : '¡Hallazgo publicado!'}
+            mensaje={`Tu publicación "${publicada.titulo}" ya está registrada. Te avisaremos si aparece una coincidencia.
 
-          <Text style={styles.title}>
-            {publicada.tipo === 'perdido'
-              ? '¡Pérdida publicada!'
-              : '¡Hallazgo publicado!'}
-          </Text>
+${publicada.categoria} · ${lugar} · ${fecha} · ${franja}
 
-          <Text style={styles.help}>
-            Tu publicación "{publicada.titulo}" ya está
-            registrada. Te avisaremos si aparece una coincidencia.
-          </Text>
+${publicada.fotos.length} foto(s) adjunta(s).`}
+          >
+            <Boton
+              titulo="Ver mi publicación"
+              onPress={() =>
+                navigation.replace('GestionPublicacion', {
+                  publicacionId: publicada.id,
+                })
+              }
+            />
 
-          <Text style={styles.help}>
-            {publicada.categoria} ·{' '}
-            {publicada.barrio || 'Ubicación actual'} ·{' '}
-            {publicada.fecha.split('-').reverse().join('/')} ·{' '}
-            {FRANJAS.find((f) => f.valor === publicada.franja)?.nombre}
-          </Text>
-
-          <Text style={styles.help}>
-            {publicada.fotos.length} foto(s) adjunta(s).
-          </Text>
-        </View>
-
-        <Button
-          title="Ver mi publicación"
-          onPress={() =>
-            navigation.replace('GestionPublicacion', {
-              publicacionId: publicada.id,
-            })
-          }
-        />
-
-        <Button
-          title="Volver al buscador"
-          color="#6B7280"
-          onPress={() => navigation.popToTop()}
-        />
-      </ScrollView>
+            <Boton
+              titulo="Volver al buscador"
+              variante="terciario"
+              onPress={() => navigation.popToTop()}
+            />
+          </EstadoVacio>
+        </Tarjeta>
+      </Pantalla>
     );
   }
 
   if (crear.encolada) {
     return (
-      <ScrollView contentContainerStyle={styles.content}>
-        <View style={styles.section}>
-          <Text style={styles.confirmIcon}>📥</Text>
+      <Pantalla>
+        <Tarjeta>
+          <EstadoVacio
+            icono="tray-arrow-down"
+            titulo="Publicación guardada"
+            mensaje={'Quedó guardada en tu dispositivo y se enviará sola cuando haya conexión. Te avisamos cuando se publique. Podés seguir el estado en "Publicaciones pendientes".'}
+          >
+            <Boton
+              titulo="Ver publicaciones pendientes"
+              onPress={() => navigation.replace('PublicacionesPendientes')}
+            />
 
-          <Text style={styles.title}>Publicación guardada</Text>
-
-          <Text style={styles.help}>
-            Quedó guardada en tu dispositivo y se enviará sola cuando haya conexión.
-            Te avisamos cuando se publique. Podés seguir el estado en "Publicaciones
-            pendientes".
-          </Text>
-        </View>
-
-        <Button
-          title="Ver publicaciones pendientes"
-          onPress={() => navigation.replace('PublicacionesPendientes')}
-        />
-
-        <Button
-          title="Volver al buscador"
-          color="#6B7280"
-          onPress={() => navigation.popToTop()}
-        />
-      </ScrollView>
+            <Boton
+              titulo="Volver al buscador"
+              variante="terciario"
+              onPress={() => navigation.popToTop()}
+            />
+          </EstadoVacio>
+        </Tarjeta>
+      </Pantalla>
     );
   }
 
   if (estadoPendiente === 'cargando' || (!pendienteId && borrador.cargando)) {
-    return (
-      <View style={styles.center}>
-        <ActivityIndicator size="large" color="#1D4ED8" />
-      </View>
-    );
+    return <Cargando pantalla />;
   }
 
   if (estadoPendiente === 'no-disponible') {
     return (
-      <View style={styles.center}>
-        <Text style={styles.help}>
-          Esta publicación ya no está en la lista de pendientes o se está enviando.
-        </Text>
-        <Button title="Volver" onPress={() => navigation.goBack()} />
+      <View style={estilosPantalla.centrado}>
+        <EstadoVacio
+          icono="tray-remove"
+          mensaje="Esta publicación ya no está en la lista de pendientes o se está enviando."
+        >
+          <Boton titulo="Volver" variante="secundario" onPress={() => navigation.goBack()} />
+        </EstadoVacio>
       </View>
     );
   }
 
   if (borrador.existente) {
     const { valores, guardadoAt } = borrador.existente;
+    const titulo = valores.titulo.trim() ? `"${valores.titulo.trim()}" · ` : '';
+    const fotos = valores.fotos.length > 0 ? ` · ${valores.fotos.length} foto(s)` : '';
 
     return (
-      <ScrollView contentContainerStyle={styles.content}>
-        <View style={styles.section}>
-          <Text style={styles.confirmIcon}>📝</Text>
+      <Pantalla>
+        <Tarjeta>
+          <EstadoVacio
+            icono="file-document-edit-outline"
+            titulo="Tenés un borrador sin publicar"
+            mensaje={`${titulo}guardado ${textoAntiguedad(guardadoAt)}${fotos}`}
+          >
+            <Boton titulo="Retomar borrador" onPress={retomarBorrador} />
 
-          <Text style={styles.title}>Tenés un borrador sin publicar</Text>
-
-          <Text style={styles.help}>
-            {valores.titulo.trim() ? `"${valores.titulo.trim()}" · ` : ''}
-            guardado {textoAntiguedad(guardadoAt)}
-            {valores.fotos.length > 0 ? ` · ${valores.fotos.length} foto(s)` : ''}
-          </Text>
-        </View>
-
-        <Button title="Retomar borrador" onPress={retomarBorrador} />
-
-        <Button
-          title="Descartar y empezar de nuevo"
-          color="#DC2626"
-          onPress={borrador.descartar}
-        />
-      </ScrollView>
+            <Boton
+              titulo="Descartar y empezar de nuevo"
+              variante="peligro"
+              onPress={borrador.descartar}
+            />
+          </EstadoVacio>
+        </Tarjeta>
+      </Pantalla>
     );
   }
 
   return (
-    <ScrollView
-      contentContainerStyle={styles.content}
-      keyboardShouldPersistTaps="handled"
-    >
+    <Pantalla>
       {pendienteId && (
-        <View style={styles.section}>
-          <Text style={styles.help}>
-            Editá la publicación y volvé a guardarla: se enviará con la próxima
-            conexión disponible.
-          </Text>
-        </View>
+        <Aviso
+          tono="info"
+          mensaje="Editá la publicación y volvé a guardarla: se enviará con la próxima conexión disponible."
+        />
       )}
 
       <FormularioPublicacion
@@ -228,40 +215,6 @@ export default function CreatePostScreen({ route, navigation }) {
         copiarFoto={borrador.copiarFoto}
         alQuitarFoto={borrador.quitarFoto}
       />
-    </ScrollView>
+    </Pantalla>
   );
 }
-
-const styles = StyleSheet.create({
-  content: {
-    padding: 20,
-    gap: 16,
-    backgroundColor: '#F3F4F6',
-  },
-  center: {
-    flex: 1,
-    padding: 20,
-    gap: 16,
-    justifyContent: 'center',
-    backgroundColor: '#F3F4F6',
-  },
-  section: {
-    backgroundColor: '#FFFFFF',
-    padding: 20,
-    borderRadius: 16,
-    gap: 12,
-  },
-  title: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#111827',
-  },
-  help: {
-    fontSize: 14,
-    color: '#6B7280',
-    lineHeight: 20,
-  },
-  confirmIcon: {
-    fontSize: 48,
-  },
-});

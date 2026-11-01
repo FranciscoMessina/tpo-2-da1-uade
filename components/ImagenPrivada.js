@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Image, StyleSheet, View } from 'react-native';
 import { api, API_URL } from '../services/api';
+import { Boton, Texto, colores, espacio, radios, tonos } from './ui';
 
 const BASE_URL = API_URL.replace(/\/+$/, '');
 const RUTA_PRIVADA = '/uploads/pruebas/';
@@ -41,7 +42,9 @@ export default function ImagenPrivada({
   if (destino.privada && !token) {
     return (
       <View style={[styles.contenedor, style]}>
-        <Text style={styles.error}>Iniciá sesión para ver esta imagen.</Text>
+        <Texto variante="cuerpoChico" tono="peligro" centrado>
+          Iniciá sesión para ver esta imagen.
+        </Texto>
       </View>
     );
   }
@@ -49,13 +52,15 @@ export default function ImagenPrivada({
   if (fallo) {
     return (
       <View style={[styles.contenedor, style]}>
-        <Text style={styles.error}>No pudimos cargar la imagen.</Text>
-        <Pressable
-          accessibilityRole="button"
+        <Texto variante="cuerpoChico" tono="peligro" centrado>
+          No pudimos cargar la imagen.
+        </Texto>
+        <Boton
+          titulo="Reintentar"
+          variante="terciario"
+          chico
           onPress={() => setIntento((n) => n + 1)}
-        >
-          <Text style={styles.reintentar}>Reintentar</Text>
-        </Pressable>
+        />
       </View>
     );
   }
@@ -81,7 +86,7 @@ export default function ImagenPrivada({
         onError={() => setFallo(true)}
       />
       {cargando && (
-        <ActivityIndicator style={StyleSheet.absoluteFill} color="#1D4ED8" />
+        <ActivityIndicator style={StyleSheet.absoluteFill} color={colores.primario} />
       )}
     </View>
   );
@@ -89,13 +94,12 @@ export default function ImagenPrivada({
 
 const styles = StyleSheet.create({
   contenedor: {
-    backgroundColor: '#E5E7EB',
-    borderRadius: 8,
+    backgroundColor: tonos.neutro.fondo,
+    borderRadius: radios.chico,
     overflow: 'hidden',
     justifyContent: 'center',
     alignItems: 'center',
-    gap: 6,
+    gap: espacio.xxs,
+    padding: espacio.xs,
   },
-  error: { color: '#991B1B', fontSize: 13, textAlign: 'center', padding: 8 },
-  reintentar: { color: '#1D4ED8', fontSize: 13, fontWeight: '600' },
 });
