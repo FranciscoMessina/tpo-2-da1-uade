@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useConexion } from '../context/ConexionContext';
 import useAuth, { emailValido, validarContraseña } from '../hooks/useAuth';
 import CodeStep from '../components/CodeStep';
@@ -30,6 +30,10 @@ export default function ForgotPasswordScreen({ navigation }) {
   const [confirmacion, setConfirmacion] = useState('');
   const [errores, setErrores] = useState({});
   const [listo, setListo] = useState(false);
+
+  // El error vive en el contexto de auth: sin esto, un aviso de este flujo (p. ej. el
+  // de reenvío de código) reaparecería en el login al salir de la pantalla.
+  useEffect(() => limpiarError, [limpiarError]);
 
   async function enviarEmail() {
     if (!emailValido(email)) {
