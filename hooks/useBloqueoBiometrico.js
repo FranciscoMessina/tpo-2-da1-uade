@@ -5,6 +5,7 @@ import {
   leerBiometriaActiva,
   verificarDisponibilidadBiometrica,
 } from './useConfiguracion';
+import { hayActividadExterna } from '../services/actividadExterna';
 
 export default function useBloqueoBiometrico() {
   const [bloqueado, setBloqueado] = useState(true);
@@ -64,6 +65,8 @@ export default function useBloqueoBiometrico() {
     });
 
     let anterior = AppState.currentState;
+    // La salida a la cámara o la galería no es una salida de la app: no se vuelve a pedir la huella
+    let salidaEsperada = false;
 
     const sub = AppState.addEventListener('change', async (estado) => {
       const previo = anterior;
@@ -71,8 +74,18 @@ export default function useBloqueoBiometrico() {
 
       try {
         if (estado === 'background') {
+          if (hayActividadExterna()) {
+            salidaEsperada = true;
+            return;
+          }
+
           if (await leerBiometriaActiva()) setBloqueado(true);
         } else if (estado === 'active' && previo === 'background') {
+          if (salidaEsperada) {
+            salidaEsperada = false;
+            return;
+          }
+
           await aplicarBloqueo(await leerBiometriaActiva());
         }
       } catch {

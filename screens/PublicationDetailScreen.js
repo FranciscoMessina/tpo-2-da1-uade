@@ -11,6 +11,7 @@ import {
   useWindowDimensions,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
+import { conActividadExterna } from '../services/actividadExterna';
 import ReputationCard from '../components/ReputationCard';
 import { fechaSuceso } from '../components/TarjetaPublicacion';
 import usePublicacion from '../hooks/usePublicacion';
@@ -147,11 +148,11 @@ function DetallePublicacion({ route, navigation }) {
 
   async function elegirFoto() {
     try {
-      const resultado = await ImagePicker.launchImageLibraryAsync({
+      const resultado = await conActividadExterna(() => ImagePicker.launchImageLibraryAsync({
         mediaTypes: ['images'],
         allowsMultipleSelection: false,
         quality: 0.8,
-      });
+      }));
 
       if (!resultado.canceled && resultado.assets?.length) {
         setFotoUri(resultado.assets[0].uri);

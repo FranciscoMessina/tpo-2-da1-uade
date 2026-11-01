@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { Alert, Image, StyleSheet, View } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
+import { conActividadExterna } from '../services/actividadExterna';
+import CamaraModal from './CamaraModal';
 import {
   fechaLocal,
   fechaValida,
@@ -134,6 +136,7 @@ export default function FormularioPublicacion({
   );
   const [errores, setErrores] = useState({});
   const [errorFotos, setErrorFotos] = useState('');
+  const [camaraAbierta, setCamaraAbierta] = useState(false);
 
   const {
     obtener,
@@ -228,12 +231,12 @@ export default function FormularioPublicacion({
     }
 
     try {
-      const resultado = await ImagePicker.launchImageLibraryAsync({
+      const resultado = await conActividadExterna(() => ImagePicker.launchImageLibraryAsync({
         mediaTypes: ['images'],
         allowsMultipleSelection: true,
         selectionLimit: disponibles,
         quality: 0.7,
-      });
+      }));
 
       if (!resultado.canceled) {
         await agregarUris(resultado.assets.map((asset) => asset.uri));
@@ -243,7 +246,7 @@ export default function FormularioPublicacion({
     }
   }
 
-  async function sacarFoto() {
+  function abrirCamara() {
     setErrorFotos('');
 
     if (fotos.length >= MAX_FOTOS) {
@@ -251,28 +254,16 @@ export default function FormularioPublicacion({
       return;
     }
 
+    setCamaraAbierta(true);
+  }
+
+  async function usarFotoDeCamara(uri) {
+    setCamaraAbierta(false);
+
     try {
-      const permiso = await ImagePicker.requestCameraPermissionsAsync();
-
-      if (!permiso.granted) {
-        setErrorFotos(
-          permiso.canAskAgain
-            ? 'Necesitamos tu permiso para usar la cámara. Podés elegir fotos de la galería.'
-            : 'El permiso de la cámara está bloqueado. Habilitalo desde los ajustes del dispositivo o elegí fotos de la galería.'
-        );
-        return;
-      }
-
-      const resultado = await ImagePicker.launchCameraAsync({
-        mediaTypes: ['images'],
-        quality: 0.7,
-      });
-
-      if (!resultado.canceled && resultado.assets?.length) {
-        await agregarUris([resultado.assets[0].uri]);
-      }
-    } catch (e) {
-      setErrorFotos('No pudimos abrir la cámara.');
+      await agregarUris([uri]);
+    } catch {
+      setErrorFotos('No pudimos guardar la foto. Probá de nuevo.');
     }
   }
 
@@ -558,7 +549,7 @@ export default function FormularioPublicacion({
           icono="camera-outline"
           variante="secundario"
           disabled={fotos.length >= MAX_FOTOS}
-          onPress={sacarFoto}
+          onPress={abrirCamara}
         />
         <Boton
           titulo="Elegir de la galería"
@@ -569,6 +560,12 @@ export default function FormularioPublicacion({
         />
 
         {!!errorFotos && <Aviso tono="peligro" mensaje={errorFotos} />}
+
+        <CamaraModal
+          visible={camaraAbierta}
+          onCerrar={() => setCamaraAbierta(false)}
+          onFoto={usarFotoDeCamara}
+        />
       </Seccion>
 
       {esHallazgo && (
