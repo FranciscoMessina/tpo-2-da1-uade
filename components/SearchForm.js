@@ -46,7 +46,9 @@ export default function SearchForm({
   const [radioEscrito, setRadioEscrito] = useState(null);
   const [error, setError] = useState('');
   // Barrio más cercano al punto de GPS: solo informa, la búsqueda sigue siendo por radio.
-  const [cercaDe, setCercaDe] = useState('');
+  // null = sin consulta; { buscando: true } mientras se calcula; { barrio } con el resultado,
+  // donde barrio es null si ninguno del catálogo queda cerca.
+  const [cerca, setCerca] = useState(null);
   const consultaGps = useRef(0);
   // Mismo catálogo que el formulario de publicación; sin conexión, el último válido.
   // SelectorBarrio lo inicia por su cuenta.
@@ -74,7 +76,7 @@ export default function SearchForm({
     consultaGps.current += 1;
     setError('');
     setRadioEscrito(null);
-    setCercaDe('');
+    setCerca(null);
 
     setFiltros(({ radioKm: _radioKm, ...actuales }) => ({
       ...actuales,
@@ -100,10 +102,10 @@ export default function SearchForm({
 
     if (coords) {
       setRadioEscrito(null);
-      setCercaDe('');
+      setCerca({ buscando: true });
       const consulta = ++consultaGps.current;
       describirUbicacion(coords).then(({ barrio }) => {
-        if (consulta === consultaGps.current) setCercaDe(barrio ?? '');
+        if (consulta === consultaGps.current) setCerca({ barrio });
       });
 
       // El centro queda fijo en este punto. Un radio ya elegido se conserva; si no hay, o es
@@ -207,9 +209,17 @@ export default function SearchForm({
           </Texto>
         )}
 
-        {filtros.ubicacion && cercaDe !== '' && (
+        {filtros.ubicacion && cerca?.buscando && (
           <Texto variante="cuerpoChico" tono="secundario">
-            Cerca de: {cercaDe}
+            Buscando el barrio más cercano…
+          </Texto>
+        )}
+
+        {filtros.ubicacion && cerca && !cerca.buscando && (
+          <Texto variante="cuerpoChico" tono="secundario">
+            {cerca.barrio
+              ? `Cerca de: ${cerca.barrio}`
+              : 'No estás cerca de ningún barrio disponible.'}
           </Texto>
         )}
 

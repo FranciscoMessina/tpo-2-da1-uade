@@ -4,6 +4,7 @@ import { fechaLocal, filtrosIniciales } from '../../data/busqueda';
 import { elegirBarrio } from '../components/ayudas';
 import { barrioMasCercano } from '../../services/catalogos';
 import useUbicacionActual from '../../hooks/useUbicacionActual';
+import * as Location from 'expo-location';
 
 // El GPS se reemplaza: la prueba no pide permisos ni usa el dispositivo.
 jest.mock('../../hooks/useUbicacionActual', () => ({
@@ -19,6 +20,8 @@ jest.mock('expo-location', () => ({
 const deDate = (fecha) => fechaLocal(fecha);
 
 const CENTRO = { latitud: -34.6, longitud: -58.4 };
+// Mountain View: lejos de todos los barrios del catálogo.
+const LEJOS = { latitud: 37.42, longitud: -122.08 };
 const ETIQUETA_RADIO = 'Radio de búsqueda en kilómetros';
 
 let obtener;
@@ -231,6 +234,50 @@ describe('SearchForm: barrio cercano al GPS', () => {
     expect(await screen.findByText(`Cerca de: ${esperado}`)).toBeTruthy();
     buscar();
     expect(onSubmit.mock.calls[0][0]).toMatchObject({ zona: '', ubicacion: CENTRO, radioKm: 10 });
+  });
+
+  test('mientras busca el barrio avisa que lo está buscando', async () => {
+    const espera = {};
+    jest.mocked(Location.reverseGeocodeAsync).mockReturnValueOnce(
+      new Promise((resolver) => {
+        espera.resolver = resolver;
+      })
+    );
+    montar();
+
+    await usarGps();
+
+    expect(screen.getByText('Buscando el barrio más cercano…')).toBeTruthy();
+    expect(screen.queryByText(/Cerca de:/)).toBeNull();
+
+    await act(async () => espera.resolver([]));
+
+    expect(screen.queryByText('Buscando el barrio más cercano…')).toBeNull();
+    expect(screen.getByText(/Cerca de:/)).toBeTruthy();
+  });
+
+  test('si ningún barrio queda cerca lo dice', async () => {
+    obtener.mockResolvedValue(LEJOS);
+    montar();
+
+    await usarGps();
+
+    expect(
+      await screen.findByText('No estás cerca de ningún barrio disponible.')
+    ).toBeTruthy();
+    expect(screen.queryByText('Buscando el barrio más cercano…')).toBeNull();
+    expect(screen.queryByText(/Cerca de:/)).toBeNull();
+  });
+
+  test('elegir un barrio quita el aviso de que no hay barrio cercano', async () => {
+    obtener.mockResolvedValue(LEJOS);
+    montar();
+    await usarGps();
+    await screen.findByText('No estás cerca de ningún barrio disponible.');
+
+    elegirBarrio('Recoleta');
+
+    expect(screen.queryByText('No estás cerca de ningún barrio disponible.')).toBeNull();
   });
 
   test('elegir «Sin barrio» con el GPS activo no lo quita', async () => {
