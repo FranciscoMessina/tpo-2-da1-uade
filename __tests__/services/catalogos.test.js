@@ -390,17 +390,21 @@ describe('SearchForm y FormularioPublicacion usan el mismo catálogo', () => {
       />
     );
 
-  const montarPublicacion = () => render(<FormularioPublicacion onEnviar={jest.fn()} />);
+  // La publicación es un asistente: las categorías están en el paso 3 y el barrio en el 4.
+  const montarPublicacion = () =>
+    render(<FormularioPublicacion valoresIniciales={{ paso: 3 }} onEnviar={jest.fn()} />);
 
-  // La búsqueda ofrece los barrios en un desplegable con buscador (la lista solo dibuja unas filas
-  // por vez); la publicación, por ahora, los muestra todos.
+  // Ambos formularios ofrecen los barrios en un desplegable con buscador (la lista solo dibuja unas
+  // filas por vez).
   const verBarrios = (formulario) => {
-    if (formulario === 'búsqueda') abrirSelectorBarrio();
+    if (formulario === 'publicación') {
+      screen.unmount();
+      render(<FormularioPublicacion valoresIniciales={{ paso: 4 }} onEnviar={jest.fn()} />);
+    }
+    abrirSelectorBarrio();
   };
   const ofrece = (formulario, barrio) => {
-    if (formulario === 'búsqueda') {
-      fireEvent.changeText(screen.getByLabelText('Buscar barrio'), barrio);
-    }
+    fireEvent.changeText(screen.getByLabelText('Buscar barrio'), barrio);
 
     return screen.queryByText(barrio) !== null;
   };
@@ -411,16 +415,16 @@ describe('SearchForm y FormularioPublicacion usan el mismo catálogo', () => {
   ])('el formulario de %s ofrece el catálogo incluido sin conexión', (nombre, montar) => {
     simularConectividad(false);
     montar();
-    verBarrios(nombre);
 
     for (const categoria of CATEGORIAS) {
       expect(screen.getByText(categoria)).toBeTruthy();
     }
+    expect(screen.queryByText('Bicicletas')).toBeNull();
+    verBarrios(nombre);
     for (const zona of ZONAS) {
       expect(ofrece(nombre, zona.nombre)).toBe(true);
     }
     expect(ofrece(nombre, 'Ciudad Evita')).toBe(false);
-    expect(screen.queryByText('Bicicletas')).toBeNull();
   });
 
   test.each([
@@ -434,10 +438,9 @@ describe('SearchForm y FormularioPublicacion usan el mismo catálogo', () => {
     await act(async () => {
       await actualizarCatalogo();
     });
-    verBarrios(nombre);
-
-    expect(ofrece(nombre, 'Ciudad Evita')).toBe(true);
     expect(screen.getByText('Bicicletas')).toBeTruthy();
+    verBarrios(nombre);
+    expect(ofrece(nombre, 'Ciudad Evita')).toBe(true);
   });
 
   test('ambos formularios muestran lo mismo desde la copia guardada, sin conexión', async () => {
@@ -457,8 +460,9 @@ describe('SearchForm y FormularioPublicacion usan el mismo catálogo', () => {
     busqueda.unmount();
 
     montarPublicacion();
-    expect(ofrece('publicación', 'Ciudad Evita')).toBe(true);
     expect(screen.getByText('Bicicletas')).toBeTruthy();
+    verBarrios('publicación');
+    expect(ofrece('publicación', 'Ciudad Evita')).toBe(true);
   });
 
   test('al editar, un barrio guardado con otra grafía se reconoce y uno sin barrio conserva sus coordenadas', async () => {

@@ -1,22 +1,22 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
-import { Alert, Image, StyleSheet, View } from 'react-native';
+import { Alert, Image, Keyboard, StyleSheet, View } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { conActividadExterna } from '../services/actividadExterna';
 import CamaraModal from './CamaraModal';
-import {
-  fechaLocal,
-  fechaValida,
-} from '../data/busqueda';
+import SelectorBarrio from './SelectorBarrio';
+import SelectorFecha from './SelectorFecha';
+import { fechaLocal, fechaValida } from '../data/busqueda';
 import useUbicacionActual from '../hooks/useUbicacionActual';
 import { useConexion } from '../context/ConexionContext';
 import { verificarConexion } from '../services/conexion';
 import {
   buscarZona,
   catalogoActual,
+  coordenadasPropias,
   iniciarCatalogo,
-  opcionesZona,
   suscribirCatalogo,
 } from '../services/catalogos';
+import { describirUbicacion } from '../services/ubicacion';
 import {
   Aviso,
   Boton,
@@ -24,6 +24,7 @@ import {
   Fila,
   GrupoOpciones,
   Icono,
+  IndicadorPasos,
   Seccion,
   Tocable,
   colores,
@@ -33,11 +34,38 @@ import {
 
 const MAX_FOTOS = 5;
 
-export const FRANJAS = [
-  { valor: 'manana', nombre: 'Mañana (6 a 12)' },
-  { valor: 'tarde', nombre: 'Tarde (12 a 19)' },
-  { valor: 'noche', nombre: 'Noche (19 a 6)' },
-];
+// Títulos de los pasos del asistente, en el orden de la consigna. «tipo» no aparece al editar y
+// «verificacion» solo en los hallazgos.
+const TITULOS_PASO = {
+  tipo: '¿Qué querés publicar?',
+  fotos: 'Fotos (opcional)',
+  datos: '¿Qué es y cuándo pasó?',
+  ubicacion: '¿Dónde fue?',
+  verificacion: 'Verificación del dueño',
+};
+
+// Campos (claves de `errores`) que valida cada paso
+const CAMPOS_PASO = {
+  tipo: [],
+  fotos: [],
+  datos: ['titulo', 'categoria', 'descripcion', 'fecha', 'hora'],
+  ubicacion: ['barrio', 'direccion'],
+  verificacion: ['pregunta', 'respuesta'],
+};
+
+const MENSAJE_HORA_FUTURA = 'La hora no puede ser futura: el suceso es de hoy.';
+
+const dos = (n) => String(n).padStart(2, '0');
+
+function horaActual() {
+  const ahora = new Date();
+  return `${dos(ahora.getHours())}:${dos(ahora.getMinutes())}`;
+}
+
+// Si el suceso es de hoy, la hora no puede ser posterior a la actual
+function esHoraFutura(fecha, hora) {
+  return Boolean(hora) && fecha === fechaLocal() && hora > horaActual();
+}
 
 function ayer() {
   const fecha = new Date();
@@ -47,12 +75,12 @@ function ayer() {
 
 /**
  * Convierte una publicación del servidor (detalle propio) en los valores iniciales del formulario.
- * Si el barrio no es uno de la lista (p. ej. «Ubicación actual») se usan las coordenadas guardadas.
+ * Un barrio que ya no es uno de la lista (p. ej. el antiguo «Ubicación actual») queda vacío para
+ * que se elija uno; sus coordenadas guardadas se conservan.
  */
 export function valoresDesdePublicacion(publicacion) {
   // El barrio guardado puede estar escrito con otra grafía: se reconoce y se usa su nombre canónico.
   const zona = buscarZona(publicacion.barrio);
-  const esBarrioConocido = Boolean(zona);
 
   return {
     tipo: publicacion.tipo === 'encontrado' ? 'encontre' : 'perdi',
@@ -60,15 +88,9 @@ export function valoresDesdePublicacion(publicacion) {
     categoria: publicacion.categoria,
     descripcion: publicacion.descripcion,
     barrio: zona ? zona.nombre : '',
-    coords:
-      !esBarrioConocido && publicacion.ubicacion
-        ? {
-            latitud: publicacion.ubicacion.latitud,
-            longitud: publicacion.ubicacion.longitud,
-          }
-        : null,
+    coords: coordenadasPropias(publicacion.barrio, publicacion.ubicacion),
     fecha: publicacion.fecha,
-    franja: publicacion.franja,
+    hora: publicacion.hora || '',
     direccionExacta: publicacion.direccionExacta || '',
     fotos: publicacion.fotos || [],
     preguntaVerificacion: publicacion.preguntaVerificacion || '',
@@ -77,16 +99,20 @@ export function valoresDesdePublicacion(publicacion) {
 }
 
 /**
- * Formulario de publicación compartido por el alta y la edición.
+ * Formulario de publicación compartido por el alta y la edición, como asistente de pasos: tipo,
+ * fotos, datos, ubicación y verificación (solo hallazgos).
  * `onEnviar(datos)` recibe los datos ya validados (ver `armarCuerpoPublicacion`
  * en services/publicaciones.js) y debe devolver una promesa; el padre decide qué hacer al terminar.
- * En modo «editar» el tipo no se puede cambiar.
+ * En modo «editar» el tipo no se puede cambiar y no hay paso de tipo.
+ *
+ * Opcional:
+ *  - `alCambiarPaso()`: se llama al cambiar de paso; la pantalla vuelve el desplazamiento al inicio.
  *
  * Solo para el alta (opcionales):
- *  - `onEncolar(datos)`: si hay, sin conexión el botón principal pasa a «Guardar para enviar después»
- *    (y se ofrece también tras un error de envío) en lugar de quedar bloqueado.
- *  - `alCambiar(valores)`: se llama con los valores actuales del formulario en cada cambio
- *    (la pantalla los usa para el borrador automático).
+ *  - `onEncolar(datos)`: si hay, sin conexión el botón principal del último paso pasa a
+ *    «Guardar para enviar después» (y se ofrece también tras un error de envío) en lugar de quedar bloqueado.
+ *  - `alCambiar(valores)`: se llama con los valores actuales del formulario, incluido el `paso`, en cada
+ *    cambio (la pantalla los usa para el borrador automático). `valoresIniciales.paso` retoma ese paso.
  *  - `copiarFoto(uri)`: convierte la URI que devuelve el selector en una copia propia de la app.
  *  - `alQuitarFoto(uri)`: se llama al quitar una foto, para borrar su copia.
  */
@@ -101,6 +127,7 @@ export default function FormularioPublicacion({
   tipoInicial = 'perdi',
   onEncolar = undefined,
   alCambiar = undefined,
+  alCambiarPaso = undefined,
   copiarFoto = undefined,
   alQuitarFoto = undefined,
 }) {
@@ -125,8 +152,8 @@ export default function FormularioPublicacion({
   const [direccionExacta, setDireccionExacta] = useState(
     valoresIniciales.direccionExacta ?? ''
   );
-  const [fecha, setFecha] = useState(valoresIniciales.fecha ?? fechaLocal());
-  const [franja, setFranja] = useState(valoresIniciales.franja ?? '');
+  const [fecha, setFecha] = useState(valoresIniciales.fecha || fechaLocal());
+  const [hora, setHora] = useState(valoresIniciales.hora ?? '');
   const [fotos, setFotos] = useState(valoresIniciales.fotos ?? []);
   const [pregunta, setPregunta] = useState(
     valoresIniciales.preguntaVerificacion ?? ''
@@ -134,9 +161,15 @@ export default function FormularioPublicacion({
   const [respuesta, setRespuesta] = useState(
     valoresIniciales.respuestaVerificacion ?? ''
   );
+  const [paso, setPaso] = useState(
+    Number.isInteger(valoresIniciales.paso) ? valoresIniciales.paso : 1
+  );
   const [errores, setErrores] = useState({});
   const [errorFotos, setErrorFotos] = useState('');
   const [camaraAbierta, setCamaraAbierta] = useState(false);
+  // Qué completó «Usar mi ubicación actual»: { barrio, direccion, faltaBarrio, faltaDireccion }
+  const [resultadoGps, setResultadoGps] = useState(null);
+  const [describiendo, setDescribiendo] = useState(false);
 
   const {
     obtener,
@@ -146,11 +179,26 @@ export default function FormularioPublicacion({
 
   const esHallazgo = tipo === 'encontre';
 
-  // Cada cambio se informa a la pantalla (borrador automático); el callback vive en una
-  // ref para que cambiarlo no dispare el efecto
+  // Pasos que aplican hoy. Si el paso guardado ya no existe (p. ej. un borrador viejo o el tipo
+  // cambió a «perdí»), se acota al último.
+  const pasos = [
+    ...(editando ? [] : ['tipo']),
+    'fotos',
+    'datos',
+    'ubicacion',
+    ...(esHallazgo ? ['verificacion'] : []),
+  ];
+  const pasoActual = Math.min(Math.max(paso, 1), pasos.length);
+  const idPaso = pasos[pasoActual - 1];
+  const esUltimo = pasoActual === pasos.length;
+
+  // Los callbacks del padre viven en refs para que cambiarlos no dispare los efectos
   const alCambiarRef = useRef(alCambiar);
   alCambiarRef.current = alCambiar;
+  const alCambiarPasoRef = useRef(alCambiarPaso);
+  alCambiarPasoRef.current = alCambiarPaso;
 
+  // Cada cambio se informa a la pantalla (borrador automático)
   useEffect(() => {
     alCambiarRef.current?.({
       tipo,
@@ -161,10 +209,11 @@ export default function FormularioPublicacion({
       coords,
       direccionExacta,
       fecha,
-      franja,
+      hora,
       fotos,
       preguntaVerificacion: pregunta,
       respuestaVerificacion: respuesta,
+      paso: pasoActual,
     });
   }, [
     tipo,
@@ -175,15 +224,30 @@ export default function FormularioPublicacion({
     coords,
     direccionExacta,
     fecha,
-    franja,
+    hora,
     fotos,
     pregunta,
     respuesta,
+    pasoActual,
   ]);
 
-  // Los títulos de sección se numeran según las que se muestran
-  let numeroSeccion = 0;
-  const seccion = (texto) => `${++numeroSeccion}. ${texto}`;
+  // Al cambiar de paso: se cierra el teclado y la pantalla vuelve al inicio
+  const primerPaso = useRef(true);
+  useEffect(() => {
+    if (primerPaso.current) {
+      primerPaso.current = false;
+      return;
+    }
+
+    Keyboard.dismiss();
+    alCambiarPasoRef.current?.();
+  }, [pasoActual]);
+
+  // Dirección que completó el GPS (si el campo todavía la tiene, se puede volver a completar)
+  const direccionAutocompletada = useRef('');
+  const direccionRef = useRef(direccionExacta);
+  direccionRef.current = direccionExacta;
+  const ubicacionEnCurso = useRef(false);
 
   function limpiarError(campo) {
     setErrores((actuales) => ({ ...actuales, [campo]: '' }));
@@ -192,16 +256,50 @@ export default function FormularioPublicacion({
   function elegirBarrio(nombre) {
     setBarrio(nombre);
     setCoords(null);
-    limpiarError('lugar');
+    setResultadoGps(null);
+    limpiarError('barrio');
   }
 
   async function usarUbicacion() {
-    const resultado = await obtener();
+    if (ubicacionEnCurso.current) return;
+    ubicacionEnCurso.current = true;
 
-    if (resultado) {
+    try {
+      const resultado = await obtener();
+
+      if (!resultado) return;
+
       setCoords(resultado);
-      setBarrio('');
-      limpiarError('lugar');
+      setResultadoGps(null);
+      setDescribiendo(true);
+
+      const { barrio: barrioCercano, direccion } = await describirUbicacion(resultado);
+
+      if (barrioCercano) {
+        setBarrio(barrioCercano);
+        limpiarError('barrio');
+      }
+
+      // Nunca se pisa lo que escribió la persona: solo un campo vacío o con la dirección que puso el GPS
+      const actual = direccionRef.current.trim();
+      const puedeCompletar =
+        !!direccion && (actual === '' || actual === direccionAutocompletada.current);
+
+      if (puedeCompletar) {
+        direccionAutocompletada.current = direccion;
+        setDireccionExacta(direccion);
+        limpiarError('direccion');
+      }
+
+      setResultadoGps({
+        barrio: barrioCercano,
+        direccion: puedeCompletar,
+        faltaBarrio: !barrioCercano && !barrio,
+        faltaDireccion: !puedeCompletar && actual === '',
+      });
+    } finally {
+      setDescribiendo(false);
+      ubicacionEnCurso.current = false;
     }
   }
 
@@ -272,37 +370,47 @@ export default function FormularioPublicacion({
     alQuitarFoto?.(uri);
   }
 
-  function validar() {
+  // Errores de los campos de un paso (vacío si está todo bien)
+  function erroresDelPaso(id) {
     const nuevos = {};
 
-    if (titulo.trim().length < 3) {
-      nuevos.titulo = 'Escribí un título de al menos 3 caracteres.';
+    if (id === 'datos') {
+      if (titulo.trim().length < 3) {
+        nuevos.titulo = 'Escribí un título de al menos 3 caracteres.';
+      }
+
+      if (!categoria) {
+        nuevos.categoria = 'Elegí una categoría.';
+      }
+
+      if (descripcion.trim().length < 10) {
+        nuevos.descripcion = 'Describí el objeto con al menos 10 caracteres.';
+      }
+
+      if (!fechaValida(fecha)) {
+        nuevos.fecha = 'Elegí la fecha del suceso.';
+      } else if (fecha > fechaLocal()) {
+        nuevos.fecha = 'La fecha no puede ser futura.';
+      }
+
+      if (!hora) {
+        nuevos.hora = 'Elegí la hora del suceso.';
+      } else if (esHoraFutura(fecha, hora)) {
+        nuevos.hora = MENSAJE_HORA_FUTURA;
+      }
     }
 
-    if (!categoria) {
-      nuevos.categoria = 'Elegí una categoría.';
+    if (id === 'ubicacion') {
+      if (!buscarZona(barrio)) {
+        nuevos.barrio = 'Elegí el barrio.';
+      }
+
+      if (!direccionExacta.trim()) {
+        nuevos.direccion = 'Escribí la dirección exacta.';
+      }
     }
 
-    if (descripcion.trim().length < 10) {
-      nuevos.descripcion =
-        'Describí el objeto con al menos 10 caracteres.';
-    }
-
-    if (!barrio && !coords) {
-      nuevos.lugar = 'Elegí un barrio o usá tu ubicación actual.';
-    }
-
-    if (!fechaValida(fecha)) {
-      nuevos.fecha = 'Ingresá una fecha válida (AAAA-MM-DD).';
-    } else if (fecha > fechaLocal()) {
-      nuevos.fecha = 'La fecha no puede ser futura.';
-    }
-
-    if (!franja) {
-      nuevos.franja = 'Elegí una franja horaria.';
-    }
-
-    if (esHallazgo) {
+    if (id === 'verificacion') {
       if (pregunta.trim().length < 3) {
         nuevos.pregunta =
           'Escribí una pregunta de verificación de al menos 3 caracteres.';
@@ -313,8 +421,53 @@ export default function FormularioPublicacion({
       }
     }
 
+    return nuevos;
+  }
+
+  function irAPaso(numero) {
+    setPaso(Math.min(Math.max(numero, 1), pasos.length));
+  }
+
+  function siguiente() {
+    const nuevos = erroresDelPaso(idPaso);
+
+    setErrores((actuales) => ({
+      ...actuales,
+      ...Object.fromEntries(CAMPOS_PASO[idPaso].map((campo) => [campo, nuevos[campo] ?? ''])),
+    }));
+
+    if (Object.keys(nuevos).length === 0) {
+      irAPaso(pasoActual + 1);
+    }
+  }
+
+  function atras() {
+    irAPaso(pasoActual - 1);
+  }
+
+  // Valida todos los pasos; si alguno falla, vuelve al primero con errores
+  function validar() {
+    const nuevos = {};
+    let primeroConError = 0;
+
+    pasos.forEach((id, indice) => {
+      const delPaso = erroresDelPaso(id);
+
+      if (!primeroConError && Object.keys(delPaso).length > 0) {
+        primeroConError = indice + 1;
+      }
+
+      Object.assign(nuevos, delPaso);
+    });
+
     setErrores(nuevos);
-    return Object.keys(nuevos).length === 0;
+
+    if (primeroConError) {
+      irAPaso(primeroConError);
+      return false;
+    }
+
+    return true;
   }
 
   function armarDatos() {
@@ -325,7 +478,7 @@ export default function FormularioPublicacion({
       titulo: titulo.trim(),
       categoria,
       descripcion: descripcion.trim(),
-      barrio,
+      barrio: zona ? zona.nombre : barrio,
       ubicacion: coords
         ? coords
         : zona
@@ -333,7 +486,7 @@ export default function FormularioPublicacion({
           : null,
       direccionExacta: direccionExacta.trim(),
       fecha,
-      franja,
+      hora,
       fotos,
       preguntaVerificacion: esHallazgo ? pregunta.trim() : '',
       respuestaVerificacion: esHallazgo ? respuesta.trim() : '',
@@ -374,10 +527,18 @@ export default function FormularioPublicacion({
     textoEnviar ??
     (tipo === 'perdi' ? 'Publicar mi pérdida' : 'Publicar mi hallazgo');
 
+  // La hora futura también se avisa apenas se elige o se cambia la fecha a hoy
+  const errorHora = errores.hora || (esHoraFutura(fecha, hora) ? MENSAJE_HORA_FUTURA : '');
+  const hayErroresEnPaso = CAMPOS_PASO[idPaso].some(
+    (campo) => (campo === 'hora' ? errorHora : errores[campo])
+  );
+
   return (
     <>
-      {!editando && (
-        <Seccion titulo={seccion('¿Qué querés publicar?')}>
+      <IndicadorPasos paso={pasoActual} total={pasos.length} />
+
+      {idPaso === 'tipo' && (
+        <Seccion titulo={TITULOS_PASO.tipo}>
           <GrupoOpciones
             opciones={[
               { valor: 'perdi', nombre: 'Perdí algo' },
@@ -389,188 +550,208 @@ export default function FormularioPublicacion({
         </Seccion>
       )}
 
-      <Seccion titulo={seccion('¿Qué es?')}>
-        <Campo
-          etiqueta="Título"
-          value={titulo}
-          onChangeText={(valor) => {
-            setTitulo(valor);
-            limpiarError('titulo');
-          }}
-          error={errores.titulo}
-          placeholder="Por ejemplo: Llavero azul con 3 llaves"
-          maxLength={80}
-        />
-
-        <GrupoOpciones
-          etiqueta="Categoría"
-          error={errores.categoria}
-          opciones={catalogo.categorias.map((nombre) => ({
-            valor: nombre,
-            nombre,
-          }))}
-          valor={categoria}
-          onChange={(valor) => {
-            setCategoria(valor);
-            limpiarError('categoria');
-          }}
-        />
-
-        <Campo
-          etiqueta="Descripción"
-          value={descripcion}
-          onChangeText={(valor) => {
-            setDescripcion(valor);
-            limpiarError('descripcion');
-          }}
-          error={errores.descripcion}
-          placeholder="Color, marca, señas particulares…"
-          multiline
-          maxLength={500}
-        />
-      </Seccion>
-
-      <Seccion titulo={seccion('¿Dónde?')}>
-        <GrupoOpciones
-          etiqueta="Barrio"
-          error={errores.lugar}
-          opciones={opcionesZona(catalogo, barrio).map(({ nombre }) => ({
-            valor: nombre,
-            nombre,
-          }))}
-          valor={barrio}
-          onChange={elegirBarrio}
-        />
-
-        <Boton
-          titulo={ubicando ? 'Obteniendo ubicación…' : 'Usar mi ubicación actual'}
-          icono="crosshairs-gps"
-          variante="secundario"
-          cargando={ubicando}
-          onPress={usarUbicacion}
-        />
-
-        {!!errorUbicacion && !coords && (
-          <Aviso tono="peligro" mensaje={errorUbicacion} accessibilityRole="alert" />
-        )}
-
-        {coords && (
-          <Aviso
-            tono="info"
-            icono="map-marker-check-outline"
-            mensaje={`Ubicación actual: ${coords.latitud.toFixed(4)}, ${coords.longitud.toFixed(4)}`}
-          />
-        )}
-
-        <Campo
-          etiqueta="Dirección exacta (opcional)"
-          accessibilityLabel="Dirección exacta"
-          ayuda="Solo la ve la persona cuyo reclamo aceptes. El resto de los usuarios ve únicamente el barrio."
-          value={direccionExacta}
-          onChangeText={setDireccionExacta}
-          placeholder="Calle, altura o punto de referencia"
-          maxLength={250}
-        />
-      </Seccion>
-
-      <Seccion titulo={seccion('¿Cuándo?')}>
-        <Campo
-          etiqueta="Fecha (AAAA-MM-DD)"
-          accessibilityLabel="Fecha del suceso"
-          value={fecha}
-          onChangeText={(valor) => {
-            setFecha(valor);
-            limpiarError('fecha');
-          }}
-          error={errores.fecha}
-          placeholder={fechaLocal()}
-          maxLength={10}
-          autoCapitalize="none"
-          keyboardType="numbers-and-punctuation"
-        />
-
-        <GrupoOpciones
-          chico
-          opciones={[
-            { valor: fechaLocal(), nombre: 'Hoy' },
-            { valor: ayer(), nombre: 'Ayer' },
-          ]}
-          valor={fecha}
-          onChange={(valor) => {
-            setFecha(valor);
-            limpiarError('fecha');
-          }}
-        />
-
-        <GrupoOpciones
-          etiqueta="Franja horaria"
-          error={errores.franja}
-          opciones={FRANJAS}
-          valor={franja}
-          onChange={(valor) => {
-            setFranja(valor);
-            limpiarError('franja');
-          }}
-        />
-      </Seccion>
-
-      <Seccion
-        titulo={seccion('Fotos (opcional)')}
-        descripcion={`Hasta ${MAX_FOTOS} fotos. ${fotos.length} elegida(s).`}
-      >
-        {fotos.length > 0 && (
-          <Fila>
-            {fotos.map((uri) => (
-              <View key={uri} style={styles.foto}>
-                <Image
-                  source={{ uri }}
-                  style={styles.imagen}
-                  accessibilityLabel="Foto elegida"
-                />
-
-                <Tocable
-                  radio={radios.pastilla}
-                  accessibilityLabel="Quitar foto"
-                  colorOnda={colores.ondaInversa}
-                  hitSlop={8}
-                  onPress={() => quitarFoto(uri)}
-                  estiloContenedor={styles.quitar}
-                  style={styles.quitarInterior}
-                >
-                  <Icono nombre="close" tamano={18} color={colores.textoInverso} />
-                </Tocable>
-              </View>
-            ))}
-          </Fila>
-        )}
-
-        <Boton
-          titulo="Sacar una foto"
-          icono="camera-outline"
-          variante="secundario"
-          disabled={fotos.length >= MAX_FOTOS}
-          onPress={abrirCamara}
-        />
-        <Boton
-          titulo="Elegir de la galería"
-          icono="image-outline"
-          variante="secundario"
-          disabled={fotos.length >= MAX_FOTOS}
-          onPress={agregarFotos}
-        />
-
-        {!!errorFotos && <Aviso tono="peligro" mensaje={errorFotos} />}
-
-        <CamaraModal
-          visible={camaraAbierta}
-          onCerrar={() => setCamaraAbierta(false)}
-          onFoto={usarFotoDeCamara}
-        />
-      </Seccion>
-
-      {esHallazgo && (
+      {idPaso === 'fotos' && (
         <Seccion
-          titulo={seccion('Verificación del dueño')}
+          titulo={TITULOS_PASO.fotos}
+          descripcion={`Hasta ${MAX_FOTOS} fotos. ${fotos.length} elegida(s).`}
+        >
+          {fotos.length > 0 && (
+            <Fila>
+              {fotos.map((uri) => (
+                <View key={uri} style={styles.foto}>
+                  <Image
+                    source={{ uri }}
+                    style={styles.imagen}
+                    accessibilityLabel="Foto elegida"
+                  />
+
+                  <Tocable
+                    radio={radios.pastilla}
+                    accessibilityLabel="Quitar foto"
+                    colorOnda={colores.ondaInversa}
+                    hitSlop={8}
+                    onPress={() => quitarFoto(uri)}
+                    estiloContenedor={styles.quitar}
+                    style={styles.quitarInterior}
+                  >
+                    <Icono nombre="close" tamano={18} color={colores.textoInverso} />
+                  </Tocable>
+                </View>
+              ))}
+            </Fila>
+          )}
+
+          <Boton
+            titulo="Sacar una foto"
+            icono="camera-outline"
+            variante="secundario"
+            disabled={fotos.length >= MAX_FOTOS}
+            onPress={abrirCamara}
+          />
+          <Boton
+            titulo="Elegir de la galería"
+            icono="image-outline"
+            variante="secundario"
+            disabled={fotos.length >= MAX_FOTOS}
+            onPress={agregarFotos}
+          />
+
+          {!!errorFotos && <Aviso tono="peligro" mensaje={errorFotos} />}
+
+          <CamaraModal
+            visible={camaraAbierta}
+            onCerrar={() => setCamaraAbierta(false)}
+            onFoto={usarFotoDeCamara}
+          />
+        </Seccion>
+      )}
+
+      {idPaso === 'datos' && (
+        <Seccion titulo={TITULOS_PASO.datos}>
+          <Campo
+            etiqueta="Título"
+            value={titulo}
+            onChangeText={(valor) => {
+              setTitulo(valor);
+              limpiarError('titulo');
+            }}
+            error={errores.titulo}
+            placeholder="Por ejemplo: Llavero azul con 3 llaves"
+            maxLength={80}
+          />
+
+          <GrupoOpciones
+            etiqueta="Categoría"
+            error={errores.categoria}
+            opciones={catalogo.categorias.map((nombre) => ({
+              valor: nombre,
+              nombre,
+            }))}
+            valor={categoria}
+            onChange={(valor) => {
+              setCategoria(valor);
+              limpiarError('categoria');
+            }}
+          />
+
+          <Campo
+            etiqueta="Descripción"
+            value={descripcion}
+            onChangeText={(valor) => {
+              setDescripcion(valor);
+              limpiarError('descripcion');
+            }}
+            error={errores.descripcion}
+            placeholder="Color, marca, señas particulares…"
+            multiline
+            maxLength={500}
+          />
+
+          <SelectorFecha
+            modo="date"
+            etiqueta="Fecha del suceso"
+            accessibilityLabel="Fecha del suceso"
+            valor={fecha}
+            maximo={fechaLocal()}
+            onChange={(valor) => {
+              setFecha(valor);
+              limpiarError('fecha');
+              limpiarError('hora');
+            }}
+            error={errores.fecha}
+          />
+
+          <GrupoOpciones
+            chico
+            opciones={[
+              { valor: fechaLocal(), nombre: 'Hoy' },
+              { valor: ayer(), nombre: 'Ayer' },
+            ]}
+            valor={fecha}
+            onChange={(valor) => {
+              setFecha(valor);
+              limpiarError('fecha');
+              limpiarError('hora');
+            }}
+          />
+
+          <SelectorFecha
+            modo="time"
+            etiqueta="Hora del suceso"
+            accessibilityLabel="Hora del suceso"
+            valor={hora}
+            onChange={(valor) => {
+              setHora(valor);
+              limpiarError('hora');
+            }}
+            error={errorHora}
+          />
+        </Seccion>
+      )}
+
+      {idPaso === 'ubicacion' && (
+        <Seccion titulo={TITULOS_PASO.ubicacion}>
+          <SelectorBarrio
+            etiqueta="Barrio"
+            accessibilityLabel="Barrio"
+            valor={barrio}
+            onChange={elegirBarrio}
+            error={errores.barrio}
+          />
+
+          <Boton
+            titulo={
+              ubicando
+                ? 'Obteniendo ubicación…'
+                : describiendo
+                  ? 'Buscando barrio y dirección…'
+                  : 'Usar mi ubicación actual'
+            }
+            icono="crosshairs-gps"
+            variante="secundario"
+            cargando={ubicando || describiendo}
+            onPress={usarUbicacion}
+          />
+
+          {!!errorUbicacion && !coords && (
+            <Aviso tono="peligro" mensaje={errorUbicacion} accessibilityRole="alert" />
+          )}
+
+          {resultadoGps && (
+            <Aviso
+              tono={resultadoGps.faltaBarrio || resultadoGps.faltaDireccion ? 'aviso' : 'info'}
+              icono="map-marker-check-outline"
+              mensaje={mensajeUbicacion(resultadoGps)}
+            />
+          )}
+
+          {coords && !resultadoGps && (
+            <Aviso
+              tono="info"
+              icono="map-marker-check-outline"
+              mensaje="Se guarda también la ubicación del GPS junto con el barrio."
+            />
+          )}
+
+          <Campo
+            etiqueta="Dirección exacta"
+            accessibilityLabel="Dirección exacta"
+            ayuda="Solo la ve la persona cuyo reclamo aceptes. El resto de los usuarios ve únicamente el barrio."
+            value={direccionExacta}
+            onChangeText={(valor) => {
+              setDireccionExacta(valor);
+              limpiarError('direccion');
+            }}
+            error={errores.direccion}
+            placeholder="Calle, altura o punto de referencia"
+            maxLength={250}
+          />
+        </Seccion>
+      )}
+
+      {idPaso === 'verificacion' && (
+        <Seccion
+          titulo={TITULOS_PASO.verificacion}
           descripcion="Quien diga que el objeto es suyo tendrá que responder tu pregunta. La respuesta nunca se muestra a otras personas: solo la ves vos y sirve para compararla con lo que conteste quien reclame."
         >
           <Campo
@@ -600,19 +781,21 @@ export default function FormularioPublicacion({
         </Seccion>
       )}
 
-      {Object.values(errores).some(Boolean) && (
+      {hayErroresEnPaso && (
         <Aviso
           tono="peligro"
-          mensaje={`Revisá los campos marcados antes de ${editando ? 'guardar' : 'publicar'}.`}
+          mensaje={`Revisá los campos marcados antes de ${
+            esUltimo ? (editando ? 'guardar' : 'publicar') : 'seguir'
+          }.`}
           accessibilityRole="alert"
         />
       )}
 
-      {!!errorEnvio && (
+      {esUltimo && !!errorEnvio && (
         <Aviso tono="peligro" mensaje={errorEnvio} accessibilityRole="alert" />
       )}
 
-      {!hayConexion && (
+      {esUltimo && !hayConexion && (
         <Aviso
           tono="aviso"
           icono="wifi-off"
@@ -627,26 +810,34 @@ export default function FormularioPublicacion({
         />
       )}
 
-      <Boton
-        titulo={
-          enviando
-            ? 'Guardando…'
-            : !hayConexion && puedeEncolar
-              ? 'Guardar para enviar después'
-              : tituloBoton
-        }
-        cargando={enviando}
-        disabled={!hayConexion && !puedeEncolar}
-        onPress={enviar}
-      />
+      {esUltimo ? (
+        <Boton
+          titulo={
+            enviando
+              ? 'Guardando…'
+              : !hayConexion && puedeEncolar
+                ? 'Guardar para enviar después'
+                : tituloBoton
+          }
+          cargando={enviando}
+          disabled={!hayConexion && !puedeEncolar}
+          onPress={enviar}
+        />
+      ) : (
+        <Boton titulo="Siguiente" onPress={siguiente} />
+      )}
 
-      {puedeEncolar && hayConexion && !!errorEnvio && (
+      {esUltimo && puedeEncolar && hayConexion && !!errorEnvio && (
         <Boton
           titulo="Guardar para enviar después"
           variante="secundario"
           disabled={enviando}
           onPress={guardarParaDespues}
         />
+      )}
+
+      {pasoActual > 1 && (
+        <Boton titulo="Atrás" variante="secundario" disabled={enviando} onPress={atras} />
       )}
 
       {onCancelar && (
@@ -659,6 +850,26 @@ export default function FormularioPublicacion({
       )}
     </>
   );
+}
+
+// Texto del aviso que explica qué completó «Usar mi ubicación actual» y qué falta
+function mensajeUbicacion({ barrio, direccion, faltaBarrio, faltaDireccion }) {
+  const completado = [barrio && `el barrio (${barrio})`, direccion && 'la dirección'].filter(Boolean);
+  const partes = [];
+
+  if (completado.length > 0) {
+    partes.push(`Completamos ${completado.join(' y ')} con tu ubicación. Revisalo: podés corregirlo.`);
+  }
+
+  if (faltaBarrio) {
+    partes.push('No encontramos un barrio cerca: elegilo de la lista.');
+  }
+
+  if (faltaDireccion) {
+    partes.push('No pudimos obtener la dirección: escribila vos.');
+  }
+
+  return partes.join(' ') || 'Guardamos tu ubicación. Revisá el barrio y la dirección.';
 }
 
 const styles = StyleSheet.create({

@@ -1,10 +1,10 @@
 import { useConexion } from '../context/ConexionContext';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Alert, RefreshControl, StyleSheet, View } from 'react-native';
 import FormularioPublicacion, {
-  FRANJAS,
   valoresDesdePublicacion,
 } from '../components/FormularioPublicacion';
+import { nombreFranja, textoHora } from '../data/franjas';
 import EncuentroReclamo from '../components/EncuentroReclamo';
 import EvidenciaReclamo from '../components/EvidenciaReclamo';
 import useGestionPublicacion from '../hooks/useGestionPublicacion';
@@ -72,6 +72,8 @@ export default function GestionPublicacionScreen({ route, navigation }) {
   } = useGestionPublicacion(publicacionId);
 
   const [editando, setEditando] = useState(false);
+  const scrollRef = useRef(null);
+  const yFormulario = useRef(0);
   const [errorEdicion, setErrorEdicion] = useState('');
   const [mensaje, setMensaje] = useState('');
 
@@ -231,10 +233,13 @@ export default function GestionPublicacionScreen({ route, navigation }) {
   }
 
   const avisaVencimiento = publicacion.estado === 'vencida' || puedeRenovarse(publicacion);
-  const franja = FRANJAS.find((f) => f.valor === publicacion.franja)?.nombre || publicacion.franja;
+  const cuando = [fechaSuceso(publicacion.fecha), textoHora(publicacion.hora), nombreFranja(publicacion.franja)]
+    .filter(Boolean)
+    .join(' · ');
 
   return (
     <Pantalla
+      ref={scrollRef}
       refreshControl={
         <RefreshControl refreshing={refrescando} onRefresh={recargar} />
       }
@@ -263,7 +268,7 @@ export default function GestionPublicacionScreen({ route, navigation }) {
 
         <FilaDato
           etiqueta="Datos del suceso"
-          valor={`${publicacion.categoria} · ${publicacion.barrio} · ${fechaSuceso(publicacion.fecha)} · ${franja}`}
+          valor={`${publicacion.categoria} · ${publicacion.barrio} · ${cuando}`}
         />
 
         <FilaDato
@@ -316,18 +321,28 @@ export default function GestionPublicacionScreen({ route, navigation }) {
       </Tarjeta>
 
       {editable && editando && (
-        <FormularioPublicacion
-          modo="editar"
-          valoresIniciales={valoresDesdePublicacion(publicacion)}
-          enviando={procesando === 'guardar'}
-          errorEnvio={errorEdicion}
-          textoEnviar="Guardar cambios"
-          onEnviar={guardar}
-          onCancelar={() => {
-            setErrorEdicion('');
-            setEditando(false);
+        <View
+          style={styles.formulario}
+          onLayout={(e) => {
+            yFormulario.current = e.nativeEvent.layout.y;
           }}
-        />
+        >
+          <FormularioPublicacion
+            alCambiarPaso={() =>
+              scrollRef.current?.scrollTo?.({ y: yFormulario.current, animated: false })
+            }
+            modo="editar"
+            valoresIniciales={valoresDesdePublicacion(publicacion)}
+            enviando={procesando === 'guardar'}
+            errorEnvio={errorEdicion}
+            textoEnviar="Guardar cambios"
+            onEnviar={guardar}
+            onCancelar={() => {
+              setErrorEdicion('');
+              setEditando(false);
+            }}
+          />
+        </View>
       )}
 
       <Seccion titulo={`Reclamos recibidos (${totalReclamos})`}>
@@ -466,6 +481,7 @@ export default function GestionPublicacionScreen({ route, navigation }) {
 }
 
 const styles = StyleSheet.create({
+  formulario: { gap: espacio.sm },
   reclamo: { gap: espacio.sm },
   reclamoCabecera: { flexDirection: 'row', alignItems: 'center', gap: espacio.xs },
   reclamoPersona: { flex: 1 },
