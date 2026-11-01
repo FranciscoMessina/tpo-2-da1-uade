@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import {
   Alert,
   Button,
@@ -11,14 +11,19 @@ import {
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import {
-  CATEGORIAS,
-  ZONAS,
   fechaLocal,
   fechaValida,
 } from '../data/searchDemo';
 import useUbicacionActual from '../hooks/useUbicacionActual';
 import { useConexion } from '../context/ConexionContext';
 import { verificarConexion } from '../services/conexion';
+import {
+  buscarZona,
+  catalogoActual,
+  iniciarCatalogo,
+  opcionesZona,
+  suscribirCatalogo,
+} from '../services/catalogos';
 
 const MAX_FOTOS = 5;
 
@@ -70,14 +75,16 @@ function ayer() {
  * Si el barrio no es uno de la lista (p. ej. «Ubicación actual») se usan las coordenadas guardadas.
  */
 export function valoresDesdePublicacion(publicacion) {
-  const esBarrioConocido = ZONAS.some((z) => z.nombre === publicacion.barrio);
+  // El barrio guardado puede estar escrito con otra grafía: se reconoce y se usa su nombre canónico.
+  const zona = buscarZona(publicacion.barrio);
+  const esBarrioConocido = Boolean(zona);
 
   return {
     tipo: publicacion.tipo === 'encontrado' ? 'encontre' : 'perdi',
     titulo: publicacion.titulo,
     categoria: publicacion.categoria,
     descripcion: publicacion.descripcion,
-    barrio: esBarrioConocido ? publicacion.barrio : '',
+    barrio: zona ? zona.nombre : '',
     coords:
       !esBarrioConocido && publicacion.ubicacion
         ? {
@@ -125,6 +132,12 @@ export default function FormularioPublicacion({
   const editando = modo === 'editar';
   const puedeEncolar = !editando && typeof onEncolar === 'function';
   const { hayConexion } = useConexion();
+  // Mismo catálogo que el formulario de búsqueda; sin conexión, el último válido (no bloquea publicar).
+  const catalogo = useSyncExternalStore(suscribirCatalogo, catalogoActual);
+
+  useEffect(() => {
+    iniciarCatalogo();
+  }, []);
 
   const [tipo, setTipo] = useState(valoresIniciales.tipo ?? tipoInicial);
   const [titulo, setTitulo] = useState(valoresIniciales.titulo ?? '');
@@ -341,7 +354,7 @@ export default function FormularioPublicacion({
   }
 
   function armarDatos() {
-    const zona = ZONAS.find((z) => z.nombre === barrio);
+    const zona = buscarZona(barrio);
 
     return {
       tipo,
@@ -438,7 +451,7 @@ export default function FormularioPublicacion({
         <Text style={styles.label}>Categoría</Text>
 
         <Opciones
-          opciones={CATEGORIAS.map((nombre) => ({
+          opciones={catalogo.categorias.map((nombre) => ({
             valor: nombre,
             nombre,
           }))}
@@ -477,7 +490,7 @@ export default function FormularioPublicacion({
         <Text style={styles.title}>{seccion('¿Dónde?')}</Text>
 
         <Opciones
-          opciones={ZONAS.map(({ nombre }) => ({
+          opciones={opcionesZona(catalogo, barrio).map(({ nombre }) => ({
             valor: nombre,
             nombre,
           }))}
