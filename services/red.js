@@ -39,16 +39,23 @@ export function suscribirRed(oyente) {
  */
 export function iniciarMonitorRed() {
   let activo = true;
+  // Un evento del sistema siempre es más reciente que una lectura que todavía no resolvió:
+  // si llegó alguno, esa lectura quedó vieja y no debe pisarlo. Pertenece a cada monitor.
+  let huboEvento = false;
 
   Network.getNetworkStateAsync()
     .then((estado) => {
-      if (activo) fijar(conectada(estado));
+      if (activo && !huboEvento) fijar(conectada(estado));
     })
     .catch(() => {});
 
   let suscripcion = null;
   try {
-    suscripcion = Network.addNetworkStateListener((estado) => fijar(conectada(estado)));
+    suscripcion = Network.addNetworkStateListener((estado) => {
+      if (!activo) return;
+      huboEvento = true;
+      fijar(conectada(estado));
+    });
   } catch {
     suscripcion = null;
   }
