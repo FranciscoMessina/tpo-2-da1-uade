@@ -185,15 +185,13 @@ function DetallePublicacion({ route, navigation }) {
       const datosReclamo = encontrado
         ? {
             respuestaVerificacion: preguntaVerificacion ? respuesta.trim() : '',
-            mensaje: preguntaVerificacion
-              ? (descripcion.trim().length >= 5 ? descripcion.trim() : 'Respondí la pregunta de verificación.')
-              : descripcion.trim(),
+            mensaje: descripcion.trim(),
             fotoUri,
           }
         : {
             barrio: barrio.trim(),
             fotoUri,
-            mensaje: mensaje.trim() || `Encontré tu objeto en ${barrio.trim()}.`,
+            mensaje: mensaje.trim(),
           };
 
       const reclamo = await reclamar(datosReclamo);

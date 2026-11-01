@@ -120,13 +120,16 @@ export async function subirFotoPrueba(uri) {
 
 /**
  * Envía un reclamo con evidencia estructurada.
- * datos: { mensaje, respuestaVerificacion?, barrio?, fotoUri? }
+ * datos: { mensaje?, respuestaVerificacion?, barrio?, fotoUri? }
+ * El mensaje es opcional: solo se envía si la persona escribió algo (el backend lo exige únicamente
+ * en hallazgos viejos que no tienen pregunta de verificación).
  * La foto (si hay) se sube antes a /uploads/pruebas y se envía como fotoPrueba.
  */
 export async function enviarReclamo(id, datos = {}) {
   const fotoPrueba = datos.fotoUri ? await subirFotoPrueba(datos.fotoUri) : null;
 
-  const cuerpo = { mensaje: (datos.mensaje || '').trim() };
+  const cuerpo = {};
+  if (datos.mensaje?.trim()) cuerpo.mensaje = datos.mensaje.trim();
   if (datos.respuestaVerificacion?.trim()) {
     cuerpo.respuestaVerificacion = datos.respuestaVerificacion.trim();
   }
