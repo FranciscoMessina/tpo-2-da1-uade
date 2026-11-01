@@ -19,7 +19,15 @@ import useSeguidas from '../hooks/useSeguidas';
 import useNovedades from '../hooks/useNovedades';
 
 const SearchContext = createContext(null);
-const CLAVE_RECIENTES = '@hallado:busquedas-recientes:v1';
+// El historial es de cada cuenta: sin el id en la clave, quien ingresa después ve las búsquedas
+// de la cuenta anterior.
+const PREFIJO_RECIENTES = '@hallado:busquedas-recientes:v2:';
+// Clave global de versiones anteriores: no se sabe de qué cuenta es, así que se descarta.
+const CLAVE_RECIENTES_LEGADA = '@hallado:busquedas-recientes:v1';
+
+export function claveRecientes(uid) {
+  return `${PREFIJO_RECIENTES}${uid}`;
+}
 
 function esBusquedaGuardada(item) {
   const filtros = item?.filtros;
@@ -63,7 +71,10 @@ function recientesGuardados(datos) {
 
 export function SearchProvider({ children }) {
   const { usuario } = useAuth();
+  const uid = usuario?.id ? String(usuario.id) : null;
   const [recientes, setRecientes] = useState([]);
+  // Cuenta (o null, sin sesión) a la que pertenece `recientes`; undefined hasta la primera carga
+  const [recientesDe, setRecientesDe] = useState(undefined);
   const {
     alertas,
     loading: alertasLoading,
@@ -96,17 +107,28 @@ export function SearchProvider({ children }) {
     marcarPublicacionLeida,
     marcarReclamoLeido,
   } = useNovedades(usuario?.id);
-  const [cargando, setCargando] = useState(true);
+  const cargando = recientesDe === undefined;
+  // Mientras se carga la cuenta nueva no se muestra el historial de la anterior
+  const recientesVisibles = recientesDe === uid ? recientes : [];
 
   const puedeGuardar = useRef(false);
   const colaGuardado = useRef(Promise.resolve());
 
   useEffect(() => {
     let activo = true;
+    puedeGuardar.current = false;
 
     async function cargarHistorial() {
+      AsyncStorage.removeItem(CLAVE_RECIENTES_LEGADA).catch(() => {});
+
+      if (!uid) {
+        setRecientes([]);
+        setRecientesDe(null);
+        return;
+      }
+
       try {
-        const texto = await AsyncStorage.getItem(CLAVE_RECIENTES);
+        const texto = await AsyncStorage.getItem(claveRecientes(uid));
         const datos = texto ? JSON.parse(texto) : [];
 
         if (!Array.isArray(datos)) {
@@ -117,19 +139,19 @@ export function SearchProvider({ children }) {
 
         if (activo) {
           setRecientes(recientesGuardados(datos));
+          setRecientesDe(uid);
 
           puedeGuardar.current = true;
         }
       } catch {
         if (activo) {
+          setRecientes([]);
+          setRecientesDe(uid);
+
           Alert.alert(
             'Historial no disponible',
             'No se pudo cargar el historial. Podés buscar, pero las búsquedas de esta sesión no se guardarán al cerrar la app.'
           );
-        }
-      } finally {
-        if (activo) {
-          setCargando(false);
         }
       }
     }
@@ -139,18 +161,19 @@ export function SearchProvider({ children }) {
     return () => {
       activo = false;
     };
-  }, []);
+  }, [uid]);
 
   useEffect(() => {
-    if (cargando || !puedeGuardar.current) {
+    if (!uid || recientesDe !== uid || !puedeGuardar.current) {
       return;
     }
 
     const texto = JSON.stringify(recientes);
+    const clave = claveRecientes(uid);
 
     colaGuardado.current = colaGuardado.current
       .then(() =>
-        AsyncStorage.setItem(CLAVE_RECIENTES, texto)
+        AsyncStorage.setItem(clave, texto)
       )
       .catch(() => {
         Alert.alert(
@@ -158,9 +181,13 @@ export function SearchProvider({ children }) {
           'Las búsquedas siguen disponibles en esta sesión. Intentá realizar otra búsqueda para volver a guardarlas.'
         );
       });
-  }, [recientes, cargando]);
+  }, [recientes, recientesDe, uid]);
 
   function recordarBusqueda(filtros) {
+    if (!uid || recientesDe !== uid) {
+      return;
+    }
+
     const clave = claveBusqueda(filtros);
 
     setRecientes((actuales) =>
@@ -202,7 +229,7 @@ export function SearchProvider({ children }) {
   return (
     <SearchContext.Provider
       value={{
-        recientes,
+        recientes: recientesVisibles,
         alertas,
         alertasLoading,
         alertasError,
