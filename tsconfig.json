@@ -59,7 +59,7 @@
     "services/perfiles.js",
     "services/publicaciones.js",
     "services/sesion.js",
-    "data/searchDemo.js"
+    "data/busqueda.js"
   ],
   "exclude": ["node_modules", "android", "ios", ".claude"]
 }

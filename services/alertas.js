@@ -4,7 +4,7 @@ import {
   filtrosIniciales,
   radioEfectivo,
   radioValido,
-} from '../data/searchDemo';
+} from '../data/busqueda';
 
 function prepararAlerta(alerta) {
   const filtros = { ...filtrosIniciales(), ...alerta.filtros };

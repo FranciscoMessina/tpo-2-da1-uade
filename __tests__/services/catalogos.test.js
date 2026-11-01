@@ -5,7 +5,7 @@ import SearchForm from '../../components/SearchForm';
 import FormularioPublicacion, {
   valoresDesdePublicacion,
 } from '../../components/FormularioPublicacion';
-import { CATEGORIAS, ZONAS, filtrosIniciales } from '../../data/searchDemo';
+import { CATEGORIAS, ZONAS, filtrosIniciales } from '../../data/busqueda';
 import { api } from '../../services/api';
 import {
   CLAVE_CATALOGO,
@@ -75,7 +75,7 @@ beforeEach(() => {
 afterEach(() => jest.restoreAllMocks());
 
 describe('catálogo incluido en la app', () => {
-  test('es el catálogo de data/searchDemo, con origen y versión conocidos', () => {
+  test('es el catálogo de data/busqueda, con origen y versión conocidos', () => {
     const incluido = catalogoIncluido();
 
     expect(incluido).toMatchObject({ origen: 'incluido', version: VERSION_INCLUIDA });

@@ -157,7 +157,7 @@ screens/              pantallas
 components/           componentes de dominio (formularios, tarjetas, reclamos)
 components/ui/        sistema de diseño: tema.js (tokens), controles y patrones compartidos
 services/             cliente HTTP (api.js) y llamadas a la API por dominio
-data/searchDemo.js    constantes (categorías, zonas, periodos) y validación de filtros de búsqueda;
+data/busqueda.js    constantes (categorías, zonas, periodos) y validación de filtros de búsqueda;
                       el nombre es histórico y el archivo no contiene datos de prueba
 ```
 

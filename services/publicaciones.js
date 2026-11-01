@@ -11,7 +11,7 @@ import {
 } from './cacheOffline';
 import { isAxiosError } from 'axios';
 import { api, API_URL, mensajeErrorApi } from './api';
-import { radioEfectivo } from '../data/searchDemo';
+import { radioEfectivo } from '../data/busqueda';
 
 const BASE_URL = API_URL.replace(/\/+$/, '');
 

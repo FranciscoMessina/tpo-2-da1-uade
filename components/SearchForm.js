@@ -8,7 +8,7 @@ import {
   radioEfectivo,
   radioValido,
   validarFiltros,
-} from '../data/searchDemo';
+} from '../data/busqueda';
 import useUbicacionActual from '../hooks/useUbicacionActual';
 import {
   catalogoActual,

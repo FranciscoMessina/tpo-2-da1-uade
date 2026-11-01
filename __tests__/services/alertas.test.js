@@ -14,7 +14,7 @@ import {
   filtrosIniciales,
   resumenBusqueda,
   validarFiltros,
-} from '../../data/searchDemo';
+} from '../../data/busqueda';
 
 // Los hooks de datos se reemplazan: estas pruebas miran el resumen y el historial, no la red.
 jest.mock('../../hooks/useAuth', () => ({

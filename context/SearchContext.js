@@ -12,7 +12,7 @@ import {
   View,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { claveBusqueda, radioValido } from '../data/searchDemo';
+import { claveBusqueda, radioValido } from '../data/busqueda';
 import useAlertas from '../hooks/useAlertas';
 import useAuth from '../hooks/useAuth';
 import useSeguidas from '../hooks/useSeguidas';

@@ -1,6 +1,6 @@
 import { act, fireEvent, render, screen } from '@testing-library/react-native';
 import SearchForm from '../../components/SearchForm';
-import { filtrosIniciales } from '../../data/searchDemo';
+import { filtrosIniciales } from '../../data/busqueda';
 import useUbicacionActual from '../../hooks/useUbicacionActual';
 
 // El GPS se reemplaza: la prueba no pide permisos ni usa el dispositivo.

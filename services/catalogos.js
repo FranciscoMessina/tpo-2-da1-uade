@@ -5,7 +5,7 @@ import {
   estaConectado,
   reportarFalloConexion,
 } from './conexion';
-import { CATEGORIAS, ZONAS } from '../data/searchDemo';
+import { CATEGORIAS, ZONAS } from '../data/busqueda';
 
 // Catálogo de categorías y barrios que usan los formularios de búsqueda y de publicación.
 //
@@ -17,7 +17,7 @@ import { CATEGORIAS, ZONAS } from '../data/searchDemo';
 // El catálogo que se muestra es siempre el último válido que se conoce, con su origen:
 //  - 'api': traído del backend en esta sesión.
 //  - 'cache': la última copia válida que quedó guardada en el dispositivo.
-//  - 'incluido': el que trae la app (data/searchDemo.js), cuando todavía no hay otro.
+//  - 'incluido': el que trae la app (data/busqueda.js), cuando todavía no hay otro.
 // Sin conexión (o ante una respuesta inválida) no se bloquea nada: se sigue con el vigente.
 
 export const CLAVE_CATALOGO = '@hallado:catalogo';

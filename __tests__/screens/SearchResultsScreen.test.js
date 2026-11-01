@@ -4,7 +4,7 @@ import SearchResultsScreen from '../../screens/SearchResultsScreen';
 import { buscarPublicacionesConCache, obtenerPublicacion } from '../../services/publicaciones';
 import { useSearch } from '../../context/SearchContext';
 import { useConexion } from '../../context/ConexionContext';
-import { filtrosIniciales } from '../../data/searchDemo';
+import { filtrosIniciales } from '../../data/busqueda';
 import { __navegacion as navegacion } from '@react-navigation/native';
 import { simularConectividad } from '../hooks/entorno';
 

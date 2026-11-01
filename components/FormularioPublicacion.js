@@ -6,7 +6,7 @@ import CamaraModal from './CamaraModal';
 import {
   fechaLocal,
   fechaValida,
-} from '../data/searchDemo';
+} from '../data/busqueda';
 import useUbicacionActual from '../hooks/useUbicacionActual';
 import { useConexion } from '../context/ConexionContext';
 import { verificarConexion } from '../services/conexion';

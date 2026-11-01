@@ -16,7 +16,7 @@ import ReputationCard from '../components/ReputationCard';
 import { fechaSuceso } from '../components/TarjetaPublicacion';
 import usePublicacion from '../hooks/usePublicacion';
 import { mensajeErrorApi } from '../services/api';
-import { ZONAS } from '../data/searchDemo';
+import { ZONAS } from '../data/busqueda';
 import {
   Avatar,
   Aviso,
