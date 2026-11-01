@@ -12,7 +12,8 @@ import { CATEGORIAS, ZONAS } from '../data/busqueda';
 // Fuente: GET /categorias y GET /barrios del backend, que además declaran la versión en la
 // cabecera `x-catalogo-version`. De cada barrio solo se usa el nombre (es lo que guardan las
 // publicaciones y las alertas) y un centro: una referencia para ordenar por cercanía, no la
-// posición exacta de un suceso. El barrio nunca se deduce del GPS.
+// posición exacta de un suceso. Con el GPS, barrioMasCercano propone el barrio más próximo como
+// información; los filtros y las publicaciones siguen guardando el barrio por nombre.
 //
 // El catálogo que se muestra es siempre el último válido que se conoce, con su origen:
 //  - 'api': traído del backend en esta sesión.
@@ -268,6 +269,42 @@ export function iniciarCatalogo({ forzar = false } = {}) {
   return tarea;
 }
 
+const RADIO_TIERRA_KM = 6371;
+const aRadianes = (grados) => (grados * Math.PI) / 180;
+
+function distanciaKm(a, b) {
+  const dLat = aRadianes(b.latitud - a.latitud);
+  const dLon = aRadianes(b.longitud - a.longitud);
+  const h =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(aRadianes(a.latitud)) * Math.cos(aRadianes(b.latitud)) * Math.sin(dLon / 2) ** 2;
+
+  return 2 * RADIO_TIERRA_KM * Math.asin(Math.sqrt(h));
+}
+
+/**
+ * Barrio del catálogo cuyo centro está más cerca de unas coordenadas (distancia haversine), o
+ * `null` si ninguno queda a `maxKm` o menos o las coordenadas no son válidas. Funciona sin red.
+ * Es una referencia aproximada: los centros no son límites de barrio.
+ */
+export function barrioMasCercano({ latitud, longitud } = {}, catalogo = actual, maxKm = 20) {
+  if (!coordenadaValida(latitud, 90) || !coordenadaValida(longitud, 180)) return null;
+
+  let mejor = null;
+  let menor = Infinity;
+
+  for (const zona of catalogo.zonas) {
+    const distancia = distanciaKm({ latitud, longitud }, zona);
+
+    if (distancia < menor) {
+      menor = distancia;
+      mejor = zona;
+    }
+  }
+
+  return mejor && menor <= maxKm ? mejor : null;
+}
+
 function zonaPorNombre(zonas, clave) {
   return zonas.find((zona) => normalizar(zona.nombre) === clave);
 }
@@ -276,7 +313,7 @@ function zonaPorNombre(zonas, clave) {
  * Busca un barrio por nombre, sin distinguir tildes ni mayúsculas, y devuelve su nombre canónico
  * con el centro. Primero en el catálogo vigente y después en el incluido: las publicaciones y
  * alertas guardadas conservan los nombres de siempre aunque el catálogo nuevo ya no los liste.
- * Solo se busca por nombre: unas coordenadas nunca eligen un barrio.
+ * Solo se busca por nombre; para ubicar unas coordenadas está barrioMasCercano.
  */
 export function buscarZona(nombre, catalogo = actual) {
   if (typeof nombre !== 'string') return undefined;
