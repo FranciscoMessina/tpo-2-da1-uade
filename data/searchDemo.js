@@ -1,3 +1,9 @@
+// Catálogo que trae la app. Los formularios de búsqueda y de publicación no lo leen directo: usan services/catalogos.js, que
+// muestra el catálogo del backend (o su última copia válida) y recurre a este solo si no hay otro.
+// También es la lista de nombres históricos que siguen resolviéndose: las publicaciones y alertas
+// guardan el nombre del barrio y de la categoría, así que no se renombra ni se quita nada.
+// El centro de cada barrio es una referencia para ordenar por cercanía, no la posición de un suceso.
+// Debe coincidir con CATEGORIES y ZONES del backend (src/types.ts); las pruebas fijan la misma versión.
 export const CATEGORIAS = [
   'Documentos',
   'Llaves',

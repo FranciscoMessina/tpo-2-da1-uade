@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState, useSyncExternalStore } from 'react';
 import {
   Button,
   Pressable,
@@ -8,10 +8,8 @@ import {
   View,
 } from 'react-native';
 import {
-  CATEGORIAS,
   PERIODOS,
   RADIO_KM_INICIAL,
-  ZONAS,
   formatearRadio,
   parsearRadio,
   radioEfectivo,
@@ -19,6 +17,12 @@ import {
   validarFiltros,
 } from '../data/searchDemo';
 import useUbicacionActual from '../hooks/useUbicacionActual';
+import {
+  catalogoActual,
+  iniciarCatalogo,
+  opcionesZona,
+  suscribirCatalogo,
+} from '../services/catalogos';
 
 function Opciones({ opciones, valor, onChange }) {
   return (
@@ -71,11 +75,17 @@ export default function SearchForm({
   // Texto que está escribiendo la persona; null muestra el radio ya guardado en los filtros.
   const [radioEscrito, setRadioEscrito] = useState(null);
   const [error, setError] = useState('');
+  // Mismo catálogo que el formulario de publicación; sin conexión, el último válido.
+  const catalogo = useSyncExternalStore(suscribirCatalogo, catalogoActual);
   const {
     obtener: obtenerUbicacion,
     cargando: ubicando,
     error: errorUbicacion,
   } = useUbicacionActual();
+
+  useEffect(() => {
+    iniciarCatalogo();
+  }, []);
 
   function cambiar(campo, valor) {
     setError('');
@@ -169,7 +179,7 @@ export default function SearchForm({
         <Text style={styles.title}>2. ¿Qué es?</Text>
 
         <Opciones
-          opciones={CATEGORIAS.map((nombre) => ({
+          opciones={catalogo.categorias.map((nombre) => ({
             valor: nombre,
             nombre,
           }))}
@@ -200,7 +210,7 @@ export default function SearchForm({
         </Text>
 
         <Opciones
-          opciones={ZONAS.map(({ nombre }) => ({
+          opciones={opcionesZona(catalogo, filtros.zona).map(({ nombre }) => ({
             valor: nombre,
             nombre,
           }))}
