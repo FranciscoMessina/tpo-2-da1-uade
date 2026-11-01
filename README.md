@@ -111,7 +111,7 @@ npm run android      # abre la app en el emulador o dispositivo Android conectad
 
 **Publicaciones**
 
-- Alta de publicaciones de objetos o mascotas, con fotos (galería o cámara), categoría, zona, ubicación y dirección exacta opcional; en los hallazgos son obligatorias una pregunta de verificación y su respuesta privada (`CreatePostScreen`, `components/FormularioPublicacion.js`, `hooks/useCrearPublicacion.js`, `services/publicaciones.js`). Las fotos se eligen con `expo-image-picker` y la ubicación se obtiene con `expo-location`.
+- Alta de publicaciones de objetos o mascotas, con fotos (galería o cámara), categoría, zona, ubicación y dirección exacta opcional; en los hallazgos son obligatorias una pregunta de verificación y su respuesta privada (`CreatePostScreen`, `components/FormularioPublicacion.js`, `hooks/useCrearPublicacion.js`, `services/publicaciones.js`). La cámara está dentro de la app (`components/CamaraModal.js`, `expo-camera`: requiere un dev client reconstruido), las fotos de la galería se eligen con `expo-image-picker` y la ubicación se obtiene con `expo-location`.
 - Borrador automático del alta y cola de publicaciones para enviar después cuando no hay conexión (ver «Conexión y caché offline»).
 - Mis publicaciones, filtradas por estado (`hooks/useMisPublicaciones.js`).
 - Gestión de la publicación propia: editar, eliminar y renovar, con aviso de vencimiento (`GestionPublicacionScreen`, `hooks/useGestionPublicacion.js`).

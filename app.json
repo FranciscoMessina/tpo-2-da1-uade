@@ -41,7 +41,16 @@
         "expo-image-picker",
         {
           "photosPermission": "Hallado usa tus fotos para adjuntarlas a publicaciones y reclamos.",
-          "cameraPermission": "Hallado usa la cámara para sacar fotos de los objetos que publicás."
+          "cameraPermission": "Hallado usa la cámara para sacar fotos de los objetos que publicás.",
+          "microphonePermission": false
+        }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Hallado usa la cámara para sacar fotos de los objetos que publicás.",
+          "microphonePermission": false,
+          "recordAudioAndroid": false
         }
       ],
       "expo-secure-store"
