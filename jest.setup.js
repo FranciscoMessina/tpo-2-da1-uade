@@ -5,6 +5,29 @@ jest.mock('@react-native-async-storage/async-storage', () =>
   require('@react-native-async-storage/async-storage/jest/async-storage-mock')
 );
 
+// Red del dispositivo: por defecto conectada. `__emitir(cambios)` simula un cambio del sistema
+// (modo avión, red que vuelve) y `__restablecer()` la deja como al principio.
+jest.mock('expo-network', () => {
+  const inicial = { type: 'WIFI', isConnected: true, isInternetReachable: true };
+  const oyentes = new Set();
+  let estado = inicial;
+  return {
+    __emitir(cambios) {
+      estado = { ...estado, ...cambios };
+      [...oyentes].forEach((oyente) => oyente(estado));
+    },
+    __restablecer() {
+      estado = inicial;
+      oyentes.clear();
+    },
+    getNetworkStateAsync: jest.fn(async () => estado),
+    addNetworkStateListener: jest.fn((oyente) => {
+      oyentes.add(oyente);
+      return { remove: () => oyentes.delete(oyente) };
+    }),
+  };
+});
+
 jest.mock('expo-secure-store', () => {
   const almacen = new Map();
   return {

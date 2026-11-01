@@ -1,4 +1,5 @@
 import { create } from 'axios';
+import { hayInternet } from './red';
 
 // Expo reemplaza process.env.EXPO_PUBLIC_API_URL al empaquetar (ver .env.example).
 // Si no está definida, se usa el backend del emulador Android.
@@ -38,12 +39,24 @@ export function setupInterceptors(alExpirarSesion) {
   return () => api.interceptors.response.eject(id);
 }
 
-// Mensaje único cuando no hay respuesta del servidor: lo usa toda la app y la interfaz lo
-// reconoce (esMensajeSinConexion) para mostrarlo como aviso de conexión y no como error.
-export const MENSAJE_SIN_CONEXION = 'Sin conexión. Revisá tu internet e intentá de nuevo.';
+// Cuando no hay respuesta del servidor hay dos causas con el mismo efecto para quien usa la
+// app pero distinto remedio: el dispositivo sin red, o la red bien y el servidor caído. Toda la
+// app usa estos dos mensajes y la interfaz los reconoce (motivoSinConexion) para mostrarlos como
+// aviso de conexión y no como error.
+export const MENSAJE_SIN_INTERNET = 'Sin conexión a internet. Revisá tu red e intentá de nuevo.';
+export const MENSAJE_SERVIDOR_NO_DISPONIBLE =
+  'No pudimos conectar con el servidor. Probá de nuevo en unos minutos.';
+
+/** 'internet' | 'servidor' si el texto contiene un aviso de conexión; null si es otra cosa. */
+export function motivoSinConexion(mensaje) {
+  if (typeof mensaje !== 'string') return null;
+  if (mensaje.includes(MENSAJE_SIN_INTERNET)) return 'internet';
+  if (mensaje.includes(MENSAJE_SERVIDOR_NO_DISPONIBLE)) return 'servidor';
+  return null;
+}
 
 export function esMensajeSinConexion(mensaje) {
-  return typeof mensaje === 'string' && mensaje.includes(MENSAJE_SIN_CONEXION);
+  return motivoSinConexion(mensaje) !== null;
 }
 
 export function mensajeErrorApi(error) {
@@ -61,7 +74,7 @@ export function mensajeErrorApi(error) {
   }
 
   if (!error?.response) {
-    return MENSAJE_SIN_CONEXION;
+    return hayInternet() ? MENSAJE_SERVIDOR_NO_DISPONIBLE : MENSAJE_SIN_INTERNET;
   }
 
   return 'No pudimos completar la solicitud. Intentá nuevamente.';

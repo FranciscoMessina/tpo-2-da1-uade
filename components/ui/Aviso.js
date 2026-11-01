@@ -2,7 +2,8 @@ import { StyleSheet, View } from 'react-native';
 import Icono from './Icono';
 import Texto from './Texto';
 import Tocable from './Tocable';
-import { esMensajeSinConexion } from '../../services/api';
+import { useConexion } from '../../context/ConexionContext';
+import { motivoSinConexion } from '../../services/api';
 import { espacio, radios, tonos } from './tema';
 
 const ICONOS = {
@@ -12,6 +13,9 @@ const ICONOS = {
   aviso: 'alert-outline',
   peligro: 'alert-circle-outline',
 };
+
+// Ícono del aviso de conexión según la causa: sin red en el dispositivo o servidor caído
+export const ICONOS_CONEXION = { internet: 'wifi-off', servidor: 'cloud-off-outline' };
 
 /**
  * Mensaje de estado dentro del contenido: errores, confirmaciones y estado de un trámite.
@@ -28,8 +32,8 @@ export function Aviso({
   style = undefined,
 }) {
   // Un error por falta de conexión no es una falla de la persona ni de la app: tono de aviso
-  const sinConexion = tono === 'peligro' && esMensajeSinConexion(mensaje);
-  const { fondo, texto: color } = tonos[sinConexion ? 'aviso' : tono];
+  const motivo = tono === 'peligro' ? motivoSinConexion(mensaje) : null;
+  const { fondo, texto: color } = tonos[motivo ? 'aviso' : tono];
 
   return (
     <View
@@ -38,7 +42,7 @@ export function Aviso({
       style={[styles.aviso, { backgroundColor: fondo }, style]}
     >
       <Icono
-        nombre={icono ?? (sinConexion ? 'wifi-off' : ICONOS[tono])}
+        nombre={icono ?? (motivo ? ICONOS_CONEXION[motivo] : ICONOS[tono])}
         tamano={20}
         color={color}
       />
@@ -67,15 +71,29 @@ export function Aviso({
   );
 }
 
+/**
+ * Aviso de que el backend no está disponible. Sin título propio, nombra la causa según el
+ * dispositivo: sin red («Sin conexión a internet») o con red pero sin servidor.
+ */
 export function AvisoSinConexion({
-  titulo = 'Modo sin conexión',
+  titulo = undefined,
   mensaje = undefined,
   children = undefined,
   accion = undefined,
   style = undefined,
 }) {
+  const { sinInternet } = useConexion();
+  let tituloFinal = titulo;
+  if (tituloFinal === undefined) {
+    if (sinInternet === undefined) tituloFinal = 'Modo sin conexión';
+    else tituloFinal = sinInternet ? 'Sin conexión a internet' : 'Servidor no disponible';
+  }
+
   return (
-    <Aviso tono="aviso" icono="wifi-off" titulo={titulo} mensaje={mensaje} accion={accion} style={style}>
+    <Aviso
+      tono="aviso"
+      icono={sinInternet === false ? ICONOS_CONEXION.servidor : ICONOS_CONEXION.internet}
+      titulo={tituloFinal} mensaje={mensaje} accion={accion} style={style}>
       {children}
     </Aviso>
   );

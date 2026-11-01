@@ -6,7 +6,7 @@ import SeguidasScreen from '../../screens/SeguidasScreen';
 import LoginScreen from '../../screens/LoginScreen';
 import { useSearch } from '../../context/SearchContext';
 import useAuth from '../../hooks/useAuth';
-import { MENSAJE_SIN_CONEXION } from '../../services/api';
+import { MENSAJE_SERVIDOR_NO_DISPONIBLE } from '../../services/api';
 
 let mockHayConexion = true;
 
@@ -64,15 +64,15 @@ describe('AlertasScreen sin conexión', () => {
   test('muestra un solo aviso de conexión en lugar de los errores y bloquea los cambios', () => {
     mockHayConexion = false;
     const contexto = contextoBusqueda({
-      alertasError: MENSAJE_SIN_CONEXION,
-      novedadesError: MENSAJE_SIN_CONEXION,
+      alertasError: MENSAJE_SERVIDOR_NO_DISPONIBLE,
+      novedadesError: MENSAJE_SERVIDOR_NO_DISPONIBLE,
     });
     jest.mocked(useSearch).mockReturnValue(contexto);
 
     render(<AlertasScreen navigation={navegacion} />);
 
     expect(screen.getByText(/no pausarlas, eliminarlas ni marcar novedades/)).toBeTruthy();
-    expect(screen.queryByText(MENSAJE_SIN_CONEXION)).toBeNull();
+    expect(screen.queryByText(MENSAJE_SERVIDOR_NO_DISPONIBLE)).toBeNull();
     expect(screen.queryByText(/No se pudieron actualizar las novedades/)).toBeNull();
 
     expect(screen.getByRole('button', { name: 'Eliminar' })).toBeDisabled();
@@ -101,13 +101,13 @@ describe('SeguidasScreen sin conexión', () => {
   test('avisa que falta la conexión y bloquea dejar de seguir', () => {
     mockHayConexion = false;
     jest.mocked(useSearch).mockReturnValue(
-      contextoBusqueda({ seguidasError: MENSAJE_SIN_CONEXION, novedadesError: MENSAJE_SIN_CONEXION })
+      contextoBusqueda({ seguidasError: MENSAJE_SERVIDOR_NO_DISPONIBLE, novedadesError: MENSAJE_SERVIDOR_NO_DISPONIBLE })
     );
 
     render(<SeguidasScreen navigation={navegacion} />);
 
     expect(screen.getByText(/no dejar de seguirlas ni marcar novedades/)).toBeTruthy();
-    expect(screen.queryByText(MENSAJE_SIN_CONEXION)).toBeNull();
+    expect(screen.queryByText(MENSAJE_SERVIDOR_NO_DISPONIBLE)).toBeNull();
     expect(screen.getByRole('button', { name: 'Dejar de seguir' })).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Marcar novedades como leídas' })).toBeDisabled();
   });

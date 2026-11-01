@@ -1,5 +1,5 @@
 import { AxiosError } from 'axios';
-import { api, MENSAJE_SIN_CONEXION, esMensajeSinConexion, mensajeErrorApi } from '../../services/api';
+import { api, MENSAJE_SERVIDOR_NO_DISPONIBLE, esMensajeSinConexion, mensajeErrorApi } from '../../services/api';
 import { iniciarSondeo, verificarConexion } from '../../services/conexion';
 import { controlarAppState, restaurarAppState } from '../hooks/entorno';
 
@@ -18,7 +18,7 @@ afterEach(() => {
 describe('mensajeErrorApi sin conexión', () => {
   test('sin respuesta del servidor devuelve el mensaje único de falta de conexión', () => {
     expect(mensajeErrorApi(new AxiosError('Network Error', 'ERR_NETWORK'))).toBe(
-      MENSAJE_SIN_CONEXION
+      MENSAJE_SERVIDOR_NO_DISPONIBLE
     );
   });
 
@@ -41,7 +41,7 @@ describe('mensajeErrorApi sin conexión', () => {
   });
 
   test('el mensaje se reconoce aunque venga dentro de otro texto', () => {
-    expect(esMensajeSinConexion(`No se pudieron actualizar las novedades. ${MENSAJE_SIN_CONEXION}`)).toBe(true);
+    expect(esMensajeSinConexion(`No se pudieron actualizar las novedades. ${MENSAJE_SERVIDOR_NO_DISPONIBLE}`)).toBe(true);
     expect(esMensajeSinConexion('Otro error')).toBe(false);
     expect(esMensajeSinConexion(undefined)).toBe(false);
   });
