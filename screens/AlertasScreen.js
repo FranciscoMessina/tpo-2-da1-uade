@@ -82,16 +82,6 @@ export default function AlertasScreen({ navigation }) {
       keyExtractor={(item) => item.id}
       ListHeaderComponent={
         <View style={styles.encabezado}>
-          <Texto variante="cuerpoChico" tono="secundario">
-            Tocá una alerta para repetir su búsqueda. Podés pausarla o
-            eliminarla cuando quieras.
-          </Texto>
-          <Texto variante="cuerpoChico" tono="secundario">
-            Las publicaciones nuevas que coincidan se destacan en cada alerta.
-            Un período como «Hoy» o «Última semana» se evalúa cuando se publica
-            algo; un rango de fechas queda fijo.
-          </Texto>
-
           {sinConexion && (
             <AvisoSinConexion
               mensaje="Podés ver tus alertas guardadas, pero no pausarlas, eliminarlas ni marcar novedades como leídas hasta que vuelva la conexión."

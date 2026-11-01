@@ -72,11 +72,6 @@ export default function SeguidasScreen({ navigation }) {
       onRefresh={actualizar}
       ListHeaderComponent={
         <View style={styles.encabezado}>
-          <Texto variante="cuerpoChico" tono="secundario">
-            Consultá las publicaciones que te interesan y entrá a su detalle. Los
-            cambios pendientes de leer se destacan en cada publicación.
-          </Texto>
-
           {sinConexion && (
             <AvisoSinConexion
               mensaje="Podés ver las publicaciones que seguís, pero no dejar de seguirlas ni marcar novedades como leídas hasta que vuelva la conexión."
