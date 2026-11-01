@@ -1,9 +1,11 @@
 import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useConexion } from '../context/ConexionContext';
 import useAuth, { emailValido } from '../hooks/useAuth';
 import {
   Aviso,
+  AvisoSinConexion,
   Boton,
   Campo,
   Icono,
@@ -18,6 +20,7 @@ import {
 
 export default function LoginScreen({ navigation }) {
   const { iniciarSesion, loading, error, limpiarError } = useAuth();
+  const { hayConexion } = useConexion();
   const [email, setEmail] = useState('');
   const [contraseña, setContraseña] = useState('');
   const [errores, setErrores] = useState({});
@@ -45,7 +48,10 @@ export default function LoginScreen({ navigation }) {
         <Aviso tono="info" mensaje="Probá con demo@hallado.com / Hallado123." />
 
         <Tarjeta>
-          {!!error && <Aviso tono="peligro" mensaje={error} accessibilityRole="alert" />}
+          {!hayConexion && <AvisoSinConexion mensaje="Necesitás conexión para ingresar." />}
+          {!!error && hayConexion && (
+            <Aviso tono="peligro" mensaje={error} accessibilityRole="alert" />
+          )}
 
           <Campo
             etiqueta="Email"
@@ -74,7 +80,7 @@ export default function LoginScreen({ navigation }) {
             placeholder="Tu contraseña"
             onSubmitEditing={enviar}
           />
-          <Boton titulo="Ingresar" onPress={enviar} cargando={loading} />
+          <Boton titulo="Ingresar" onPress={enviar} cargando={loading} requiereConexion />
           <Boton
             titulo="Olvidé mi contraseña"
             variante="terciario"

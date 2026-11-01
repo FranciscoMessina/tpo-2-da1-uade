@@ -15,7 +15,7 @@ import {
   aceptarReclamo,
   rechazarReclamo,
 } from '../services/publicaciones';
-import { mensajeErrorApi } from '../services/api';
+import { esMensajeSinConexion, mensajeErrorApi } from '../services/api';
 import EncuentroReclamo from '../components/EncuentroReclamo';
 import EvidenciaReclamo from '../components/EvidenciaReclamo';
 import { resolverPublicacion } from '../services/historial';
@@ -500,7 +500,13 @@ export default function MisReclamosScreen({ navigation }) {
             paginacion[tab].pagina < paginacion[tab].totalPaginas ? (
               <View style={styles.cargarMas}>
                 {errorMas !== '' && (
-                  <Texto variante="cuerpoChico" tono="peligro" centrado>{errorMas}</Texto>
+                  <Texto
+                    variante="cuerpoChico"
+                    tono={esMensajeSinConexion(errorMas) ? 'aviso' : 'peligro'}
+                    centrado
+                  >
+                    {errorMas}
+                  </Texto>
                 )}
                 <Boton
                   titulo={cargandoMas ? 'Cargando…' : 'Cargar más reclamos'}

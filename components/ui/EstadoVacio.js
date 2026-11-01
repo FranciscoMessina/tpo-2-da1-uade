@@ -1,4 +1,5 @@
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
+import { esMensajeSinConexion } from '../../services/api';
 import Boton from './Boton';
 import Icono from './Icono';
 import Texto from './Texto';
@@ -45,11 +46,13 @@ export function ErrorConReintento({
   onReintentar,
   textoReintentar = 'Reintentar',
 }) {
+  const sinConexion = esMensajeSinConexion(mensaje);
+
   return (
     <EstadoVacio
-      icono="alert-circle-outline"
-      tono="peligro"
-      titulo={titulo}
+      icono={sinConexion ? 'wifi-off' : 'alert-circle-outline'}
+      tono={sinConexion ? 'aviso' : 'peligro'}
+      titulo={titulo ?? (sinConexion ? 'Sin conexión' : undefined)}
       mensaje={mensaje}
       rolMensaje="alert"
     >

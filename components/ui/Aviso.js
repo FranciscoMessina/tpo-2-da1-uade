@@ -2,6 +2,7 @@ import { StyleSheet, View } from 'react-native';
 import Icono from './Icono';
 import Texto from './Texto';
 import Tocable from './Tocable';
+import { esMensajeSinConexion } from '../../services/api';
 import { espacio, radios, tonos } from './tema';
 
 const ICONOS = {
@@ -26,7 +27,9 @@ export function Aviso({
   accessibilityRole = undefined,
   style = undefined,
 }) {
-  const { fondo, texto: color } = tonos[tono];
+  // Un error por falta de conexión no es una falla de la persona ni de la app: tono de aviso
+  const sinConexion = tono === 'peligro' && esMensajeSinConexion(mensaje);
+  const { fondo, texto: color } = tonos[sinConexion ? 'aviso' : tono];
 
   return (
     <View
@@ -34,7 +37,11 @@ export function Aviso({
       accessibilityRole={accessibilityRole}
       style={[styles.aviso, { backgroundColor: fondo }, style]}
     >
-      <Icono nombre={icono ?? ICONOS[tono]} tamano={20} color={color} />
+      <Icono
+        nombre={icono ?? (sinConexion ? 'wifi-off' : ICONOS[tono])}
+        tamano={20}
+        color={color}
+      />
 
       <View style={styles.cuerpo}>
         {!!titulo && <Texto variante="etiqueta" style={{ color }}>{titulo}</Texto>}

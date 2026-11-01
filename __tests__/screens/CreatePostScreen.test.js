@@ -256,7 +256,7 @@ describe('CreatePostScreen: sin conexión y reintento', () => {
     estado.perderRespuesta = 1;
     await presionar('Publicar mi pérdida');
     expect(screen.queryByText('¡Pérdida publicada!')).toBeNull();
-    expect(screen.getByText(/No pudimos conectar con el servidor/)).toBeTruthy();
+    expect(screen.getByText(/Sin conexión\. Revisá tu internet/)).toBeTruthy();
 
     await presionar('Publicar mi pérdida');
     expect(screen.getByText('¡Pérdida publicada!')).toBeTruthy();

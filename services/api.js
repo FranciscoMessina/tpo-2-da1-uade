@@ -38,6 +38,14 @@ export function setupInterceptors(alExpirarSesion) {
   return () => api.interceptors.response.eject(id);
 }
 
+// Mensaje único cuando no hay respuesta del servidor: lo usa toda la app y la interfaz lo
+// reconoce (esMensajeSinConexion) para mostrarlo como aviso de conexión y no como error.
+export const MENSAJE_SIN_CONEXION = 'Sin conexión. Revisá tu internet e intentá de nuevo.';
+
+export function esMensajeSinConexion(mensaje) {
+  return typeof mensaje === 'string' && mensaje.includes(MENSAJE_SIN_CONEXION);
+}
+
 export function mensajeErrorApi(error) {
   const mensaje = error?.response?.data?.error?.message;
 
@@ -53,7 +61,7 @@ export function mensajeErrorApi(error) {
   }
 
   if (!error?.response) {
-    return 'No pudimos conectar con el servidor. Revisá que el backend esté funcionando.';
+    return MENSAJE_SIN_CONEXION;
   }
 
   return 'No pudimos completar la solicitud. Intentá nuevamente.';

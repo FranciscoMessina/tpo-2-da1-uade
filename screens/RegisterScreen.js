@@ -1,8 +1,10 @@
 import { useState } from 'react';
+import { useConexion } from '../context/ConexionContext';
 import useAuth, { emailValido, validarContraseña } from '../hooks/useAuth';
 import CodeStep from '../components/CodeStep';
 import {
   Aviso,
+  AvisoSinConexion,
   Boton,
   Campo,
   IndicadorPasos,
@@ -20,6 +22,7 @@ export default function RegisterScreen() {
     error,
     limpiarError,
   } = useAuth();
+  const { hayConexion } = useConexion();
   const [paso, setPaso] = useState(1);
   const [email, setEmail] = useState('');
   const [codigo, setCodigo] = useState('');
@@ -59,7 +62,10 @@ export default function RegisterScreen() {
       <IndicadorPasos paso={paso} total={3} />
 
       <Tarjeta>
-        {!!error && <Aviso tono="peligro" mensaje={error} accessibilityRole="alert" />}
+        {!hayConexion && <AvisoSinConexion mensaje="Necesitás conexión para crear tu cuenta." />}
+        {!!error && hayConexion && (
+          <Aviso tono="peligro" mensaje={error} accessibilityRole="alert" />
+        )}
 
         {paso === 1 && (
           <>
@@ -77,7 +83,7 @@ export default function RegisterScreen() {
               placeholder="tu@email.com"
               onSubmitEditing={enviarEmail}
             />
-            <Boton titulo="Enviar código" onPress={enviarEmail} cargando={loading} />
+            <Boton titulo="Enviar código" onPress={enviarEmail} cargando={loading} requiereConexion />
           </>
         )}
 
@@ -115,7 +121,7 @@ export default function RegisterScreen() {
               placeholder="Repetí la contraseña"
               onSubmitEditing={finalizar}
             />
-            <Boton titulo="Crear cuenta" onPress={finalizar} cargando={loading} />
+            <Boton titulo="Crear cuenta" onPress={finalizar} cargando={loading} requiereConexion />
           </>
         )}
       </Tarjeta>

@@ -1,6 +1,6 @@
 import { buscarPublicacionesConCache } from '../services/publicaciones';
 import { estaConectado } from '../services/conexion';
-import { mensajeErrorApi } from '../services/api';
+import { esMensajeSinConexion, mensajeErrorApi } from '../services/api';
 import { useEffect } from 'react';
 import { useRef, useState } from 'react';
 import { Alert, FlatList, StyleSheet, View } from 'react-native';
@@ -298,7 +298,11 @@ function ResultadosBusqueda({ route, navigation }) {
 
             {alertasError !== '' && (
               <View style={styles.resumen}>
-                <Texto variante="cuerpoChico" tono="peligro" accessibilityRole="alert">
+                <Texto
+                  variante="cuerpoChico"
+                  tono={esMensajeSinConexion(alertasError) ? 'aviso' : 'peligro'}
+                  accessibilityRole="alert"
+                >
                   {alertasError}
                 </Texto>
                 <Boton

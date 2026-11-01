@@ -92,6 +92,14 @@ function enPrimerPlano(estado) {
 export function iniciarSondeo() {
   let intervalo = null;
 
+  // Una petición real que falla por conectividad no espera al próximo sondeo: comprueba ya,
+  // así los avisos y los botones bloqueados reflejan la falta de conexión enseguida.
+  // Si el que falló es el propio ping, verificarConexion reutiliza el que está en curso.
+  const interceptor = api.interceptors.response.use(undefined, (error) => {
+    if (esErrorDeConectividad(error)) verificarConexion();
+    return Promise.reject(error);
+  });
+
   const arrancar = () => {
     if (intervalo) return;
     verificarConexion();
@@ -112,6 +120,7 @@ export function iniciarSondeo() {
   });
 
   return () => {
+    api.interceptors.response.eject(interceptor);
     suscripcion.remove();
     detener();
   };
