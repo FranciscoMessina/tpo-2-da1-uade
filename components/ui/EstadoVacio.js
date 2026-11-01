@@ -1,4 +1,6 @@
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
+import { motivoSinConexion } from '../../services/api';
+import { ICONOS_CONEXION } from './Aviso';
 import Boton from './Boton';
 import Icono from './Icono';
 import Texto from './Texto';
@@ -39,17 +41,21 @@ export function EstadoVacio({
   );
 }
 
+const TITULOS_CONEXION = { internet: 'Sin conexión a internet', servidor: 'Servidor no disponible' };
+
 export function ErrorConReintento({
   mensaje,
   titulo = undefined,
   onReintentar,
   textoReintentar = 'Reintentar',
 }) {
+  const motivo = motivoSinConexion(mensaje);
+
   return (
     <EstadoVacio
-      icono="alert-circle-outline"
-      tono="peligro"
-      titulo={titulo}
+      icono={motivo ? ICONOS_CONEXION[motivo] : 'alert-circle-outline'}
+      tono={motivo ? 'aviso' : 'peligro'}
+      titulo={titulo ?? TITULOS_CONEXION[motivo]}
       mensaje={mensaje}
       rolMensaje="alert"
     >

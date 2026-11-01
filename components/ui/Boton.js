@@ -1,4 +1,6 @@
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
+import { useConexion } from '../../context/ConexionContext';
+import { NotaSinConexion } from './Aviso';
 import Icono from './Icono';
 import Texto from './Texto';
 import Tocable from './Tocable';
@@ -37,6 +39,8 @@ const VARIANTES = {
  *   («Guardando…»), así el lector de pantalla también lo anuncia.
  * - flexible: reparte el ancho de su fila con los botones vecinos.
  * - ajustado: ocupa solo lo que necesita su texto.
+ * - requiereConexion: la acción no existe sin el backend. Sin conexión el botón queda bloqueado
+ *   y, si hay notaSinConexion, la explica debajo (solo en disposiciones en columna).
  */
 export default function Boton({
   titulo,
@@ -50,14 +54,18 @@ export default function Boton({
   ajustado = false,
   accessibilityLabel = undefined,
   estilo = undefined,
+  requiereConexion = false,
+  notaSinConexion = undefined,
 }) {
-  const inactivo = disabled || cargando;
+  const { hayConexion } = useConexion();
+  const sinConexion = requiereConexion && !hayConexion;
+  const inactivo = disabled || cargando || sinConexion;
   const base = VARIANTES[variante];
   const transparente = variante === 'terciario';
   const fondo = inactivo && !transparente ? colores.deshabilitado : base.fondo;
   const contenido = inactivo ? colores.textoTenue : base.contenido;
 
-  return (
+  const boton = (
     <Tocable
       onPress={onPress}
       disabled={inactivo}
@@ -84,6 +92,15 @@ export default function Boton({
         </Texto>
       </View>
     </Tocable>
+  );
+
+  if (!sinConexion || !notaSinConexion) return boton;
+
+  return (
+    <>
+      {boton}
+      <NotaSinConexion>{notaSinConexion}</NotaSinConexion>
+    </>
   );
 }
 

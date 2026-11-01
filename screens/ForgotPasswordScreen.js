@@ -1,8 +1,10 @@
 import { useState } from 'react';
+import { useConexion } from '../context/ConexionContext';
 import useAuth, { emailValido, validarContraseña } from '../hooks/useAuth';
 import CodeStep from '../components/CodeStep';
 import {
   Aviso,
+  AvisoSinConexion,
   Boton,
   Campo,
   IndicadorPasos,
@@ -20,6 +22,7 @@ export default function ForgotPasswordScreen({ navigation }) {
     error,
     limpiarError,
   } = useAuth();
+  const { hayConexion } = useConexion();
   const [paso, setPaso] = useState(1);
   const [email, setEmail] = useState('');
   const [codigo, setCodigo] = useState('');
@@ -59,7 +62,10 @@ export default function ForgotPasswordScreen({ navigation }) {
       <IndicadorPasos paso={listo ? 3 : paso} total={3} />
 
       <Tarjeta>
-        {!!error && <Aviso tono="peligro" mensaje={error} accessibilityRole="alert" />}
+        {!hayConexion && <AvisoSinConexion mensaje="Necesitás conexión para recuperar tu contraseña." />}
+        {!!error && hayConexion && (
+          <Aviso tono="peligro" mensaje={error} accessibilityRole="alert" />
+        )}
 
         {listo ? (
           <>
@@ -84,7 +90,7 @@ export default function ForgotPasswordScreen({ navigation }) {
                   placeholder="tu@email.com"
                   onSubmitEditing={enviarEmail}
                 />
-                <Boton titulo="Enviar código" onPress={enviarEmail} cargando={loading} />
+                <Boton titulo="Enviar código" onPress={enviarEmail} cargando={loading} requiereConexion />
               </>
             )}
 
@@ -122,7 +128,7 @@ export default function ForgotPasswordScreen({ navigation }) {
                   placeholder="Repetí la contraseña"
                   onSubmitEditing={guardar}
                 />
-                <Boton titulo="Guardar contraseña" onPress={guardar} cargando={loading} />
+                <Boton titulo="Guardar contraseña" onPress={guardar} cargando={loading} requiereConexion />
               </>
             )}
           </>

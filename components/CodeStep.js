@@ -52,12 +52,13 @@ export default function CodeStep({
         placeholder="000000"
         autoComplete="one-time-code"
       />
-      <Boton titulo="Verificar código" onPress={verificar} cargando={loading} />
+      <Boton titulo="Verificar código" onPress={verificar} cargando={loading} requiereConexion />
       <Boton
         titulo={segundos > 0 ? `Reenviar código en ${segundos}s` : 'Reenviar código'}
         variante="terciario"
         chico
         disabled={segundos > 0 || loading}
+        requiereConexion
         onPress={reenviar}
       />
       <Boton titulo="Cambiar email" variante="terciario" chico onPress={onChangeEmail} />

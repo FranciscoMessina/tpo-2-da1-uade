@@ -1,10 +1,12 @@
 import { useCallback } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import { Alert, FlatList, StyleSheet, View } from 'react-native';
+import { useConexion } from '../context/ConexionContext';
 import { useSearch } from '../context/SearchContext';
 import { resumenBusqueda } from '../data/searchDemo';
 import {
   Aviso,
+  AvisoSinConexion,
   Boton,
   Cargando,
   EstadoVacio,
@@ -36,6 +38,9 @@ export default function AlertasScreen({ navigation }) {
     marcarAlertaLeida,
   } = useSearch();
 
+  const { hayConexion } = useConexion();
+  const sinConexion = !hayConexion;
+
   const actualizar = useCallback(() => {
     recargarAlertas();
     recargarNovedades();
@@ -46,6 +51,8 @@ export default function AlertasScreen({ navigation }) {
   const bloqueado = alertasLoading || alertasGuardando || novedadesGuardando;
 
   function confirmarEliminar(alerta) {
+    if (sinConexion) return;
+
     Alert.alert(
       'Eliminar alerta',
       '¿Querés eliminar esta alerta? No vas a recibir más avisos de esta búsqueda.',
@@ -85,10 +92,15 @@ export default function AlertasScreen({ navigation }) {
             algo; un rango de fechas queda fijo.
           </Texto>
 
-          {alertasError !== '' && (
+          {sinConexion && (
+            <AvisoSinConexion
+              mensaje="Podés ver tus alertas guardadas, pero no pausarlas, eliminarlas ni marcar novedades como leídas hasta que vuelva la conexión."
+            />
+          )}
+          {!sinConexion && alertasError !== '' && (
             <Aviso tono="peligro" mensaje={alertasError} accessibilityRole="alert" />
           )}
-          {novedadesError !== '' && (
+          {!sinConexion && novedadesError !== '' && (
             <Aviso
               tono="peligro"
               mensaje={`No se pudieron actualizar las novedades. ${novedadesError}`}
@@ -157,6 +169,7 @@ export default function AlertasScreen({ navigation }) {
                 chico
                 onPress={() => marcarAlertaLeida(item.id)}
                 disabled={bloqueado || novedadesLoading}
+                requiereConexion
               />
             )}
 
@@ -168,7 +181,7 @@ export default function AlertasScreen({ navigation }) {
                   etiqueta={item.activa ? 'Activa' : 'Desactivada'}
                   accessibilityLabel="Alerta activa"
                   valor={item.activa}
-                  disabled={bloqueado}
+                  disabled={bloqueado || sinConexion}
                   onChange={(valor) => activarAlerta(item.id, valor)}
                 />
               </View>
@@ -179,6 +192,7 @@ export default function AlertasScreen({ navigation }) {
                 variante="peligro"
                 chico
                 disabled={bloqueado}
+                requiereConexion
                 onPress={() => confirmarEliminar(item)}
               />
             </View>

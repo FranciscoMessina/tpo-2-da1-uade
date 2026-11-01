@@ -2,9 +2,11 @@ import { useCallback } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import { Alert, FlatList, StyleSheet, View } from 'react-native';
 import TarjetaPublicacion from '../components/TarjetaPublicacion';
+import { useConexion } from '../context/ConexionContext';
 import { useSearch } from '../context/SearchContext';
 import {
   Aviso,
+  AvisoSinConexion,
   Boton,
   Cargando,
   EstadoVacio,
@@ -30,6 +32,9 @@ export default function SeguidasScreen({ navigation }) {
     marcarPublicacionLeida,
   } = useSearch();
 
+  const { hayConexion } = useConexion();
+  const sinConexion = !hayConexion;
+
   const actualizar = useCallback(() => {
     recargarSeguidas();
     recargarNovedades();
@@ -40,6 +45,8 @@ export default function SeguidasScreen({ navigation }) {
   const bloqueado = seguidasLoading || seguidasGuardando || novedadesGuardando;
 
   function confirmarDejarDeSeguir(publicacion) {
+    if (sinConexion) return;
+
     Alert.alert(
       'Dejar de seguir',
       `¿Querés dejar de recibir novedades de "${publicacion.titulo}"?`,
@@ -70,10 +77,15 @@ export default function SeguidasScreen({ navigation }) {
             cambios pendientes de leer se destacan en cada publicación.
           </Texto>
 
-          {seguidasError !== '' && (
+          {sinConexion && (
+            <AvisoSinConexion
+              mensaje="Podés ver las publicaciones que seguís, pero no dejar de seguirlas ni marcar novedades como leídas hasta que vuelva la conexión."
+            />
+          )}
+          {!sinConexion && seguidasError !== '' && (
             <Aviso tono="peligro" mensaje={seguidasError} accessibilityRole="alert" />
           )}
-          {novedadesError !== '' && (
+          {!sinConexion && novedadesError !== '' && (
             <Aviso
               tono="peligro"
               mensaje={`No se pudieron actualizar las novedades. ${novedadesError}`}
@@ -121,6 +133,7 @@ export default function SeguidasScreen({ navigation }) {
                     chico
                     onPress={() => marcarPublicacionLeida(item.id)}
                     disabled={bloqueado || novedadesLoading}
+                    requiereConexion
                   />
                 )}
                 <Boton
@@ -128,6 +141,7 @@ export default function SeguidasScreen({ navigation }) {
                   variante="terciario"
                   chico
                   disabled={bloqueado}
+                  requiereConexion
                   onPress={() => confirmarDejarDeSeguir(item)}
                 />
               </>

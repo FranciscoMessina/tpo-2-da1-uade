@@ -1,6 +1,7 @@
 import { isAxiosError, isCancel } from 'axios';
 import { AppState } from 'react-native';
 import { api } from './api';
+import { hayInternet, iniciarMonitorRed, suscribirRed } from './red';
 
 // Espera máxima de cada ping al backend y cada cuánto se repite con la app en primer plano.
 const TIMEOUT_PING_MS = 3000;
@@ -58,6 +59,12 @@ export function reportarFalloConexion() {
  * Si ya hay un chequeo en curso, se reutiliza su promesa.
  */
 export function verificarConexion() {
+  // Sin red en el dispositivo no hay nada que preguntarle al backend
+  if (!hayInternet()) {
+    actualizar(false);
+    return Promise.resolve(false);
+  }
+
   if (pingEnCurso) return pingEnCurso;
 
   pingEnCurso = (async () => {
@@ -87,10 +94,26 @@ function enPrimerPlano(estado) {
 
 /**
  * Inicia el sondeo periódico del backend, solo mientras la app está en primer plano.
- * Al volver a primer plano comprueba de inmediato. Devuelve la función para detenerlo.
+ * Al volver a primer plano comprueba de inmediato. También escucha la red del dispositivo:
+ * si se corta, el backend pasa a no disponible al instante; si vuelve, se comprueba enseguida.
+ * Devuelve la función para detenerlo.
  */
 export function iniciarSondeo() {
   let intervalo = null;
+
+  const desuscribirRed = suscribirRed((hayRed) => {
+    if (hayRed) verificarConexion();
+    else actualizar(false);
+  });
+  const detenerMonitorRed = iniciarMonitorRed();
+
+  // Una petición real que falla por conectividad no espera al próximo sondeo: comprueba ya,
+  // así los avisos y los botones bloqueados reflejan la falta de conexión enseguida.
+  // Si el que falló es el propio ping, verificarConexion reutiliza el que está en curso.
+  const interceptor = api.interceptors.response.use(undefined, (error) => {
+    if (esErrorDeConectividad(error)) verificarConexion();
+    return Promise.reject(error);
+  });
 
   const arrancar = () => {
     if (intervalo) return;
@@ -112,6 +135,9 @@ export function iniciarSondeo() {
   });
 
   return () => {
+    api.interceptors.response.eject(interceptor);
+    detenerMonitorRed();
+    desuscribirRed();
     suscripcion.remove();
     detener();
   };
