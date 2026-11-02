@@ -378,6 +378,79 @@ describe('búsquedas recientes guardadas', () => {
     expect(radios).toEqual([2, 3]);
   });
 
+  describe('tope y eliminación', () => {
+    let acciones;
+    function Acciones() {
+      acciones = useSearch();
+      return null;
+    }
+
+    const radiosActuales = () => acciones.recientes.map((item) => item.filtros.radioKm);
+    const guardadoEnDisco = async () =>
+      JSON.parse(await AsyncStorage.getItem(CLAVE)).map((item) => item.filtros.radioKm);
+
+    async function montar(guardadas = []) {
+      await AsyncStorage.setItem(CLAVE, JSON.stringify(guardadas));
+      render(
+        <SearchProvider>
+          <Acciones />
+        </SearchProvider>
+      );
+      await waitFor(() => expect(acciones).toBeDefined());
+    }
+
+    test('guarda solo las últimas 5 y descarta la más vieja', async () => {
+      await montar();
+
+      for (const radio of [1, 2, 3, 4, 5, 6, 7]) {
+        act(() => acciones.recordarBusqueda(porGps(radio)));
+      }
+
+      expect(radiosActuales()).toEqual([7, 6, 5, 4, 3]);
+      await waitFor(async () => expect(await guardadoEnDisco()).toEqual([7, 6, 5, 4, 3]));
+    });
+
+    test('al cargar un historial más largo conserva solo las 5 más recientes', async () => {
+      await montar([1, 2, 3, 4, 5, 6, 7].map((radio) => guardada(porGps(radio))));
+
+      expect(radiosActuales()).toEqual([1, 2, 3, 4, 5]);
+    });
+
+    test('repetir una búsqueda la sube al principio sin duplicarla', async () => {
+      await montar([1, 2, 3].map((radio) => guardada(porGps(radio))));
+
+      act(() => acciones.recordarBusqueda(porGps(3)));
+
+      expect(radiosActuales()).toEqual([3, 1, 2]);
+    });
+
+    test('eliminarReciente quita solo esa búsqueda y lo guarda', async () => {
+      await montar([1, 2, 3].map((radio) => guardada(porGps(radio))));
+
+      act(() => acciones.eliminarReciente(claveBusqueda(porGps(2))));
+
+      expect(radiosActuales()).toEqual([1, 3]);
+      await waitFor(async () => expect(await guardadoEnDisco()).toEqual([1, 3]));
+    });
+
+    test('eliminar una búsqueda que no está no cambia nada', async () => {
+      await montar([1, 2].map((radio) => guardada(porGps(radio))));
+
+      act(() => acciones.eliminarReciente(claveBusqueda(porGps(9))));
+
+      expect(radiosActuales()).toEqual([1, 2]);
+    });
+
+    test('tras eliminar una, la siguiente búsqueda ocupa el lugar libre', async () => {
+      await montar([1, 2, 3, 4, 5].map((radio) => guardada(porGps(radio))));
+
+      act(() => acciones.eliminarReciente(claveBusqueda(porGps(5))));
+      act(() => acciones.recordarBusqueda(porGps(6)));
+
+      expect(radiosActuales()).toEqual([6, 1, 2, 3, 4]);
+    });
+  });
+
   describe('al cambiar de cuenta', () => {
     // Elemento nuevo en cada render: React no vuelve a renderizar uno idéntico y el mock de useAuth no se releería
     const arbol = () => (
