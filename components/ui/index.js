@@ -4,6 +4,7 @@ export { default as Boton } from './Boton';
 export { default as Campo } from './Campo';
 export { default as CampoSeleccion } from './CampoSeleccion';
 export { Cargando, ErrorConReintento, EstadoVacio } from './EstadoVacio';
+export { default as FilaDeslizable } from './FilaDeslizable';
 export { FilaDato, FilaInterruptor, FilaMenu } from './Filas';
 export { default as Icono } from './Icono';
 export { default as IndicadorPasos } from './IndicadorPasos';

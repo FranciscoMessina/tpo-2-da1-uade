@@ -76,6 +76,7 @@ Se usa la letra del sistema y se respeta el tamaño elegido en el dispositivo: l
 | `Aviso`, `AvisoSinConexion`, `NotaSinConexion` | Mensajes de estado dentro del contenido |
 | `EstadoVacio`, `ErrorConReintento`, `Cargando` | Estados de una lista o pantalla |
 | `FilaDato`, `FilaMenu`, `FilaInterruptor` | Filas de detalle, menú y ajustes |
+| `FilaDeslizable` | Envuelve una `FilaMenu` para eliminarla deslizando a la izquierda; la fila interna debe ofrecer también la acción de accesibilidad `delete` |
 | `Avatar`, `Paginacion`, `IndicadorPasos`, `ModalPantalla` | Patrones puntuales |
 | `TarjetaPublicacion` (en `components/`) | Publicación en cualquier lista |
 

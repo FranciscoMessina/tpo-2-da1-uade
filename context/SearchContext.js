@@ -24,6 +24,8 @@ const SearchContext = createContext(null);
 const PREFIJO_RECIENTES = '@hallado:busquedas-recientes:v2:';
 // Clave global de versiones anteriores: no se sabe de qué cuenta es, así que se descarta.
 const CLAVE_RECIENTES_LEGADA = '@hallado:busquedas-recientes:v1';
+// Cuántas búsquedas se guardan por cuenta: al hacer una nueva se descarta la más vieja.
+export const MAX_RECIENTES = 5;
 
 export function claveRecientes(uid) {
   return `${PREFIJO_RECIENTES}${uid}`;
@@ -66,7 +68,7 @@ function recientesGuardados(datos) {
 
       return true;
     })
-    .slice(0, 5);
+    .slice(0, MAX_RECIENTES);
 }
 
 export function SearchProvider({ children }) {
@@ -199,7 +201,17 @@ export function SearchProvider({ children }) {
         ...actuales.filter(
           (item) => item.clave !== clave
         ),
-      ].slice(0, 5)
+      ].slice(0, MAX_RECIENTES)
+    );
+  }
+
+  function eliminarReciente(clave) {
+    if (!uid || recientesDe !== uid) {
+      return;
+    }
+
+    setRecientes((actuales) =>
+      actuales.filter((item) => item.clave !== clave)
     );
   }
 
@@ -240,6 +252,7 @@ export function SearchProvider({ children }) {
         eliminarAlerta,
         activarAlerta,
         recordarBusqueda,
+        eliminarReciente,
         seguidas,
         seguidasLoading,
         seguidasError,

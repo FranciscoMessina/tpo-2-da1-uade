@@ -26,6 +26,8 @@ export function FilaMenu({
   peligro = false,
   disabled = false,
   accessibilityLabel = undefined,
+  accessibilityActions = undefined,
+  onAccessibilityAction = undefined,
 }) {
   const color = peligro ? tonos.peligro.texto : colores.textoSecundario;
 
@@ -35,6 +37,8 @@ export function FilaMenu({
       onPress={onPress}
       disabled={disabled}
       accessibilityLabel={accessibilityLabel}
+      accessibilityActions={accessibilityActions}
+      onAccessibilityAction={onAccessibilityAction}
       style={styles.menu}
     >
       {!!icono && <Icono nombre={icono} tamano={22} color={color} />}

@@ -9,6 +9,7 @@ import {
   resumenBusqueda,
 } from '../data/busqueda';
 import {
+  FilaDeslizable,
   FilaMenu,
   Pantalla,
   Separador,
@@ -18,7 +19,7 @@ import {
 } from '../components/ui';
 
 export default function SearchScreen({ navigation }) {
-  const { recientes, recordarBusqueda } = useSearch();
+  const { recientes, recordarBusqueda, eliminarReciente } = useSearch();
   const [consultadas, setConsultadas] = useState([]);
 
   useFocusEffect(
@@ -58,12 +59,20 @@ export default function SearchScreen({ navigation }) {
             {recientes.map((busqueda, indice) => (
               <View key={busqueda.clave}>
                 {indice > 0 && <Separador />}
-                <FilaMenu
-                  icono="history"
-                  titulo={resumenBusqueda(busqueda.filtros)}
-                  descripcion="Repetir búsqueda"
-                  onPress={() => buscar(busqueda.filtros)}
-                />
+                <FilaDeslizable onEliminar={() => eliminarReciente(busqueda.clave)}>
+                  <FilaMenu
+                    icono="history"
+                    titulo={resumenBusqueda(busqueda.filtros)}
+                    descripcion="Repetir búsqueda"
+                    onPress={() => buscar(busqueda.filtros)}
+                    accessibilityActions={[{ name: 'delete', label: 'Eliminar búsqueda' }]}
+                    onAccessibilityAction={(evento) => {
+                      if (evento.nativeEvent.actionName === 'delete') {
+                        eliminarReciente(busqueda.clave);
+                      }
+                    }}
+                  />
+                </FilaDeslizable>
               </View>
             ))}
           </Tarjeta>
