@@ -17,6 +17,7 @@ import {
 } from '../services/publicaciones';
 import { esMensajeSinConexion, mensajeErrorApi } from '../services/api';
 import EncuentroReclamo from '../components/EncuentroReclamo';
+import EscanerDevolucionModal from '../components/EscanerDevolucionModal';
 import EvidenciaReclamo from '../components/EvidenciaReclamo';
 import {
   Aviso,
@@ -85,6 +86,8 @@ export default function MisReclamosScreen({ navigation }) {
   const [tab, setTab] = useState('recibidos'); // 'recibidos' | 'enviados'
   const [datos, setDatos] = useState(ESTADO_INICIAL);
   const [procesandoId, setProcesandoId] = useState(null);
+  const [escaneo, setEscaneo] = useState(null);
+  const cerrarEscaneo = useCallback(() => setEscaneo(null), []);
   const [actualizacion, setActualizacion] = useState(0);
   const [cargandoMas, setCargandoMas] = useState(false);
   const [errorMas, setErrorMas] = useState('');
@@ -310,6 +313,8 @@ export default function MisReclamosScreen({ navigation }) {
   function renderItem({ item }) {
     const pub = item.publicacion;
     const esRecibido = tab === 'recibidos';
+    const recuperaObjeto = (pub?.tipo === 'encontrado' && !esRecibido)
+      || (pub?.tipo === 'perdido' && esRecibido);
     const telefonoContacto = esRecibido
       ? item.telefono
       : pub?.publicador?.phone;
@@ -412,7 +417,7 @@ export default function MisReclamosScreen({ navigation }) {
           />
         )}
 
-        {item.estado === 'aceptado' && pub?.estado === 'en_reclamo' && (
+        {!recuperaObjeto && item.estado === 'aceptado' && pub?.estado === 'en_reclamo' && (
           <>
             <Boton
               titulo="Entrega con QR"
@@ -424,6 +429,18 @@ export default function MisReclamosScreen({ navigation }) {
               <NotaSinConexion>Se necesita conexión para confirmar la devolución.</NotaSinConexion>
             )}
           </>
+        )}
+
+        {recuperaObjeto && item.estado === 'aceptado' && pub?.estado === 'en_reclamo' && (
+          <Boton
+            titulo="Escanear QR"
+            icono="qrcode-scan"
+            variante={esRecibido ? 'secundario' : 'primario'}
+            onPress={() => setEscaneo({ reclamoId: item.id, alcance })}
+            disabled={procesandoId !== null}
+            requiereConexion
+            notaSinConexion="Se necesita conexión para confirmar la devolución."
+          />
         )}
 
         {item.estado === 'aceptado' && pub?.estado === 'resuelta' && (
@@ -535,6 +552,17 @@ export default function MisReclamosScreen({ navigation }) {
                 : 'Cuando reclames un objeto perdido o encontrado, podrás seguir su estado acá.'}
             />
           }
+        />
+      )}
+      {escaneo && escaneo.alcance === alcance && (
+        <EscanerDevolucionModal
+          reclamoId={escaneo.reclamoId}
+          onCerrar={cerrarEscaneo}
+          onConfirmada={() => {
+            setEscaneo(null);
+            cargar();
+            Alert.alert('Devolución confirmada', 'La publicación pasó a estado resuelta.');
+          }}
         />
       )}
     </View>

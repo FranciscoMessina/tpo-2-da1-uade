@@ -9,8 +9,3 @@ export async function generarQrDevolucion(reclamoId) {
   const { data } = await api.post(`/reclamos/${encodeURIComponent(reclamoId)}/devolucion/qr`);
   return data;
 }
-
-export async function confirmarDevolucionQr(reclamoId, codigo) {
-  const { data } = await api.post(`/reclamos/${encodeURIComponent(reclamoId)}/devolucion/confirmar`, { codigo });
-  return data;
-}
