@@ -19,7 +19,6 @@ import { esMensajeSinConexion, mensajeErrorApi } from '../services/api';
 import EncuentroReclamo from '../components/EncuentroReclamo';
 import EscanerDevolucionModal from '../components/EscanerDevolucionModal';
 import EvidenciaReclamo from '../components/EvidenciaReclamo';
-import { resolverPublicacion } from '../services/historial';
 import {
   Aviso,
   AvisoSinConexion,
@@ -309,28 +308,6 @@ export default function MisReclamosScreen({ navigation }) {
     );
   }
 
-  function manejarResolver(reclamo) {
-    Alert.alert('Confirmar devolución', '¿El objeto ya fue devuelto? El caso se cerrará y ambos podrán valorarse durante 7 días.', [
-      { text: 'Cancelar', style: 'cancel' },
-      { text: 'Confirmar', onPress: async () => {
-        if (!(await verificarConexion())) {
-          Alert.alert('Sin conexión', 'Se necesita conexión a internet para confirmar la devolución.');
-          return;
-        }
-        setProcesandoId(reclamo.id);
-        try {
-          await resolverPublicacion(reclamo.publicacion.id);
-          await cargar();
-          navigation.navigate('Historial');
-        } catch (e) {
-          Alert.alert('No se pudo confirmar', mensajeErrorApi(e));
-        } finally {
-          setProcesandoId(null);
-        }
-      } },
-    ]);
-  }
-
   const items = tab === 'recibidos' ? reclamosRecibidos : reclamosEnviados;
 
   function renderItem({ item }) {
@@ -440,13 +417,13 @@ export default function MisReclamosScreen({ navigation }) {
           />
         )}
 
-        {esRecibido && item.estado === 'aceptado' && pub?.estado === 'en_reclamo' && (
+        {!recuperaObjeto && item.estado === 'aceptado' && pub?.estado === 'en_reclamo' && (
           <>
             <Boton
-              titulo={procesandoId === item.id ? 'Confirmando…' : 'Confirmar devolución'}
+              titulo="Entrega con QR"
               cargando={procesandoId === item.id}
               disabled={procesandoId !== null || !hayConexion}
-              onPress={() => manejarResolver(item)}
+              onPress={() => navigation.navigate('DevolucionQr', { reclamoId: item.id })}
             />
             {!hayConexion && (
               <NotaSinConexion>Se necesita conexión para confirmar la devolución.</NotaSinConexion>

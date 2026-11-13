@@ -15,10 +15,9 @@ import {
   rechazarReclamo as rechazarReclamoApi,
   renovarPublicacion,
 } from '../services/publicaciones';
-import { resolverPublicacion } from '../services/historial';
 
 // Gestión de una publicación propia sobre la API: detalle (con la respuesta de verificación),
-// reclamos recibidos, edición, renovación, baja y resolución.
+// reclamos recibidos, edición, renovación y baja.
 // Las acciones devuelven { ok, error } y mientras corre una `procesando` indica cuál
 // (la clave de la acción o el id del reclamo).
 export default function useGestionPublicacion(publicacionId) {
@@ -163,10 +162,6 @@ export default function useGestionPublicacion(publicacionId) {
   const rechazarReclamo = (reclamoId) =>
     ejecutar(reclamoId, () => rechazarReclamoApi(reclamoId));
 
-  // POST /publicaciones/:id/resolver (confirma la devolución; las valoraciones están en el historial)
-  const confirmarDevolucion = () =>
-    ejecutar('resolver', () => resolverPublicacion(publicacionId));
-
   return {
     publicacion,
     reclamos,
@@ -184,6 +179,5 @@ export default function useGestionPublicacion(publicacionId) {
     renovar,
     aceptarReclamo,
     rechazarReclamo,
-    confirmarDevolucion,
   };
 }

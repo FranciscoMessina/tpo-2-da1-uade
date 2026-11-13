@@ -13,6 +13,9 @@
   // Lista explícita: archivos cuyo código (y los módulos que importan) pasa el chequeo hoy.
   // Un archivo no listado igual se chequea si lo importa uno listado, por eso no hay exclusiones.
   "include": [
+    "components/EscanerDevolucionModal.js",
+    "screens/DevolucionQrScreen.js",
+    "services/devoluciones.js",
     "components/AgradecimientosPublicos.js",
     "components/BadgesCard.js",
     "components/BloqueoBiometrico.js",
