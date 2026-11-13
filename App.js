@@ -30,6 +30,7 @@ import PublicationDetailScreen from './screens/PublicationDetailScreen';
 import MisPublicacionesScreen from './screens/MisPublicacionesScreen';
 import MisReclamosScreen from './screens/MisReclamosScreen';
 import HistorialScreen from './screens/HistorialScreen';
+import DevolucionQrScreen from './screens/DevolucionQrScreen';
 import ConversacionReclamoScreen from './screens/ConversacionReclamoScreen';
 import { SearchProvider, useSearch } from './context/SearchContext';
 import LoginScreen from './screens/LoginScreen';
@@ -266,6 +267,12 @@ function AppContenido() {
                 name={RUTA_PESTANAS}
                 component={PestanasPrincipales}
                 options={{ headerShown: false }}
+              />
+
+              <Stack.Screen
+                name="DevolucionQr"
+                component={DevolucionQrScreen}
+                options={{ title: 'Entrega del objeto' }}
               />
 
               <Stack.Screen

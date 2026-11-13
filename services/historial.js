@@ -5,11 +5,6 @@ export async function obtenerHistorial(filtros) {
   return data;
 }
 
-export async function resolverPublicacion(id) {
-  const { data } = await api.post(`/publicaciones/${encodeURIComponent(id)}/resolver`);
-  return data;
-}
-
 export async function valorarDevolucion(id, positiva, comentario) {
   const { data } = await api.post(`/publicaciones/${encodeURIComponent(id)}/valoraciones`, {
     positiva, comentario: comentario.trim(),

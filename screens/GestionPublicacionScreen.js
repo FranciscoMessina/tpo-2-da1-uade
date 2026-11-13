@@ -68,7 +68,6 @@ export default function GestionPublicacionScreen({ route, navigation }) {
     renovar,
     aceptarReclamo,
     rechazarReclamo,
-    confirmarDevolucion,
   } = useGestionPublicacion(publicacionId);
 
   const [editando, setEditando] = useState(false);
@@ -203,29 +202,6 @@ export default function GestionPublicacionScreen({ route, navigation }) {
             if (!r) return;
             if (r.ok) Alert.alert('Reclamo rechazado', 'El reclamo fue rechazado.');
             else Alert.alert('No se pudo rechazar', r.error);
-          },
-        },
-      ]
-    );
-  }
-
-  function manejarResolver() {
-    Alert.alert(
-      'Confirmar devolución',
-      '¿El objeto ya fue devuelto? El caso se cerrará y ambos podrán valorarse durante 7 días.',
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        {
-          text: 'Confirmar',
-          onPress: async () => {
-            const r = await conConexion(
-              'Se necesita conexión a internet para confirmar la devolución.',
-              confirmarDevolucion
-            );
-            if (!r) return;
-            // La valoración y el agradecimiento se hacen desde el historial de devoluciones
-            if (r.ok) navigation.navigate('Historial');
-            else Alert.alert('No se pudo confirmar', r.error);
           },
         },
       ]
@@ -442,10 +418,9 @@ export default function GestionPublicacionScreen({ route, navigation }) {
         {publicacion.estado === 'en_reclamo' && aceptado && (
           <>
             <Boton
-              titulo={procesando === 'resolver' ? 'Confirmando…' : 'Confirmar devolución'}
-              cargando={procesando === 'resolver'}
+              titulo="Entrega con QR"
               disabled={ocupado || !hayConexion}
-              onPress={manejarResolver}
+              onPress={() => navigation.navigate('DevolucionQr', { reclamoId: aceptado.id })}
             />
             {!hayConexion && (
               <NotaSinConexion>Se necesita conexión para confirmar la devolución.</NotaSinConexion>

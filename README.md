@@ -206,3 +206,20 @@ npx expo export --platform android --output-dir "$env:TEMP\export-hallado"
 ```
 
 Debe terminar con una línea `Exported: ...`. Si cambiaste `EXPO_PUBLIC_API_URL`, agregar `-c` para no reutilizar la caché de Metro. Esta verificación comprueba que el proyecto compila; no reemplaza probar la app contra el backend.
+
+## Entrega con QR
+
+Desde un reclamo aceptado, entrar en **Entrega con QR**. Quien devuelve toca
+**Mostrar QR de entrega**; quien recupera usa **Escanear QR** y luego
+**Confirmar recepción**. El caso pasa a resuelto y habilita el historial y las
+valoraciones. Los roles se invierten si la publicación era de algo perdido.
+
+El QR vence a los 15 minutos. Generar otro invalida el anterior. No necesita
+servicios externos: el backend devuelve la imagen y la app la muestra.
+La cámara usa `expo-camera`, que ya estaba instalado. Los permisos denegados
+muestran una explicación y un acceso a los ajustes del dispositivo.
+
+Para probar el escaneo, usar un Android con cámara y mostrar el QR en otro
+dispositivo o imprimirlo mientras siga vigente. Comprobar también un QR ajeno,
+permiso denegado y pérdida de conexión antes de confirmar. Las pruebas de Jest
+usan una cámara simulada y no reemplazan esta comprobación en el dispositivo.
