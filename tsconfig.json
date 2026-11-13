@@ -19,6 +19,7 @@
     "components/CasoResuelto.js",
     "components/CodeStep.js",
     "components/EncuentroReclamo.js",
+    "components/EscanerDevolucionModal.js",
     "components/PuntoEncuentro.js",
     "components/ReputationCard.js",
     "components/SearchForm.js",
