@@ -1,11 +1,16 @@
 import { api } from './api';
 
+/**
+ * Historial de notificaciones de la cuenta, de la más nueva a la más vieja. Cada una trae `leidaEn`
+ * (null si está sin leer); la respuesta suma `sinLeer` de toda la cuenta.
+ */
 export async function obtenerNotificaciones({
   pagina = 1,
+  tamanoPagina = 100,
   signal = undefined,
 } = {}) {
   const { data } = await api.get('/notificaciones', {
-    params: { page: pagina, pageSize: 100 },
+    params: { page: pagina, pageSize: tamanoPagina },
     signal,
   });
 
@@ -19,6 +24,13 @@ export async function marcarNotificacionLeida(id) {
 
   return data;
 }
+
+export async function marcarTodasLeidas() {
+  const { data } = await api.post('/notificaciones/leidas');
+
+  return data;
+}
+
 /**
  * Contadores de lo que está sin leer, sin descargar el historial:
  * `{ sinLeer, corte, alertas: [{ alertaId, sinLeer }], publicaciones: [...], reclamos: [...] }`.

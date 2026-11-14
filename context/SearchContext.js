@@ -97,6 +97,7 @@ export function SearchProvider({ children }) {
     recargar: recargarSeguidas,
   } = useSeguidas(usuario?.id);
   const {
+    sinLeer: notificacionesSinLeer,
     porAlerta: novedadesPorAlerta,
     porPublicacion: novedadesPorPublicacion,
     porReclamo: novedadesPorReclamo,
@@ -260,6 +261,7 @@ export function SearchProvider({ children }) {
         seguirPublicacion,
         dejarDeSeguirPublicacion,
         recargarSeguidas,
+        notificacionesSinLeer,
         novedadesPorAlerta,
         novedadesPorPublicacion,
         novedadesPorReclamo,

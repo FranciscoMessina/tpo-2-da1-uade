@@ -53,6 +53,17 @@ describe('useNovedades: carga y cuentas', () => {
     expect(result.current.porPublicacion.has('p2')).toBe(false);
   });
 
+  test('sinLeer es el total de la cuenta, de cualquier tipo (bandeja de notificaciones)', async () => {
+    controlarAppState();
+    obtenerResumenNotificaciones.mockResolvedValue({ ...resumen({ publicaciones: [['p1', 1]] }), sinLeer: 5 });
+
+    const { result } = renderHook(() => useNovedades('u1'));
+    expect(result.current.sinLeer).toBe(0);
+    await act(async () => {});
+
+    expect(result.current.sinLeer).toBe(5);
+  });
+
   test('porReclamo cuenta todo lo nuevo del reclamo y mensajesPorReclamo solo los mensajes del chat', async () => {
     controlarAppState();
     obtenerResumenNotificaciones.mockResolvedValue(resumen({

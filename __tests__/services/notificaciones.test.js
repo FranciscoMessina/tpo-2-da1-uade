@@ -1,6 +1,8 @@
 import { api } from '../../services/api';
 import {
   marcarGrupoLeido,
+  marcarNotificacionLeida,
+  marcarTodasLeidas,
   obtenerNotificaciones,
   obtenerResumenNotificaciones,
 } from '../../services/notificaciones';
@@ -46,5 +48,28 @@ describe('services/notificaciones: resumen', () => {
       params: { page: 3, pageSize: 100 },
       signal: undefined,
     });
+  });
+});
+
+describe('services/notificaciones: bandeja', () => {
+  test('pide el historial con el tamaño de página indicado', async () => {
+    const get = jest.spyOn(api, 'get').mockResolvedValue({ data: { items: [], totalPages: 0 } });
+
+    await obtenerNotificaciones({ pagina: 2, tamanoPagina: 20 });
+
+    expect(get).toHaveBeenCalledWith('/notificaciones', {
+      params: { page: 2, pageSize: 20 },
+      signal: undefined,
+    });
+  });
+
+  test('marca una y todas como leídas', async () => {
+    const post = jest.spyOn(api, 'post').mockResolvedValue({ data: { message: 'ok' } });
+
+    await marcarNotificacionLeida('n/1');
+    await marcarTodasLeidas();
+
+    expect(post).toHaveBeenNthCalledWith(1, '/notificaciones/n%2F1/leida');
+    expect(post).toHaveBeenNthCalledWith(2, '/notificaciones/leidas');
   });
 });
