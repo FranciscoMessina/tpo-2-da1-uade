@@ -32,6 +32,7 @@ import MisReclamosScreen from './screens/MisReclamosScreen';
 import HistorialScreen from './screens/HistorialScreen';
 import DevolucionQrScreen from './screens/DevolucionQrScreen';
 import ConversacionReclamoScreen from './screens/ConversacionReclamoScreen';
+import NotificacionesScreen from './screens/NotificacionesScreen';
 import { SearchProvider, useSearch } from './context/SearchContext';
 import LoginScreen from './screens/LoginScreen';
 import RegisterScreen from './screens/RegisterScreen';
@@ -41,6 +42,8 @@ import {
   Boton,
   Icono,
   RUTA_PESTANAS,
+  Texto,
+  Tocable,
   colores,
   espacio,
   estilosPantalla,
@@ -116,6 +119,39 @@ function BotonPublicar({ navigation }) {
   );
 }
 
+// Bandeja de notificaciones: el contador es el total sin leer de la cuenta, de cualquier tipo
+function BotonNotificaciones({ navigation }) {
+  const { notificacionesSinLeer } = useSearch();
+  const cantidad = notificacionesSinLeer > 99 ? '99+' : String(notificacionesSinLeer);
+
+  return (
+    <Tocable
+      radio={radios.pastilla}
+      style={styles.botonNotificaciones}
+      accessibilityLabel={notificacionesSinLeer > 0
+        ? `Notificaciones, ${notificacionesSinLeer} sin leer`
+        : 'Notificaciones'}
+      onPress={() => navigation.navigate('Notificaciones')}
+    >
+      <Icono nombre="bell-ring-outline" tamano={24} color={colores.texto} />
+      {notificacionesSinLeer > 0 && (
+        <View style={styles.contadorNotificaciones} pointerEvents="none">
+          <Texto variante="leyendaFuerte" tono="inverso" allowFontScaling={false}>{cantidad}</Texto>
+        </View>
+      )}
+    </Tocable>
+  );
+}
+
+function accionesEncabezado(navigation) {
+  return (
+    <View style={styles.acciones}>
+      <BotonNotificaciones navigation={navigation} />
+      <BotonPublicar navigation={navigation} />
+    </View>
+  );
+}
+
 function barraConAviso(props) {
   return (
     <View>
@@ -138,7 +174,7 @@ function PestanasPrincipales() {
       tabBar={barraConAviso}
       screenOptions={({ navigation }) => ({
         ...opcionesEncabezado,
-        headerRight: () => <BotonPublicar navigation={navigation} />,
+        headerRight: () => accionesEncabezado(navigation),
         headerRightContainerStyle: styles.accionEncabezado,
         tabBarHideOnKeyboard: true,
         tabBarActiveTintColor: tonos.info.texto,
@@ -306,6 +342,12 @@ function AppContenido() {
               />
 
               <Stack.Screen
+                name="Notificaciones"
+                component={NotificacionesScreen}
+                options={{ title: 'Notificaciones' }}
+              />
+
+              <Stack.Screen
                 name="Historial"
                 component={HistorialScreen}
                 options={{ title: 'Historial de devoluciones' }}
@@ -347,6 +389,25 @@ function AppContenido() {
 
 const styles = StyleSheet.create({
   accionEncabezado: { paddingRight: espacio.sm },
+  acciones: { flexDirection: 'row', alignItems: 'center', gap: espacio.xxs },
+  botonNotificaciones: {
+    width: 44,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  contadorNotificaciones: {
+    position: 'absolute',
+    top: 2,
+    right: 0,
+    minWidth: 18,
+    height: 18,
+    paddingHorizontal: 4,
+    borderRadius: radios.pastilla,
+    backgroundColor: colores.primario,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   barra: { backgroundColor: colores.superficie, borderTopColor: colores.borde },
   indicador: {
     width: 56,

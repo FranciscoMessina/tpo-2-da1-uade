@@ -16,6 +16,7 @@ const GRUPOS = {
 
 function normalizarResumen(datos) {
   return {
+    sinLeer: datos?.sinLeer ?? 0,
     corte: datos?.corte ?? null,
     alertas: datos?.alertas ?? [],
     publicaciones: datos?.publicaciones ?? [],
@@ -173,6 +174,8 @@ export default function useNovedades(usuarioId) {
 
   const vigente = estado.alcance === alcance;
   return {
+    // Todas las sin leer de la cuenta, de cualquier tipo (bandeja de notificaciones)
+    sinLeer: resumen?.sinLeer ?? 0,
     porAlerta,
     porPublicacion,
     porReclamo,
