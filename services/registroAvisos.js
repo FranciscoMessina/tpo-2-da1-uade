@@ -7,7 +7,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
  * la clave es el `id` de GET /notificaciones, que el backend repite en `data.id` del push.
  *
  * Las operaciones se encadenan en una sola cola: leer, decidir y guardar ocurre sin que otra
- * operación (el push que llega mientras se consulta) se intercale.
+ * operación (el push que llega mientras se consulta) se intercale. Valores posibles por id:
+ * `push`, `local` y `base` (historial anotado como punto de partida, nunca mostrado).
  */
 
 export const PREFIJO_CLAVE = 'hallado_avisos_presentados:';
@@ -27,7 +28,7 @@ function vacio() {
   return { base: false, ids: {} };
 }
 
-async function leer(cuenta) {
+async function leerEstado(cuenta) {
   if (cache.has(cuenta)) return cache.get(cuenta);
   let estado = vacio();
   try {
@@ -64,7 +65,7 @@ async function guardar(cuenta, estado) {
 export function anotarPush(cuenta, id) {
   if (!cuenta || !id) return Promise.resolve(null);
   return encolar(async () => {
-    const estado = await leer(cuenta);
+    const estado = await leerEstado(cuenta);
     const previo = estado.ids[id] ?? null;
     if (!previo) {
       estado.ids[id] = 'push';
@@ -82,7 +83,7 @@ export function anotarPush(cuenta, id) {
 export function reservarLocales(cuenta, ids) {
   if (!cuenta || !Array.isArray(ids) || ids.length === 0) return Promise.resolve([]);
   return encolar(async () => {
-    const estado = await leer(cuenta);
+    const estado = await leerEstado(cuenta);
     const base = estado.base;
     const nuevos = ids.filter((id) => id && !estado.ids[id]);
     nuevos.forEach((id) => { estado.ids[id] = 'local'; });
@@ -92,11 +93,45 @@ export function reservarLocales(cuenta, ids) {
   });
 }
 
+/**
+ * Como `reservarLocales` pero sin punto de partida: devuelve siempre los ids que nadie mostró y los
+ * marca como `local`. Lo usa el respaldo en segundo plano, que lleva su propio cursor por cuenta.
+ */
+export function reservarNuevos(cuenta, ids) {
+  if (!cuenta || !Array.isArray(ids) || ids.length === 0) return Promise.resolve([]);
+  return encolar(async () => {
+    const estado = await leerEstado(cuenta);
+    const nuevos = [...new Set(ids.filter((id) => id && !estado.ids[id]))];
+    nuevos.forEach((id) => { estado.ids[id] = 'local'; });
+    if (nuevos.length > 0 || !estado.base) {
+      estado.base = true;
+      await guardar(cuenta, estado);
+    }
+    return nuevos;
+  });
+}
+
+/**
+ * Anota ids históricos como punto de partida (`base`) sin mostrarlos: ni el respaldo ni la
+ * consulta en primer plano los van a presentar. Un push con ese id se sigue mostrando.
+ */
+export function marcarBase(cuenta, ids) {
+  if (!cuenta || !Array.isArray(ids)) return Promise.resolve();
+  return encolar(async () => {
+    const estado = await leerEstado(cuenta);
+    ids.forEach((id) => {
+      if (id && !estado.ids[id]) estado.ids[id] = 'base';
+    });
+    estado.base = true;
+    await guardar(cuenta, estado);
+  });
+}
+
 /** Libera un id reservado cuyo aviso local no se pudo mostrar, para intentarlo en otro ciclo. */
 export function liberarLocal(cuenta, id) {
   if (!cuenta || !id) return Promise.resolve();
   return encolar(async () => {
-    const estado = await leer(cuenta);
+    const estado = await leerEstado(cuenta);
     if (estado.ids[id] === 'local') {
       delete estado.ids[id];
       await guardar(cuenta, estado);

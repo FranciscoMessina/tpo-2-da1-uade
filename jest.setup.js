@@ -133,6 +133,14 @@ jest.mock('expo-notifications', () => {
     getPresentedNotificationsAsync: jest.fn(async () => []),
     dismissNotificationAsync: jest.fn(async () => {}),
     addPushTokenListener: jest.fn(() => ({ remove: jest.fn() })),
+    registerTaskAsync: jest.fn(async (nombre) => {
+      require('expo-task-manager').__registradas.add(nombre);
+      return null;
+    }),
+    unregisterTaskAsync: jest.fn(async (nombre) => {
+      require('expo-task-manager').__registradas.delete(nombre);
+      return null;
+    }),
     SchedulableTriggerInputTypes: { TIME_INTERVAL: 'timeInterval', DATE: 'date' },
     AndroidImportance: {
       DEFAULT: 3,
@@ -142,10 +150,39 @@ jest.mock('expo-notifications', () => {
   };
 });
 
+// Tareas en segundo plano: `__definidas` guarda los ejecutores de defineTask (para correrlos como
+// lo haría el sistema) y `__registradas` las tareas dadas de alta.
+jest.mock('expo-task-manager', () => {
+  const definidas = new Map();
+  const registradas = new Set();
+  return {
+    __definidas: definidas,
+    __registradas: registradas,
+    defineTask: jest.fn((nombre, ejecutor) => definidas.set(nombre, ejecutor)),
+    isTaskDefined: jest.fn((nombre) => definidas.has(nombre)),
+    isTaskRegisteredAsync: jest.fn(async (nombre) => registradas.has(nombre)),
+    unregisterTaskAsync: jest.fn(async (nombre) => registradas.delete(nombre)),
+  };
+});
+
+jest.mock('expo-background-task', () => ({
+  BackgroundTaskStatus: { Restricted: 1, Available: 2 },
+  BackgroundTaskResult: { Success: 1, Failed: 2 },
+  getStatusAsync: jest.fn(async () => 2),
+  registerTaskAsync: jest.fn(async (nombre) => {
+    require('expo-task-manager').__registradas.add(nombre);
+  }),
+  unregisterTaskAsync: jest.fn(async (nombre) => {
+    require('expo-task-manager').__registradas.delete(nombre);
+  }),
+  triggerTaskWorkerForTestingAsync: jest.fn(async () => true),
+}));
+
 beforeEach(async () => {
   const AsyncStorage = require('@react-native-async-storage/async-storage');
   await (AsyncStorage.default ?? AsyncStorage).clear();
   require('expo-secure-store').__almacen.clear();
+  require('expo-task-manager').__registradas.clear();
   const navegacion = require('@react-navigation/native');
   Object.values(navegacion.__navegacion).forEach((f) => f.mockClear());
   navegacion.__ruta.params = {};

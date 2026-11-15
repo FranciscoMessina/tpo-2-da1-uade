@@ -317,6 +317,23 @@ describe('navegación al tocar', () => {
     ]);
   });
 
+  test('un push tocado queda anotado para que el respaldo en segundo plano no lo repita', async () => {
+    const { anotarPush } = require('../../services/registroAvisos');
+    establecerCuentaPush('u1');
+    const desuscribir = configurarOyentesNotificaciones(navLista(), () => 'lista');
+    const oyente = jest.mocked(Notifications.addNotificationResponseReceivedListener).mock.calls.at(-1)[0];
+    oyente({
+      actionIdentifier: 'expo.modules.notifications.actions.DEFAULT',
+      notification: {
+        date: 2,
+        request: { identifier: 'push-77', content: { data: { id: 'n77', tipo: 'reclamo' } }, trigger: { type: 'push' } },
+      },
+    });
+    await Promise.resolve();
+    expect(await anotarPush('u1', 'n77')).toBe('push');
+    desuscribir();
+  });
+
   test('con la sesión bloqueada por biometría retiene el destino hasta desbloquear', () => {
     const nav = navLista();
     let estado = 'bloqueada';
