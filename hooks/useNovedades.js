@@ -3,8 +3,10 @@ import { AppState } from 'react-native';
 import { isCancel } from 'axios';
 import {
   obtenerResumenNotificaciones,
+  obtenerNotificaciones,
   marcarGrupoLeido,
 } from '../services/notificaciones';
+import { sincronizarAvisosNativos } from '../services/notificacionesPush';
 import { mensajeErrorApi } from '../services/api';
 
 // Cada grupo del resumen: nombre que entiende el servidor, lista y campo de su id.
@@ -96,6 +98,24 @@ export default function useNovedades(usuarioId) {
         const resumen = normalizarResumen(datos);
         sesion.resumen = resumen;
         setEstado({ alcance, resumen, loading: false, error: '' });
+
+        // Si hay notificaciones sin leer, sincronizar avisos de reclamo o encuentro al sistema operativo
+        if (resumen.sinLeer > 0) {
+          const promesaHistorial = obtenerNotificaciones?.({
+            pagina: 1,
+            tamanoPagina: 10,
+            signal: controller.signal,
+          });
+          if (promesaHistorial && typeof promesaHistorial.then === 'function') {
+            promesaHistorial
+              .then((historial) => {
+                if (historial?.items && sesion.activa && !controller.signal.aborted) {
+                  sincronizarAvisosNativos(historial.items);
+                }
+              })
+              .catch(() => {});
+          }
+        }
       })
       .catch((error) => {
         if (!sesion.activa || controller.signal.aborted || isCancel(error)) return;
