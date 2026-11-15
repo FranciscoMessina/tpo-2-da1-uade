@@ -1,7 +1,9 @@
 import * as Notifications from 'expo-notifications';
+import { Platform } from 'react-native';
 import { AxiosError } from 'axios';
 import {
   avisosLocalesActivos,
+  configurarCanalNotificaciones,
   configurarOyentesNotificaciones,
   ejecutarNavegacionPendiente,
   esEventoPushRelevante,
@@ -25,6 +27,18 @@ jest.mock('../../services/api', () => ({
 const manejador = jest.mocked(Notifications.setNotificationHandler).mock.calls[0][0];
 
 const errorDeRed = () => new AxiosError('Network Error', 'ERR_NETWORK');
+
+test('el canal usa el sonido del sistema sin buscar un archivo personalizado default', async () => {
+  const plataforma = jest.replaceProperty(Platform, 'OS', 'android');
+  try {
+    await configurarCanalNotificaciones();
+    const opciones = jest.mocked(Notifications.setNotificationChannelAsync).mock.calls.at(-1)?.[1];
+    expect(opciones).toBeDefined();
+    expect(opciones).not.toHaveProperty('sound');
+  } finally {
+    plataforma.restore();
+  }
+});
 const errorHttp = (status) => Object.assign(new AxiosError(`HTTP ${status}`), { response: { status } });
 
 // Notificación tal como la entrega expo-notifications

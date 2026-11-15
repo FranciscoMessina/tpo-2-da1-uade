@@ -134,7 +134,7 @@ export async function configurarCanalNotificaciones() {
       importance: Notifications.AndroidImportance.HIGH,
       vibrationPattern: [0, 250, 250, 250],
       lightColor: '#2563EB',
-      sound: 'default',
+      // Sin `sound`, Android usa el sonido del sistema. Un string acá se busca como archivo.
       enableLights: true,
       enableVibrate: true,
     });
