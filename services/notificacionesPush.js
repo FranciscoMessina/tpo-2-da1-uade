@@ -9,10 +9,13 @@ import { anotarPush, liberarLocal, reservarLocales } from './registroAvisos';
  * - Fuente principal: el push de Expo que envía el backend para las notificaciones de tipo
  *   `reclamo`, `encuentro` y `devolucion`. El token se registra con POST /me/push-token y queda
  *   atado a la sesión (logout lo desvincula en el servidor).
- * - Respaldo: solo si el registro falló de forma definitiva o el servidor no lo confirmó, la consulta
- *   periódica (en primer plano) genera un aviso local. Con la app cerrada no hay respaldo.
+ * - Respaldo en primer plano: solo si el registro falló de forma definitiva o el servidor no lo
+ *   confirmó, la consulta periódica (useNovedades, cada 20 s con la app abierta) genera un aviso local.
+ * - Respaldo en segundo plano (services/respaldoSegundoPlano): con la app minimizada o cerrada por
+ *   el sistema, una tarea periódica (mínimo 15 min, cuando el sistema decida) consulta el servidor
+ *   aunque el push figure registrado, por si la entrega falló después del registro.
  * - Sin duplicados: cada aviso se identifica por el `id` de GET /notificaciones (en el push viene
- *   como `data.id`) y se anota por cuenta en `registroAvisos`.
+ *   como `data.id`) y se anota por cuenta en `registroAvisos`, que comparten las tres vías.
  */
 
 export const CANAL_NOTIFICACIONES_ID = 'hallado-notificaciones';
@@ -262,6 +265,48 @@ export function esEventoPushRelevante(notificacion) {
   return TIPOS_AVISO.has(notificacion.tipo);
 }
 
+export function tituloDeAviso(tipo) {
+  return TITULOS[tipo] ?? 'Hallado';
+}
+
+/** Datos del aviso local: los mismos campos que trae el push, para navegar igual al tocarlo. */
+export function datosDeAviso(notif) {
+  const id = String(notif.id);
+  const claimId = notif.claimId || notif.reclamoId;
+  const publicationId = notif.publicationId || notif.publicacionId;
+  return {
+    id,
+    notificationId: id,
+    tipo: notif.tipo,
+    ...(claimId ? { claimId, reclamoId: claimId } : {}),
+    ...(publicationId ? { publicationId, publicacionId: publicationId } : {}),
+  };
+}
+
+function idDeDatos(datos) {
+  if (!datos || typeof datos !== 'object') return null;
+  const id = datos.id ?? datos.notificationId;
+  return id === undefined || id === null || id === '' ? null : String(id);
+}
+
+/**
+ * Id de la notificación del servidor dentro del payload que recibe la tarea de push en segundo
+ * plano. En Android `data.dataString` es el JSON de `data` del mensaje de Expo.
+ */
+export function idDeNotificacionPush(payload) {
+  const datos = payload?.data;
+  for (const texto of [datos?.dataString, datos?.body]) {
+    if (typeof texto !== 'string') continue;
+    try {
+      const id = idDeDatos(JSON.parse(texto));
+      if (id) return id;
+    } catch {
+      // No era JSON
+    }
+  }
+  return idDeDatos(datos) ?? idDeDatos(payload?.notification?.data);
+}
+
 /**
  * Muestra un aviso local inmediato. Devuelve el identificador o null si no se pudo mostrar.
  */
@@ -278,7 +323,8 @@ export async function emitirNotificacionNativa({ titulo = 'Hallado', mensaje = '
   }
 }
 
-async function idsEnBandeja() {
+/** Ids (de GET /notificaciones) de los avisos que siguen en la bandeja del sistema. */
+export async function idsEnBandeja() {
   try {
     const presentes = await Notifications.getPresentedNotificationsAsync?.();
     return new Set((presentes ?? [])
@@ -318,18 +364,10 @@ export async function sincronizarAvisosNativos(notificaciones = [], cuenta = cue
       await liberarLocal(cuenta, id);
       continue;
     }
-    const claimId = notif.claimId || notif.reclamoId;
-    const publicationId = notif.publicationId || notif.publicacionId;
     const emitido = await emitirNotificacionNativa({
-      titulo: TITULOS[notif.tipo] ?? 'Hallado',
+      titulo: tituloDeAviso(notif.tipo),
       mensaje: notif.mensaje,
-      datos: {
-        id,
-        notificationId: id,
-        tipo: notif.tipo,
-        ...(claimId ? { claimId, reclamoId: claimId } : {}),
-        ...(publicationId ? { publicationId, publicacionId: publicationId } : {}),
-      },
+      datos: datosDeAviso(notif),
     });
     if (!emitido) await liberarLocal(cuenta, id);
   }
@@ -459,6 +497,11 @@ export function configurarOyentesNotificaciones(
     const clave = claveRespuesta(respuesta);
     if (respuestasAtendidas.has(clave)) return;
     respuestasAtendidas.add(clave);
+
+    // Un push tocado ya se mostró: el respaldo no lo vuelve a generar aunque no esté en la bandeja
+    const request = respuesta?.notification?.request;
+    const idPush = request?.trigger?.type === 'push' ? idDeDatos(datos) : null;
+    if (idPush && cuentaActual) anotarPush(cuentaActual, idPush).catch(() => {});
 
     const estado = obtenerEstadoSesion();
     // Sin sesión no se guarda el destino: podría ser de la cuenta que salió

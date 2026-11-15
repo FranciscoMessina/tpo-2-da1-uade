@@ -48,6 +48,7 @@ import {
 } from './services/notificacionesPush';
 import { estaSesionBloqueada } from './hooks/useBloqueoBiometrico';
 import useRegistroPush from './hooks/useRegistroPush';
+import useRespaldoSegundoPlano from './hooks/useRespaldoSegundoPlano';
 import {
   Boton,
   Icono,
@@ -285,6 +286,7 @@ function AppContenido() {
   }, [autenticado, loading]);
 
   useRegistroPush(usuario?.id);
+  useRespaldoSegundoPlano(usuario?.id, loading && !autenticado);
 
   // Los oyentes se configuran una sola vez: la última respuesta nativa no se reprocesa
   // en cada cambio de sesión. El estado se lee en el momento del toque.
