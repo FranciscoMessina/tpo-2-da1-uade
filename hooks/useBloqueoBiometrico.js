@@ -6,6 +6,13 @@ import {
   verificarDisponibilidadBiometrica,
 } from './useConfiguracion';
 import { hayActividadExterna } from '../services/actividadExterna';
+import { ejecutarNavegacionPendiente } from '../services/notificacionesPush';
+
+let sesionBloqueadaActual = false;
+
+export function estaSesionBloqueada() {
+  return sesionBloqueadaActual;
+}
 
 export default function useBloqueoBiometrico() {
   const [bloqueado, setBloqueado] = useState(true);
@@ -18,6 +25,7 @@ export default function useBloqueoBiometrico() {
 
     enCurso.current = true;
     setBloqueado(true);
+    sesionBloqueadaActual = true;
     setAutenticando(true);
     setError('');
 
@@ -36,6 +44,8 @@ export default function useBloqueoBiometrico() {
 
       if (resultado.success) {
         setBloqueado(false);
+        sesionBloqueadaActual = false;
+        ejecutarNavegacionPendiente();
       } else {
         setError('No se pudo verificar tu identidad.');
       }
@@ -50,17 +60,24 @@ export default function useBloqueoBiometrico() {
   const aplicarBloqueo = useCallback(async (activa) => {
     if (!activa) {
       setBloqueado(false);
+      sesionBloqueadaActual = false;
+      ejecutarNavegacionPendiente();
       setError('');
       return;
     }
 
     setBloqueado(true);
+    sesionBloqueadaActual = true;
     await desbloquear();
   }, [desbloquear]);
 
   useEffect(() => {
-    leerBiometriaActiva().then(aplicarBloqueo).catch(() => {
+    leerBiometriaActiva().then((activa) => {
+      sesionBloqueadaActual = !!activa;
+      return aplicarBloqueo(activa);
+    }).catch(() => {
       setBloqueado(true);
+      sesionBloqueadaActual = true;
       setError('No se pudo leer la configuración de seguridad.');
     });
 
@@ -79,7 +96,10 @@ export default function useBloqueoBiometrico() {
             return;
           }
 
-          if (await leerBiometriaActiva()) setBloqueado(true);
+          if (await leerBiometriaActiva()) {
+            setBloqueado(true);
+            sesionBloqueadaActual = true;
+          }
         } else if (estado === 'active' && previo === 'background') {
           if (salidaEsperada) {
             salidaEsperada = false;
@@ -90,6 +110,7 @@ export default function useBloqueoBiometrico() {
         }
       } catch {
         setBloqueado(true);
+        sesionBloqueadaActual = true;
         setError('No se pudo leer la configuración de seguridad.');
       }
     });

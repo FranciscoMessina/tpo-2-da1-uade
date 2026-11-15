@@ -107,6 +107,36 @@ jest.mock('@react-navigation/native', () => {
   };
 });
 
+// Notificaciones: dobles de expo-notifications para pruebas unitarias.
+jest.mock('expo-notifications', () => {
+  const oyentes = new Set();
+  const oyentesRespuesta = new Set();
+  return {
+    setNotificationHandler: jest.fn(),
+    setNotificationChannelAsync: jest.fn(async () => {}),
+    getPermissionsAsync: jest.fn(async () => ({ status: 'granted' })),
+    requestPermissionsAsync: jest.fn(async () => ({ status: 'granted' })),
+    getExpoPushTokenAsync: jest.fn(async () => ({ data: 'ExponentPushToken[mock-token-123]' })),
+    scheduleNotificationAsync: jest.fn(async () => 'notif-local-id-123'),
+    cancelScheduledNotificationAsync: jest.fn(async () => {}),
+    dismissAllNotificationsAsync: jest.fn(async () => {}),
+    addNotificationReceivedListener: jest.fn((oyente) => {
+      oyentes.add(oyente);
+      return { remove: () => oyentes.delete(oyente) };
+    }),
+    addNotificationResponseReceivedListener: jest.fn((oyente) => {
+      oyentesRespuesta.add(oyente);
+      return { remove: () => oyentesRespuesta.delete(oyente) };
+    }),
+    getLastNotificationResponseAsync: jest.fn(async () => null),
+    AndroidImportance: {
+      DEFAULT: 3,
+      HIGH: 4,
+      MAX: 5,
+    },
+  };
+});
+
 beforeEach(async () => {
   const AsyncStorage = require('@react-native-async-storage/async-storage');
   await (AsyncStorage.default ?? AsyncStorage).clear();

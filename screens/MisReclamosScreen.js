@@ -7,7 +7,7 @@ import useAuth from '../hooks/useAuth';
 import useActualizacionVisible from '../hooks/useActualizacionVisible';
 import { useSearch } from '../context/SearchContext';
 import { estaConectado, verificarConexion } from '../services/conexion';
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import { Alert, FlatList, RefreshControl, StyleSheet, View } from 'react-native';
 import {
@@ -72,7 +72,7 @@ const paginacionServidor = (res, lista) => ({
 });
 const hayCache = (cache) => !!cache && (cache.enviados.length > 0 || cache.recibidos.length > 0);
 
-export default function MisReclamosScreen({ navigation }) {
+export default function MisReclamosScreen({ navigation, route }) {
   const { hayConexion } = useConexion();
   const {
     novedadesPorReclamo,
@@ -102,6 +102,17 @@ export default function MisReclamosScreen({ navigation }) {
   const reclamosEnviados = vigente ? datos.enviados : ESTADO_INICIAL.enviados;
   const reclamosRecibidos = vigente ? datos.recibidos : ESTADO_INICIAL.recibidos;
   const paginacion = vigente ? datos.paginacion : PAGINACION_INICIAL;
+
+  // Si se abre desde una notificación para un reclamo específico, enfocar la pestaña correspondiente
+  const reclamoIdParam = route?.params?.reclamoId;
+  useEffect(() => {
+    if (!reclamoIdParam || !vigente) return;
+    if (reclamosEnviados.some((r) => r.id === reclamoIdParam)) {
+      setTab('enviados');
+    } else if (reclamosRecibidos.some((r) => r.id === reclamoIdParam)) {
+      setTab('recibidos');
+    }
+  }, [reclamoIdParam, vigente, reclamosEnviados, reclamosRecibidos]);
 
   /**
    * Recarga la primera página de ambas bandejas y reemplaza lo que se veía (las páginas

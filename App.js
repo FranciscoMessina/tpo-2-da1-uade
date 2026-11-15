@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { ConexionProvider } from './context/ConexionContext';
 import { StatusBar } from 'expo-status-bar';
@@ -39,6 +40,14 @@ import RegisterScreen from './screens/RegisterScreen';
 import ForgotPasswordScreen from './screens/ForgotPasswordScreen';
 import useAuth, { AuthProvider } from './hooks/useAuth';
 import {
+  setRefNavegacion,
+  configurarCanalNotificaciones,
+  configurarOyenteRespuestaNotificaciones,
+  obtenerYRegistrarTokenPush,
+  ejecutarNavegacionPendiente,
+} from './services/notificacionesPush';
+import { estaSesionBloqueada } from './hooks/useBloqueoBiometrico';
+import {
   Boton,
   Icono,
   RUTA_PESTANAS,
@@ -56,6 +65,9 @@ import {
 const Stack = createNativeStackNavigator();
 const BarraInferior = createBottomTabNavigator();
 const navigationRef = createNavigationContainerRef();
+if (typeof setRefNavegacion === 'function') {
+  setRefNavegacion(navigationRef);
+}
 
 const temaNavegacion = {
   ...DefaultTheme,
@@ -266,6 +278,28 @@ export default function App() {
 
 function AppContenido() {
   const { autenticado } = useAuth();
+
+  useEffect(() => {
+    setRefNavegacion(navigationRef);
+    configurarCanalNotificaciones();
+    const desuscribir = configurarOyenteRespuestaNotificaciones(
+      navigationRef,
+      () => !autenticado || estaSesionBloqueada()
+    );
+
+    if (autenticado) {
+      obtenerYRegistrarTokenPush();
+      setTimeout(() => {
+        if (!estaSesionBloqueada()) {
+          ejecutarNavegacionPendiente(navigationRef);
+        }
+      }, 150);
+    }
+
+    return () => {
+      desuscribir?.();
+    };
+  }, [autenticado]);
 
   return (
     <SafeAreaProvider>
