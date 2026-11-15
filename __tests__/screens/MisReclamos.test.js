@@ -573,3 +573,64 @@ describe('MisReclamosScreen: novedades del reclamo', () => {
     expect(mockBusqueda.marcarReclamoLeido).not.toHaveBeenCalled();
   });
 });
+
+describe('MisReclamosScreen: abrir un reclamo desde una notificación', () => {
+  const { obtenerReclamo } = require('../../services/publicaciones');
+
+  function pantallaCon(reclamoId) {
+    return <MisReclamosScreen navigation={navegacion} route={{ params: { reclamoId } }} />;
+  }
+
+  test('busca el reclamo por id aunque no esté en las páginas cargadas y abre su pestaña', async () => {
+    // Recibidos en primer plano; el reclamo enviado de la notificación está fuera de la primera página
+    servidor = { recibidos: [[reclamo('r1')]], enviados: [[reclamo('e1')], [reclamo('e2')]] };
+    jest.mocked(obtenerReclamo).mockReset().mockResolvedValue(
+      reclamo('lejano', { esRecibido: false, publicacion: publicacion({ titulo: 'Paraguas azul' }) })
+    );
+
+    render(pantallaCon('lejano'));
+    await act(async () => {});
+
+    expect(obtenerReclamo).toHaveBeenCalledWith('lejano', expect.anything());
+    expect(screen.getByText('Paraguas azul')).toBeTruthy();
+    expect(screen.getByText('Abierto desde la notificación')).toBeTruthy();
+    // Quedó en Enviados, junto con lo cargado de esa bandeja
+    expect(screen.getByText('Objeto e1')).toBeTruthy();
+    expect(screen.queryByText('Objeto r1')).toBeNull();
+  });
+
+  test('si está cargado no lo duplica y lo marca', async () => {
+    jest.mocked(obtenerReclamo).mockReset().mockResolvedValue(reclamo('r1', { esRecibido: true }));
+
+    render(pantallaCon('r1'));
+    await act(async () => {});
+
+    expect(screen.getAllByText('Objeto r1')).toHaveLength(1);
+    expect(screen.getByText('Abierto desde la notificación')).toBeTruthy();
+  });
+
+  test('sin conexión usa lo cargado; si no lo encuentra lo informa', async () => {
+    jest.mocked(obtenerReclamo).mockReset().mockRejectedValue(new Error('Network Error'));
+
+    render(pantallaCon('inexistente'));
+    await act(async () => {});
+
+    expect(screen.getByText(/No se pudo abrir el reclamo de la notificación/)).toBeTruthy();
+    expect(screen.getByText('Objeto r1')).toBeTruthy();
+  });
+
+  test('lo pedido para otra cuenta no se muestra después de cambiarla', async () => {
+    jest.mocked(obtenerReclamo).mockReset().mockResolvedValue(
+      reclamo('ajeno', { esRecibido: true, publicacion: publicacion({ titulo: 'De la otra cuenta' }) })
+    );
+    const vista = render(pantallaCon('ajeno'));
+    await act(async () => {});
+    expect(screen.getByText('De la otra cuenta')).toBeTruthy();
+
+    mockAuth = { usuario: { id: 'u2' } };
+    vista.rerender(<MisReclamosScreen navigation={navegacion} route={{ params: {} }} />);
+    await act(async () => {});
+
+    expect(screen.queryByText('De la otra cuenta')).toBeNull();
+  });
+});

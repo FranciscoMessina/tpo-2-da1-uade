@@ -86,7 +86,7 @@ describe('NotificacionesScreen', () => {
     expect(screen.getByText('Sin leer')).toBeTruthy();
   });
 
-  test('una leída no se vuelve a marcar y los avisos de reclamos llevan a la pestaña Reclamos', async () => {
+  test('una leída no se vuelve a marcar y los avisos de reclamos llevan a ese reclamo en la pestaña Reclamos', async () => {
     obtenerNotificaciones.mockResolvedValueOnce(pagina([
       aviso('1', { tipo: 'mensaje', reclamoId: 'r1', leidaEn: '2026-11-11T00:00:00.000Z' }),
     ]));
@@ -96,7 +96,10 @@ describe('NotificacionesScreen', () => {
     await act(async () => { fireEvent.press(screen.getByLabelText(/Aviso 1/)); });
 
     expect(marcarNotificacionLeida).not.toHaveBeenCalled();
-    expect(navegacion.popTo).toHaveBeenCalledWith('Principal', { screen: 'MisReclamos' });
+    expect(navegacion.popTo).toHaveBeenCalledWith('Principal', {
+      screen: 'MisReclamos',
+      params: { reclamoId: 'r1' },
+    });
   });
 
   test('las valoraciones llevan al historial de devoluciones', async () => {
