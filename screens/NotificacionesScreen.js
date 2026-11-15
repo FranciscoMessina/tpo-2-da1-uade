@@ -63,7 +63,8 @@ export function fechaNotificacion(iso, ahora = new Date()) {
 // Adónde lleva tocar un aviso: la publicación, el reclamo o el historial
 function abrirDestino(navigation, notificacion) {
   if (TIPOS_RECLAMO.has(notificacion.tipo)) {
-    irAPestana(navigation, 'MisReclamos');
+    const reclamoId = notificacion.reclamoId ?? notificacion.claimId;
+    irAPestana(navigation, 'MisReclamos', reclamoId ? { reclamoId } : undefined);
   } else if (notificacion.tipo === 'valoracion') {
     navigation.navigate('Historial');
   } else if (notificacion.publicacionId) {

@@ -11,7 +11,7 @@ export const opcionesEncabezado = {
   headerShadowVisible: false,
 };
 
-// Desde una pantalla apilada vuelve a una pestaña de la barra inferior
-export function irAPestana(navigation, pestana) {
-  navigation.popTo(RUTA_PESTANAS, { screen: pestana });
+// Desde una pantalla apilada vuelve a una pestaña de la barra inferior (con parámetros opcionales)
+export function irAPestana(navigation, pestana, params = undefined) {
+  navigation.popTo(RUTA_PESTANAS, params ? { screen: pestana, params } : { screen: pestana });
 }

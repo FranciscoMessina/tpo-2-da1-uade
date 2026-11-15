@@ -159,6 +159,22 @@ export async function obtenerMisReclamos({ tipo = 'todos', pagina = 1, signal = 
   };
 }
 
+/**
+ * Un reclamo propio (enviado o recibido) por id: GET /reclamos/:id. Agrega `esRecibido` y
+ * `esEnviado` como en /me/reclamos, a partir de la publicación (`esPropia`).
+ */
+export async function obtenerReclamo(id, { signal = undefined } = {}) {
+  const { data } = await api.get(`/reclamos/${encodeURIComponent(id)}`, { signal });
+  const publicacion = data.publicacion ? prepararPublicacion(data.publicacion) : null;
+  const esRecibido = data.esRecibido ?? !!data.publicacion?.esPropia;
+  return {
+    ...data,
+    publicacion,
+    esRecibido,
+    esEnviado: data.esEnviado ?? !esRecibido,
+  };
+}
+
 export async function aceptarReclamo(id) {
   const { data } = await api.post(`/reclamos/${encodeURIComponent(id)}/aceptar`);
   return data;

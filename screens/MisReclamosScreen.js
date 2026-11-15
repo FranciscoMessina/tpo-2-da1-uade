@@ -12,6 +12,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { Alert, FlatList, RefreshControl, StyleSheet, View } from 'react-native';
 import {
   obtenerMisReclamos,
+  obtenerReclamo,
   aceptarReclamo,
   rechazarReclamo,
 } from '../services/publicaciones';
@@ -103,16 +104,62 @@ export default function MisReclamosScreen({ navigation, route }) {
   const reclamosRecibidos = vigente ? datos.recibidos : ESTADO_INICIAL.recibidos;
   const paginacion = vigente ? datos.paginacion : PAGINACION_INICIAL;
 
-  // Si se abre desde una notificación para un reclamo específico, enfocar la pestaña correspondiente
+  // Reclamo pedido desde una notificación: se busca por id, así no depende de las páginas cargadas.
+  // `foco` = { reclamoId, alcance, bandeja, item, error }
   const reclamoIdParam = route?.params?.reclamoId;
+  const [foco, setFoco] = useState(null);
+  const lista = useRef(null);
+  const focoDesplazado = useRef(null);
+  const listasCargadas = useRef({ enviados: [], recibidos: [] });
   useEffect(() => {
-    if (!reclamoIdParam || !vigente) return;
-    if (reclamosEnviados.some((r) => r.id === reclamoIdParam)) {
-      setTab('enviados');
-    } else if (reclamosRecibidos.some((r) => r.id === reclamoIdParam)) {
-      setTab('recibidos');
-    }
-  }, [reclamoIdParam, vigente, reclamosEnviados, reclamosRecibidos]);
+    listasCargadas.current = { enviados: reclamosEnviados, recibidos: reclamosRecibidos };
+  }, [reclamosEnviados, reclamosRecibidos]);
+
+  useEffect(() => {
+    if (!reclamoIdParam || !alcance) return undefined;
+    const controller = new AbortController();
+    // El parámetro se consume al resolver: volver a la pestaña no repite el foco
+    const consumir = () => navigation?.setParams?.({ reclamoId: undefined });
+    const enfocar = (item, bandeja) => {
+      setFoco({ reclamoId: reclamoIdParam, alcance, bandeja, item, error: false });
+      setTab(bandeja);
+    };
+
+    Promise.resolve()
+      .then(() => obtenerReclamo(reclamoIdParam, { signal: controller.signal }))
+      .then((item) => {
+        if (controller.signal.aborted) return;
+        if (!item?.id) throw new Error('Reclamo sin datos');
+        enfocar(item, item.esRecibido ? 'recibidos' : 'enviados');
+        consumir();
+      })
+      .catch(() => {
+        if (controller.signal.aborted) return;
+        // Sin conexión: sirve lo que ya está cargado (o en caché) si lo contiene
+        const { enviados, recibidos } = listasCargadas.current;
+        const recibido = recibidos.find((r) => r.id === reclamoIdParam);
+        const enviado = enviados.find((r) => r.id === reclamoIdParam);
+        if (recibido || enviado) {
+          enfocar(recibido || enviado, recibido ? 'recibidos' : 'enviados');
+        } else {
+          setFoco({ reclamoId: reclamoIdParam, alcance, bandeja: null, item: null, error: true });
+        }
+        consumir();
+      });
+
+    return () => controller.abort();
+  }, [reclamoIdParam, alcance, navigation]);
+
+  // Tras aceptar, rechazar o confirmar la devolución se actualiza el reclamo enfocado
+  const actualizarFoco = useCallback((reclamoId) => {
+    Promise.resolve()
+      .then(() => obtenerReclamo(reclamoId))
+      .then((item) => {
+        if (!item?.id) return;
+        setFoco((previo) => (previo?.reclamoId === reclamoId ? { ...previo, item } : previo));
+      })
+      .catch(() => {});
+  }, []);
 
   /**
    * Recarga la primera página de ambas bandejas y reemplaza lo que se veía (las páginas
@@ -278,6 +325,7 @@ export default function MisReclamosScreen({ navigation, route }) {
                 'El reclamo fue aceptado. Podés coordinar la entrega con la otra persona.'
               );
               cargar();
+              actualizarFoco(reclamo.id);
             } catch (err) {
               Alert.alert('No se pudo aceptar', mensajeErrorApi(err));
             } finally {
@@ -308,6 +356,7 @@ export default function MisReclamosScreen({ navigation, route }) {
               await rechazarReclamo(reclamo.id);
               Alert.alert('Reclamo rechazado', 'El reclamo fue rechazado.');
               cargar();
+              actualizarFoco(reclamo.id);
             } catch (err) {
               Alert.alert('No se pudo rechazar', mensajeErrorApi(err));
             } finally {
@@ -319,7 +368,23 @@ export default function MisReclamosScreen({ navigation, route }) {
     );
   }
 
-  const items = tab === 'recibidos' ? reclamosRecibidos : reclamosEnviados;
+  const focoVigente = foco && foco.alcance === alcance ? foco : null;
+  const cargados = tab === 'recibidos' ? reclamosRecibidos : reclamosEnviados;
+  // Si el reclamo enfocado no está en las páginas cargadas, se muestra primero
+  const items = focoVigente?.item && focoVigente.bandeja === tab
+    && !cargados.some((r) => r.id === focoVigente.reclamoId)
+    ? [focoVigente.item, ...cargados]
+    : cargados;
+  const indiceFoco = focoVigente?.item && focoVigente.bandeja === tab
+    ? items.findIndex((r) => r.id === focoVigente.reclamoId)
+    : -1;
+
+  // Lleva la lista hasta el reclamo enfocado, una sola vez por foco
+  useEffect(() => {
+    if (cargando || indiceFoco < 0 || focoDesplazado.current === focoVigente) return;
+    focoDesplazado.current = focoVigente;
+    lista.current?.scrollToIndex?.({ index: indiceFoco, animated: true, viewPosition: 0 });
+  }, [cargando, indiceFoco, focoVigente]);
 
   function renderItem({ item }) {
     const pub = item.publicacion;
@@ -332,9 +397,11 @@ export default function MisReclamosScreen({ navigation, route }) {
     // Todo lo nuevo del reclamo (mensajes, reclamo, encuentros y devolución) y, aparte, los mensajes
     const novedades = novedadesPorReclamo.get(item.id) || 0;
     const sinLeer = mensajesPorReclamo.get(item.id) || 0;
+    const enfocado = focoVigente?.reclamoId === item.id;
 
     return (
-      <Tarjeta destacada={novedades > 0}>
+      <Tarjeta destacada={novedades > 0 || enfocado}>
+        {enfocado && <Insignia tono="info" icono="bell-outline" texto="Abierto desde la notificación" />}
         {/* Publicación vinculada */}
         {pub && (
           <>
@@ -516,6 +583,14 @@ export default function MisReclamosScreen({ navigation, route }) {
         />
       )}
 
+      {focoVigente?.error && (
+        <Aviso
+          tono="aviso"
+          style={styles.avisoSinConexion}
+          mensaje="No se pudo abrir el reclamo de la notificación. Revisá la conexión y buscalo en la lista."
+        />
+      )}
+
       {cargando ? (
         <Cargando pantalla />
       ) : error ? (
@@ -524,9 +599,15 @@ export default function MisReclamosScreen({ navigation, route }) {
         </View>
       ) : (
         <FlatList
+          ref={lista}
           contentContainerStyle={estilosPantalla.contenido}
           data={items}
-          extraData={[novedadesPorReclamo, mensajesPorReclamo, novedadesGuardando, novedadesLoading]}
+          extraData={[
+            novedadesPorReclamo, mensajesPorReclamo, novedadesGuardando, novedadesLoading, focoVigente,
+          ]}
+          onScrollToIndexFailed={({ index, averageItemLength }) => {
+            lista.current?.scrollToOffset({ offset: index * averageItemLength, animated: true });
+          }}
           keyExtractor={(item) => String(item.id)}
           renderItem={renderItem}
           refreshControl={
@@ -570,6 +651,7 @@ export default function MisReclamosScreen({ navigation, route }) {
           reclamoId={escaneo.reclamoId}
           onCerrar={cerrarEscaneo}
           onConfirmada={() => {
+            actualizarFoco(escaneo.reclamoId);
             setEscaneo(null);
             cargar();
             Alert.alert('Devolución confirmada', 'La publicación pasó a estado resuelta.');

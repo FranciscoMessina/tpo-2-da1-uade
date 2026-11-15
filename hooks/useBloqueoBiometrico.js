@@ -8,7 +8,8 @@ import {
 import { hayActividadExterna } from '../services/actividadExterna';
 import { ejecutarNavegacionPendiente } from '../services/notificacionesPush';
 
-let sesionBloqueadaActual = false;
+// Hasta leer la configuración no se sabe si hay bloqueo: se asume bloqueada para no navegar detrás
+let sesionBloqueadaActual = true;
 
 export function estaSesionBloqueada() {
   return sesionBloqueadaActual;

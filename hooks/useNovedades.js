@@ -6,7 +6,11 @@ import {
   obtenerNotificaciones,
   marcarGrupoLeido,
 } from '../services/notificaciones';
-import { sincronizarAvisosNativos } from '../services/notificacionesPush';
+import {
+  avisosLocalesActivos,
+  sincronizarAvisosNativos,
+  suscribirNovedadesPush,
+} from '../services/notificacionesPush';
 import { mensajeErrorApi } from '../services/api';
 
 // Cada grupo del resumen: nombre que entiende el servidor, lista y campo de su id.
@@ -75,12 +79,15 @@ export default function useNovedades(usuarioId) {
       enPrimerPlano = valor === 'active';
       if (enPrimerPlano) actualizar();
     });
+    // Un push recibido trae una notificación nueva: los contadores se actualizan sin esperar el ciclo
+    const desuscribirPush = suscribirNovedadesPush(actualizar);
 
     return () => {
       sesion.activa = false;
       sesion.controller?.abort();
       clearInterval(intervalo);
       suscripcion.remove();
+      desuscribirPush();
     };
   }, [usuarioId, alcance]);
 
@@ -99,22 +106,20 @@ export default function useNovedades(usuarioId) {
         sesion.resumen = resumen;
         setEstado({ alcance, resumen, loading: false, error: '' });
 
-        // Si hay notificaciones sin leer, sincronizar avisos de reclamo o encuentro al sistema operativo
-        if (resumen.sinLeer > 0) {
-          const promesaHistorial = obtenerNotificaciones?.({
-            pagina: 1,
-            tamanoPagina: 10,
-            signal: controller.signal,
-          });
-          if (promesaHistorial && typeof promesaHistorial.then === 'function') {
-            promesaHistorial
-              .then((historial) => {
-                if (historial?.items && sesion.activa && !controller.signal.aborted) {
-                  sincronizarAvisosNativos(historial.items);
-                }
-              })
-              .catch(() => {});
-          }
+        // Respaldo sin push: solo si esta sesión no tiene el push registrado se generan avisos
+        // locales (en primer plano) a partir de las últimas notificaciones
+        if (resumen.sinLeer > 0 && avisosLocalesActivos(usuarioId)) {
+          Promise.resolve()
+            .then(() => obtenerNotificaciones({
+              pagina: 1, tamanoPagina: 10, signal: controller.signal,
+            }))
+            .then((historial) => {
+              if (historial?.items && sesion.activa && !controller.signal.aborted) {
+                return sincronizarAvisosNativos(historial.items, usuarioId);
+              }
+              return undefined;
+            })
+            .catch(() => {});
         }
       })
       .catch((error) => {

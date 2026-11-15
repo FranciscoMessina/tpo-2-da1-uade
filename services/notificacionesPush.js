@@ -1,28 +1,365 @@
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { isAxiosError } from 'axios';
 import { api } from './api';
+import { anotarPush, liberarLocal, reservarLocales } from './registroAvisos';
+
+/**
+ * Avisos del sistema (punto 12). Cómo funciona:
+ * - Fuente principal: el push de Expo que envía el backend para las notificaciones de tipo
+ *   `reclamo`, `encuentro` y `devolucion`. El token se registra con POST /me/push-token y queda
+ *   atado a la sesión (logout lo desvincula en el servidor).
+ * - Respaldo: solo si el registro falló de forma definitiva o el servidor no lo confirmó, la consulta
+ *   periódica (en primer plano) genera un aviso local. Con la app cerrada no hay respaldo.
+ * - Sin duplicados: cada aviso se identifica por el `id` de GET /notificaciones (en el push viene
+ *   como `data.id`) y se anota por cuenta en `registroAvisos`.
+ */
 
 export const CANAL_NOTIFICACIONES_ID = 'hallado-notificaciones';
-export const CLAVE_STORAGE_NOTIFICADOS = 'hallado_notificaciones_emitidas_ids';
+export const TIPOS_AVISO = new Set(['reclamo', 'encuentro', 'devolucion']);
+const TITULOS = { reclamo: 'Reclamo', encuentro: 'Punto de encuentro', devolucion: 'Devolución' };
 
-// Cómo se presentan las notificaciones si la app está en primer plano
-try {
-  Notifications.setNotificationHandler({
-    handleNotification: async () => ({
-      shouldPlaySound: true,
-      shouldSetBadge: true,
-      shouldShowBanner: true,
-      shouldShowList: true,
-    }),
-  });
-} catch {
-  // En entornos de prueba o sin soporte se ignora
-}
+// Estados del registro en los que el servidor no tiene el token de esta sesión: solo ahí
+// corresponde el aviso local de respaldo
+const ESTADOS_SIN_PUSH = new Set(['sin_permiso', 'no_disponible', 'error_servidor', 'rechazado']);
+// Estados que pueden resolverse solos (red que vuelve, servidor que se recupera, permiso concedido)
+export const ESTADOS_REINTENTABLES = new Set(['sin_permiso', 'no_disponible', 'error_servidor']);
 
-// Almacén en memoria de navegación pendiente cuando la app está bloqueada
+let cuentaActual = null;
 let notificacionPendiente = null;
 let refNavegacionActual = null;
+const oyentesNovedad = new Set();
+const oyentesRegistro = new Set();
+const REGISTRO_INICIAL = { cuenta: null, estado: 'inactivo', token: null, error: '' };
+let registro = REGISTRO_INICIAL;
+let registroEnCurso = null;
+let generacion = 0;
+
+// ---------------------------------------------------------------------------------------------
+// Cuenta activa
+
+/**
+ * Fija la cuenta que recibe los avisos. Al cerrar sesión o cambiar de cuenta se descarta lo que era
+ * de la anterior: navegación pendiente, estado del registro y avisos que siguen en la bandeja.
+ */
+export function establecerCuentaPush(cuenta) {
+  const nueva = cuenta ?? null;
+  const anterior = cuentaActual;
+  if (anterior === nueva) return;
+  cuentaActual = nueva;
+  generacion += 1;
+  registroEnCurso = null;
+  actualizarRegistro({ ...REGISTRO_INICIAL, cuenta: nueva });
+  if (anterior !== null) {
+    notificacionPendiente = null;
+    Promise.resolve()
+      .then(() => Notifications.dismissAllNotificationsAsync?.())
+      .catch(() => {});
+  }
+}
+
+export function obtenerCuentaPush() {
+  return cuentaActual;
+}
+
+// ---------------------------------------------------------------------------------------------
+// Presentación en primer plano
+
+/**
+ * Decide si se muestra una notificación que llega con la app abierta. Un push cuyo `id` ya se
+ * mostró como aviso local (la consulta periódica se adelantó) no se repite, y sin sesión no se
+ * muestra nada.
+ */
+export async function debeMostrarse(notificacion) {
+  const request = notificacion?.request;
+  if (request?.trigger?.type !== 'push') return true;
+  if (!cuentaActual) return false;
+  const datos = request?.content?.data ?? {};
+  const id = datos.id ?? datos.notificationId;
+  if (!id) return true;
+  const previo = await anotarPush(cuentaActual, String(id));
+  return previo !== 'local';
+}
+
+try {
+  Notifications.setNotificationHandler({
+    handleNotification: async (notificacion) => {
+      let mostrar = true;
+      try {
+        mostrar = await debeMostrarse(notificacion);
+      } catch {
+        mostrar = true;
+      }
+      return {
+        shouldPlaySound: mostrar,
+        shouldSetBadge: mostrar,
+        shouldShowBanner: mostrar,
+        shouldShowList: mostrar,
+      };
+    },
+  });
+} catch {
+  // En entornos sin soporte se ignora
+}
+
+/** Avisa cuando llega un push con la app en ejecución, para refrescar contadores. */
+export function suscribirNovedadesPush(oyente) {
+  oyentesNovedad.add(oyente);
+  return () => oyentesNovedad.delete(oyente);
+}
+
+/** Atiende un push recibido con la app en ejecución (primer o segundo plano). */
+export async function procesarNotificacionRecibida(notificacion) {
+  const request = notificacion?.request;
+  if (request?.trigger?.type !== 'push' || !cuentaActual) return;
+  const datos = request?.content?.data ?? {};
+  const id = datos.id ?? datos.notificationId;
+  if (id) await anotarPush(cuentaActual, String(id));
+  oyentesNovedad.forEach((oyente) => {
+    try { oyente(datos); } catch { /* un oyente no frena a los demás */ }
+  });
+}
+
+// ---------------------------------------------------------------------------------------------
+// Permisos, canal y registro del token
+
+export async function configurarCanalNotificaciones() {
+  if (Platform.OS !== 'android') return;
+  try {
+    await Notifications.setNotificationChannelAsync(CANAL_NOTIFICACIONES_ID, {
+      name: 'Avisos y reclamos de Hallado',
+      importance: Notifications.AndroidImportance.HIGH,
+      vibrationPattern: [0, 250, 250, 250],
+      lightColor: '#2563EB',
+      sound: 'default',
+      enableLights: true,
+      enableVibrate: true,
+    });
+  } catch {
+    // Ignorar si el entorno nativo no lo soporta
+  }
+}
+
+/** Consulta el permiso y, si `pedir`, lo solicita. */
+export async function solicitarPermisoNotificaciones({ pedir = true } = {}) {
+  try {
+    const { status: existente } = await Notifications.getPermissionsAsync();
+    if (existente === 'granted' || !pedir) return existente === 'granted';
+    const { status } = await Notifications.requestPermissionsAsync();
+    return status === 'granted';
+  } catch {
+    return false;
+  }
+}
+
+function actualizarRegistro(nuevo) {
+  registro = nuevo;
+  oyentesRegistro.forEach((oyente) => {
+    try { oyente(registro); } catch { /* sin acción */ }
+  });
+}
+
+export function obtenerEstadoRegistroPush() {
+  return registro;
+}
+
+export function suscribirEstadoRegistroPush(oyente) {
+  oyentesRegistro.add(oyente);
+  return () => oyentesRegistro.delete(oyente);
+}
+
+/** true si la consulta periódica debe generar avisos locales para esta cuenta. */
+export function avisosLocalesActivos(cuenta = cuentaActual) {
+  return !!cuenta && cuenta === cuentaActual && ESTADOS_SIN_PUSH.has(registro.estado);
+}
+
+function clasificarErrorServidor(error) {
+  const status = isAxiosError(error) ? error.response?.status : undefined;
+  if (status && status >= 400 && status < 500 && status !== 408 && status !== 429) {
+    return { estado: 'rechazado', error: `El servidor rechazó el token (HTTP ${status}).` };
+  }
+  return {
+    estado: 'error_servidor',
+    error: 'No se pudo confirmar el registro con el servidor. Se reintentará.',
+  };
+}
+
+async function registrar(cuenta, gen, { pedirPermiso }) {
+  const vigente = () => gen === generacion && cuenta === cuentaActual;
+  const terminar = (cambios) => {
+    if (vigente()) actualizarRegistro({ ...registro, cuenta, ...cambios });
+    return vigente() ? registro : { ...REGISTRO_INICIAL, cuenta, ...cambios };
+  };
+
+  actualizarRegistro({ ...registro, cuenta, estado: 'registrando', error: '' });
+
+  const permitido = await solicitarPermisoNotificaciones({ pedir: pedirPermiso });
+  if (!vigente()) return terminar({});
+  if (!permitido) {
+    return terminar({ estado: 'sin_permiso', token: null, error: 'Las notificaciones están desactivadas para Hallado.' });
+  }
+
+  await configurarCanalNotificaciones();
+
+  let token = null;
+  try {
+    const respuesta = await Notifications.getExpoPushTokenAsync();
+    token = respuesta?.data ?? null;
+  } catch (error) {
+    // Sin projectId de EAS, sin credenciales FCM o en Expo Go (Android) no hay token remoto
+    return terminar({
+      estado: 'no_disponible',
+      token: null,
+      error: `Este dispositivo no pudo obtener un token push${error?.message ? `: ${error.message}` : '.'}`,
+    });
+  }
+  if (!vigente()) return terminar({});
+  if (!token) {
+    return terminar({ estado: 'no_disponible', token: null, error: 'Expo no devolvió un token push.' });
+  }
+
+  try {
+    await api.post('/me/push-token', { token });
+  } catch (error) {
+    return terminar({ token, ...clasificarErrorServidor(error) });
+  }
+  return terminar({ estado: 'registrado', token, error: '' });
+}
+
+/**
+ * Obtiene el token de Expo y lo registra para la sesión actual. Devuelve el estado final:
+ * `registrado` solo cuando el servidor confirmó; cualquier falla queda en el estado y nunca
+ * interrumpe el ingreso. Llamadas simultáneas comparten el mismo intento.
+ */
+export function obtenerYRegistrarTokenPush({ pedirPermiso = true } = {}) {
+  const cuenta = cuentaActual;
+  if (!cuenta) return Promise.resolve({ ...REGISTRO_INICIAL });
+  if (registroEnCurso && registroEnCurso.cuenta === cuenta && registroEnCurso.gen === generacion) {
+    return registroEnCurso.promesa;
+  }
+  const gen = generacion;
+  const promesa = registrar(cuenta, gen, { pedirPermiso })
+    .catch(() => terminarConError(cuenta, gen))
+    .finally(() => {
+      if (registroEnCurso?.promesa === promesa) registroEnCurso = null;
+    });
+  registroEnCurso = { cuenta, gen, promesa };
+  return promesa;
+}
+
+function terminarConError(cuenta, gen) {
+  if (gen === generacion && cuenta === cuentaActual) {
+    actualizarRegistro({ ...registro, cuenta, estado: 'error_servidor', error: 'No se pudo registrar el dispositivo.' });
+  }
+  return registro;
+}
+
+// ---------------------------------------------------------------------------------------------
+// Avisos locales de respaldo
+
+export function esEventoPushRelevante(notificacion) {
+  if (!notificacion || typeof notificacion !== 'object') return false;
+  return TIPOS_AVISO.has(notificacion.tipo);
+}
+
+/**
+ * Muestra un aviso local inmediato. Devuelve el identificador o null si no se pudo mostrar.
+ */
+export async function emitirNotificacionNativa({ titulo = 'Hallado', mensaje = '', datos = {} }) {
+  try {
+    await configurarCanalNotificaciones();
+    const id = await Notifications.scheduleNotificationAsync({
+      content: { title: titulo, body: mensaje, data: datos, sound: 'default' },
+      trigger: Platform.OS === 'android' ? { channelId: CANAL_NOTIFICACIONES_ID } : null,
+    });
+    return id || null;
+  } catch {
+    return null;
+  }
+}
+
+async function idsEnBandeja() {
+  try {
+    const presentes = await Notifications.getPresentedNotificationsAsync?.();
+    return new Set((presentes ?? [])
+      .map((n) => n?.request?.content?.data?.id)
+      .filter(Boolean)
+      .map(String));
+  } catch {
+    return new Set();
+  }
+}
+
+/**
+ * Respaldo de la consulta periódica: genera avisos locales para las notificaciones relevantes sin
+ * leer que nadie mostró todavía. No hace nada si el push de esta sesión está registrado, si la
+ * cuenta cambió o si la notificación ya está en la bandeja del sistema (llegó por push).
+ */
+export async function sincronizarAvisosNativos(notificaciones = [], cuenta = cuentaActual) {
+  if (!Array.isArray(notificaciones) || notificaciones.length === 0) return;
+  if (!avisosLocalesActivos(cuenta)) return;
+
+  const candidatas = notificaciones.filter(
+    (n) => n && n.id && !n.leidaEn && esEventoPushRelevante(n)
+  );
+  if (candidatas.length === 0) return;
+
+  const enBandeja = await idsEnBandeja();
+  for (const n of candidatas) {
+    if (enBandeja.has(String(n.id))) await anotarPush(cuenta, String(n.id));
+  }
+
+  const reservados = new Set((await reservarLocales(cuenta, candidatas.map((n) => String(n.id)))) || []);
+  for (const notif of candidatas) {
+    const id = String(notif.id);
+    if (!reservados.has(id)) continue;
+    // Si la cuenta cambió o el push quedó registrado mientras tanto, lo reservado no se muestra
+    if (!avisosLocalesActivos(cuenta)) {
+      await liberarLocal(cuenta, id);
+      continue;
+    }
+    const claimId = notif.claimId || notif.reclamoId;
+    const publicationId = notif.publicationId || notif.publicacionId;
+    const emitido = await emitirNotificacionNativa({
+      titulo: TITULOS[notif.tipo] ?? 'Hallado',
+      mensaje: notif.mensaje,
+      datos: {
+        id,
+        notificationId: id,
+        tipo: notif.tipo,
+        ...(claimId ? { claimId, reclamoId: claimId } : {}),
+        ...(publicationId ? { publicationId, publicacionId: publicationId } : {}),
+      },
+    });
+    if (!emitido) await liberarLocal(cuenta, id);
+  }
+}
+
+/**
+ * Solo desarrollo: programa un aviso LOCAL en este dispositivo. No pasa por el backend ni por
+ * Expo, así que no valida la entrega remota; sirve para probar el canal y la navegación al tocar.
+ */
+export async function simularNotificacionLocal({
+  segundos = 5,
+  titulo = 'Aviso local de prueba',
+  mensaje = 'Notificación generada en el dispositivo (no es un push remoto).',
+  datos = { tipo: 'prueba_local' },
+} = {}) {
+  await solicitarPermisoNotificaciones();
+  await configurarCanalNotificaciones();
+  return Notifications.scheduleNotificationAsync({
+    content: { title: titulo, body: mensaje, data: datos, sound: 'default' },
+    trigger: {
+      type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
+      seconds: Math.max(1, segundos),
+      repeats: false,
+      channelId: CANAL_NOTIFICACIONES_ID,
+    },
+  });
+}
+
+// ---------------------------------------------------------------------------------------------
+// Navegación al tocar
 
 export function setRefNavegacion(ref) {
   refNavegacionActual = ref;
@@ -40,204 +377,20 @@ export function limpiarNotificacionPendiente() {
   notificacionPendiente = null;
 }
 
-/**
- * Configura el canal de alta importancia en Android para que las notificaciones
- * emitan sonido y se muestren como banner/heads-up.
- */
-export async function configurarCanalNotificaciones() {
-  if (Platform.OS === 'android') {
-    try {
-      await Notifications.setNotificationChannelAsync(CANAL_NOTIFICACIONES_ID, {
-        name: 'Avisos y reclamos de Hallado',
-        importance: Notifications.AndroidImportance.HIGH,
-        vibrationPattern: [0, 250, 250, 250],
-        lightColor: '#2563EB',
-        sound: 'default',
-        enableLights: true,
-        enableVibrate: true,
-      });
-    } catch {
-      // Ignorar si el entorno nativo no lo soporta
-    }
-  }
-}
-
-/**
- * Solicita permisos de notificación al sistema operativo.
- */
-export async function solicitarPermisoNotificaciones() {
-  try {
-    const { status: existente } = await Notifications.getPermissionsAsync();
-    let final = existente;
-    if (existente !== 'granted') {
-      const { status } = await Notifications.requestPermissionsAsync();
-      final = status;
-    }
-    return final === 'granted';
-  } catch {
-    return false;
-  }
-}
-
-/**
- * Intenta obtener el token push de Expo y lo registra en el backend.
- * Si falla (ej. emulador sin cuenta Expo configurada), continúa sin interrumpir.
- */
-export async function obtenerYRegistrarTokenPush() {
-  try {
-    const permitido = await solicitarPermisoNotificaciones();
-    if (!permitido) return null;
-
-    await configurarCanalNotificaciones();
-
-    const pushTokenObj = await Notifications.getExpoPushTokenAsync();
-    const token = pushTokenObj?.data;
-
-    if (token) {
-      try {
-        await api.post('/me/push-token', { token });
-      } catch {
-        // Si el backend no tiene la ruta activa, se ignora
-      }
-      return token;
-    }
-  } catch {
-    // Falla esperable en emuladores locales sin projectId
-  }
-  return null;
-}
-
-/**
- * Evalúa si una notificación corresponde a los eventos del Punto 12:
- * - Nuevo reclamo o cambio de estado de un reclamo.
- * - Propuesta o modificación de punto de encuentro.
- */
-export function esEventoPushRelevante(notificacion) {
-  if (!notificacion || typeof notificacion !== 'object') return false;
-  const tipo = notificacion.tipo;
-  return tipo === 'reclamo' || tipo === 'encuentro';
-}
-
-/**
- * Emite una notificación nativa inmediata en la barra de estado del sistema.
- */
-export async function emitirNotificacionNativa({
-  titulo = 'Hallado',
-  mensaje = '',
-  datos = {},
-}) {
-  try {
-    await configurarCanalNotificaciones();
-    return await Notifications.scheduleNotificationAsync({
-      content: {
-        title: titulo,
-        body: mensaje,
-        data: datos,
-        sound: 'default',
-      },
-      trigger: {
-        channelId: CANAL_NOTIFICACIONES_ID,
-      },
-    });
-  } catch {
-    return null;
-  }
-}
-
-/**
- * Programa una notificación con retraso en segundos para probar la llegada
- * con la aplicación minimizada o cerrada.
- */
-export async function simularNotificacionNativa({
-  segundos = 3,
-  titulo = 'Hallado',
-  mensaje = 'Recibiste un reclamo en Llaves encontradas en Plaza Italia',
-  datos = { tipo: 'reclamo', claimId: 'demo145-reclamo-auriculares' },
-}) {
-  await solicitarPermisoNotificaciones();
-  await configurarCanalNotificaciones();
-
-  return await Notifications.scheduleNotificationAsync({
-    content: {
-      title: titulo,
-      body: mensaje,
-      data: datos,
-      sound: 'default',
-    },
-    trigger: {
-      type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
-      seconds: Math.max(1, segundos),
-      repeats: false,
-      channelId: CANAL_NOTIFICACIONES_ID,
-    },
-  });
-}
-
-/**
- * Compara las notificaciones del servidor con los IDs ya emitidos en el sistema.
- * Si hay notificaciones de reclamo o encuentro sin emitir, las dispara al sistema operativo.
- */
-export async function sincronizarAvisosNativos(notificaciones = []) {
-  if (!Array.isArray(notificaciones) || notificaciones.length === 0) return;
-
-  try {
-    const rawEmitidos = await AsyncStorage.getItem(CLAVE_STORAGE_NOTIFICADOS);
-    const emitidos = new Set(rawEmitidos ? JSON.parse(rawEmitidos) : []);
-
-    const pendientesDeAviso = notificaciones.filter(
-      (n) => n && n.id && !n.leidaEn && !emitidos.has(n.id) && esEventoPushRelevante(n)
-    );
-
-    for (const notif of pendientesDeAviso) {
-      await emitirNotificacionNativa({
-        titulo: notif.tipo === 'encuentro' ? 'Punto de encuentro' : 'Reclamo',
-        mensaje: notif.mensaje,
-        datos: {
-          id: notif.id,
-          tipo: notif.tipo,
-          claimId: notif.claimId || notif.reclamoId,
-          publicationId: notif.publicationId || notif.publicacionId,
-        },
-      });
-      emitidos.add(notif.id);
-    }
-
-    // Mantener los últimos 200 IDs para no sobrecargar el almacenamiento
-    const lista = Array.from(emitidos).slice(-200);
-    await AsyncStorage.setItem(CLAVE_STORAGE_NOTIFICADOS, JSON.stringify(lista));
-  } catch {
-    // Si falla el almacenamiento local, no bloquea el flujo principal
-  }
-}
-
-/**
- * Comprueba si el navegador actual tiene disponible la ruta destino (p. ej. 'Principal' en sesión autenticada).
- */
+/** Comprueba si el navegador tiene la ruta destino (p. ej. 'Principal' en sesión autenticada). */
 export function puedeNavegar(navigation = refNavegacionActual, ruta = 'Principal') {
   const nav = navigation || refNavegacionActual;
-  if (!nav || (typeof nav.isReady === 'function' && !nav.isReady())) {
-    return false;
-  }
+  if (!nav || (typeof nav.isReady === 'function' && !nav.isReady())) return false;
   const state = typeof nav.getRootState === 'function' ? nav.getRootState() : null;
-  if (state && Array.isArray(state.routeNames)) {
-    return state.routeNames.includes(ruta);
-  }
+  if (state && Array.isArray(state.routeNames)) return state.routeNames.includes(ruta);
   return true;
 }
 
-/**
- * Resuelve la navegación directa según los datos de la notificación tocada.
- */
+/** Navega según los datos de la notificación tocada. */
 export function navegarADestino(navigation = refNavegacionActual, datos = {}) {
   const nav = navigation || refNavegacionActual;
   if (!nav) return;
 
-  if (typeof nav.isReady === 'function' && !nav.isReady()) {
-    setTimeout(() => navegarADestino(nav, datos), 300);
-    return;
-  }
-
-  // Si la sesión aún no está en las pantallas principales (p. ej. cargando sesión o en Login), retener
   if (!puedeNavegar(nav, 'Principal')) {
     notificacionPendiente = datos;
     return;
@@ -248,22 +401,16 @@ export function navegarADestino(navigation = refNavegacionActual, datos = {}) {
   const publicationId = datos.publicationId || datos.publicacionId;
 
   if (tipo === 'reclamo' || tipo === 'encuentro' || tipo === 'mensaje' || tipo === 'devolucion') {
+    const params = { screen: 'MisReclamos', params: claimId ? { reclamoId: claimId } : undefined };
     if (typeof nav.popTo === 'function') {
       try {
-        nav.popTo('Principal', {
-          screen: 'MisReclamos',
-          params: { reclamoId: claimId },
-        });
+        nav.popTo('Principal', params);
         return;
       } catch {
         // Continuar si popTo no aplica en la jerarquía actual
       }
     }
-    // Lleva a la pestaña Mis Reclamos
-    nav.navigate('Principal', {
-      screen: 'MisReclamos',
-      params: { reclamoId: claimId },
-    });
+    nav.navigate('Principal', params);
   } else if (tipo === 'valoracion') {
     nav.navigate('Historial');
   } else if (publicationId) {
@@ -273,9 +420,7 @@ export function navegarADestino(navigation = refNavegacionActual, datos = {}) {
   }
 }
 
-/**
- * Ejecuta la navegación que haya quedado retenida durante el bloqueo biométrico.
- */
+/** Ejecuta la navegación que quedó retenida (biometría, sesión restaurándose). */
 export function ejecutarNavegacionPendiente(navigation = refNavegacionActual) {
   const nav = navigation || refNavegacionActual;
   if (notificacionPendiente && nav && puedeNavegar(nav, 'Principal')) {
@@ -287,39 +432,75 @@ export function ejecutarNavegacionPendiente(navigation = refNavegacionActual) {
   return false;
 }
 
+// Respuestas ya atendidas (por identificador de la notificación y acción): la última respuesta
+// nativa se revisa una sola vez por proceso, no en cada cambio de sesión.
+const respuestasAtendidas = new Set();
+let respuestaInicialRevisada = false;
+
+function claveRespuesta(respuesta) {
+  const request = respuesta?.notification?.request;
+  return `${request?.identifier ?? ''}|${respuesta?.actionIdentifier ?? ''}|${respuesta?.notification?.date ?? ''}`;
+}
+
 /**
- * Configura los oyentes para cuando el usuario toca una notificación nativa.
- * Si la app está bloqueada por biometría, guarda el destino para ejecutarlo post-desbloqueo.
+ * Configura los oyentes de notificaciones: el toque (con navegación retenida mientras la sesión
+ * se restaura o está bloqueada por biometría) y la recepción con la app abierta.
+ * `obtenerEstadoSesion` devuelve 'lista', 'bloqueada', 'cargando' o 'sin_sesion'.
  */
-export function configurarOyenteRespuestaNotificaciones(navigationRef = refNavegacionActual, estaBloqueadoFn = () => false) {
+export function configurarOyentesNotificaciones(
+  navigationRef = refNavegacionActual,
+  obtenerEstadoSesion = () => 'lista'
+) {
   const nav = navigationRef || refNavegacionActual;
-  const procesar = (datos) => {
+
+  const procesar = (respuesta) => {
+    const datos = respuesta?.notification?.request?.content?.data;
     if (!datos) return;
-    if (estaBloqueadoFn() || !puedeNavegar(nav, 'Principal')) {
+    const clave = claveRespuesta(respuesta);
+    if (respuestasAtendidas.has(clave)) return;
+    respuestasAtendidas.add(clave);
+
+    const estado = obtenerEstadoSesion();
+    // Sin sesión no se guarda el destino: podría ser de la cuenta que salió
+    if (estado === 'sin_sesion') return;
+    if (estado !== 'lista' || !puedeNavegar(nav, 'Principal')) {
       notificacionPendiente = datos;
     } else {
       navegarADestino(nav, datos);
     }
   };
 
-  // Revisa si la app fue abierta originalmente por una notificación
-  Notifications.getLastNotificationResponseAsync()
-    .then((respuesta) => {
-      if (respuesta?.notification?.request?.content?.data) {
-        procesar(respuesta.notification.request.content.data);
-      }
-    })
-    .catch(() => {});
+  if (!respuestaInicialRevisada) {
+    respuestaInicialRevisada = true;
+    Notifications.getLastNotificationResponseAsync()
+      .then((respuesta) => {
+        if (!respuesta) return;
+        procesar(respuesta);
+        return Notifications.clearLastNotificationResponseAsync?.();
+      })
+      .catch(() => {});
+  }
 
-  // Escucha cuando el usuario toca una notificación en la barra de Android
-  const suscripcion = Notifications.addNotificationResponseReceivedListener((respuesta) => {
-    const datos = respuesta?.notification?.request?.content?.data;
-    if (datos) {
-      procesar(datos);
-    }
+  const respuestas = Notifications.addNotificationResponseReceivedListener(procesar);
+  const recibidas = Notifications.addNotificationReceivedListener((notificacion) => {
+    procesarNotificacionRecibida(notificacion).catch(() => {});
   });
 
   return () => {
-    suscripcion.remove();
+    respuestas.remove();
+    recibidas.remove();
   };
+}
+
+/** Solo para pruebas: vuelve el módulo a su estado inicial. */
+export function reiniciarEstadoPush() {
+  cuentaActual = null;
+  notificacionPendiente = null;
+  registro = REGISTRO_INICIAL;
+  registroEnCurso = null;
+  generacion += 1;
+  respuestasAtendidas.clear();
+  respuestaInicialRevisada = false;
+  oyentesNovedad.clear();
+  oyentesRegistro.clear();
 }

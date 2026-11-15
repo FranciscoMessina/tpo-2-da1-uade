@@ -129,6 +129,11 @@ jest.mock('expo-notifications', () => {
       return { remove: () => oyentesRespuesta.delete(oyente) };
     }),
     getLastNotificationResponseAsync: jest.fn(async () => null),
+    clearLastNotificationResponseAsync: jest.fn(async () => {}),
+    getPresentedNotificationsAsync: jest.fn(async () => []),
+    dismissNotificationAsync: jest.fn(async () => {}),
+    addPushTokenListener: jest.fn(() => ({ remove: jest.fn() })),
+    SchedulableTriggerInputTypes: { TIME_INTERVAL: 'timeInterval', DATE: 'date' },
     AndroidImportance: {
       DEFAULT: 3,
       HIGH: 4,

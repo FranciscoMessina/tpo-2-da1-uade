@@ -420,3 +420,80 @@ describe('useNovedades: marcar como leídas', () => {
     expect(result.current.guardando).toBe(false);
   });
 });
+
+describe('useNovedades: coordinación con el push', () => {
+  const Notifications = require('expo-notifications');
+  const push = require('../../services/notificacionesPush');
+  const { obtenerNotificaciones } = require('../../services/notificaciones');
+  const { api } = require('../../services/api');
+
+  beforeEach(() => {
+    push.reiniciarEstadoPush();
+    require('../../services/registroAvisos').reiniciarCacheAvisos();
+    jest.mocked(obtenerNotificaciones).mockReset().mockResolvedValue({ items: [] });
+    jest.mocked(Notifications.scheduleNotificationAsync).mockClear();
+  });
+
+  test('un push recibido actualiza los contadores sin esperar el ciclo de 20 s', async () => {
+    controlarAppState();
+    push.establecerCuentaPush('u1');
+    obtenerResumenNotificaciones.mockResolvedValue(resumen());
+    const desuscribir = push.configurarOyentesNotificaciones({ navigate: jest.fn() }, () => 'lista');
+    const oyente = jest.mocked(Notifications.addNotificationReceivedListener).mock.calls.at(-1)[0];
+
+    const { result } = renderHook(() => useNovedades('u1'));
+    await act(async () => {});
+    expect(pedidos()).toHaveLength(1);
+
+    obtenerResumenNotificaciones.mockResolvedValue({ ...resumen({ reclamos: [['r1', 1]] }), sinLeer: 1 });
+    await act(async () => {
+      oyente({ request: { identifier: 'x', trigger: { type: 'push' }, content: { data: { id: 'n1', tipo: 'reclamo' } } } });
+    });
+    await act(async () => {});
+
+    expect(pedidos()).toHaveLength(2);
+    expect(result.current.porReclamo.get('r1')).toBe(1);
+    desuscribir();
+  });
+
+  test('con el push registrado no consulta el historial ni genera avisos locales', async () => {
+    controlarAppState();
+    jest.spyOn(api, 'post').mockResolvedValue({ data: {} });
+    push.establecerCuentaPush('u1');
+    await push.obtenerYRegistrarTokenPush();
+    obtenerResumenNotificaciones.mockResolvedValue({ ...resumen({ reclamos: [['r1', 1]] }), sinLeer: 1 });
+
+    renderHook(() => useNovedades('u1'));
+    await act(async () => {});
+    await act(async () => { jest.advanceTimersByTime(20000); });
+
+    expect(obtenerNotificaciones).not.toHaveBeenCalled();
+    expect(Notifications.scheduleNotificationAsync).not.toHaveBeenCalled();
+  });
+
+  test('sin push confirmado, la consulta genera el aviso local de lo nuevo', async () => {
+    controlarAppState();
+    jest.spyOn(api, 'post').mockRejectedValue(new Error('sin servidor'));
+    push.establecerCuentaPush('u1');
+    await push.obtenerYRegistrarTokenPush();
+    obtenerResumenNotificaciones.mockResolvedValue({ ...resumen({ reclamos: [['r1', 1]] }), sinLeer: 1 });
+    obtenerNotificaciones.mockResolvedValue({ items: [{ id: 'viejo', tipo: 'reclamo', mensaje: 'v' }] });
+
+    renderHook(() => useNovedades('u1'));
+    await act(async () => {});
+    await act(async () => {});
+    expect(Notifications.scheduleNotificationAsync).not.toHaveBeenCalled();
+
+    obtenerNotificaciones.mockResolvedValue({ items: [
+      { id: 'nuevo', tipo: 'encuentro', mensaje: 'Te propusieron un punto de encuentro', reclamoId: 'r1' },
+      { id: 'viejo', tipo: 'reclamo', mensaje: 'v' },
+    ] });
+    await act(async () => { jest.advanceTimersByTime(20000); });
+    await act(async () => {});
+    await act(async () => {});
+
+    expect(Notifications.scheduleNotificationAsync).toHaveBeenCalledTimes(1);
+    expect(jest.mocked(Notifications.scheduleNotificationAsync).mock.calls[0][0].content)
+      .toMatchObject({ title: 'Punto de encuentro', data: { id: 'nuevo', reclamoId: 'r1' } });
+  });
+});

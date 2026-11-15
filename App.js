@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { ConexionProvider } from './context/ConexionContext';
 import { StatusBar } from 'expo-status-bar';
@@ -42,11 +42,12 @@ import useAuth, { AuthProvider } from './hooks/useAuth';
 import {
   setRefNavegacion,
   configurarCanalNotificaciones,
-  configurarOyenteRespuestaNotificaciones,
-  obtenerYRegistrarTokenPush,
+  configurarOyentesNotificaciones,
   ejecutarNavegacionPendiente,
+  limpiarNotificacionPendiente,
 } from './services/notificacionesPush';
 import { estaSesionBloqueada } from './hooks/useBloqueoBiometrico';
+import useRegistroPush from './hooks/useRegistroPush';
 import {
   Boton,
   Icono,
@@ -277,29 +278,37 @@ export default function App() {
 }
 
 function AppContenido() {
-  const { autenticado } = useAuth();
+  const { autenticado, loading, usuario } = useAuth();
+  const sesion = useRef({ autenticado, loading });
+  useEffect(() => {
+    sesion.current = { autenticado, loading };
+  }, [autenticado, loading]);
 
+  useRegistroPush(usuario?.id);
+
+  // Los oyentes se configuran una sola vez: la última respuesta nativa no se reprocesa
+  // en cada cambio de sesión. El estado se lee en el momento del toque.
   useEffect(() => {
     setRefNavegacion(navigationRef);
     configurarCanalNotificaciones();
-    const desuscribir = configurarOyenteRespuestaNotificaciones(
-      navigationRef,
-      () => !autenticado || estaSesionBloqueada()
-    );
+    return configurarOyentesNotificaciones(navigationRef, () => {
+      const { autenticado: conSesion, loading: restaurando } = sesion.current;
+      if (conSesion) return estaSesionBloqueada() ? 'bloqueada' : 'lista';
+      return restaurando ? 'cargando' : 'sin_sesion';
+    });
+  }, []);
 
+  useEffect(() => {
     if (autenticado) {
-      obtenerYRegistrarTokenPush();
-      setTimeout(() => {
-        if (!estaSesionBloqueada()) {
-          ejecutarNavegacionPendiente(navigationRef);
-        }
+      const temporizador = setTimeout(() => {
+        if (!estaSesionBloqueada()) ejecutarNavegacionPendiente(navigationRef);
       }, 150);
+      return () => clearTimeout(temporizador);
     }
-
-    return () => {
-      desuscribir?.();
-    };
-  }, [autenticado]);
+    // Sin sesión (restauración terminada o logout) no queda destino de la cuenta anterior
+    if (!loading) limpiarNotificacionPendiente();
+    return undefined;
+  }, [autenticado, loading]);
 
   return (
     <SafeAreaProvider>
@@ -308,7 +317,15 @@ function AppContenido() {
       <ConexionProvider>
       <ColaPublicacionesProvider>
       <SearchProvider>
-        <NavigationContainer ref={navigationRef} theme={temaNavegacion}>
+        <NavigationContainer
+          ref={navigationRef}
+          theme={temaNavegacion}
+          onReady={() => {
+            if (sesion.current.autenticado && !estaSesionBloqueada()) {
+              ejecutarNavegacionPendiente(navigationRef);
+            }
+          }}
+        >
           {!autenticado ? (
             <Stack.Navigator screenOptions={opcionesStack} screenLayout={marcoDePantalla}>
               <Stack.Screen
