@@ -74,6 +74,9 @@ const AuthContext = createContext(null);
 export function AuthProvider({ children }) {
   const [usuario, setUsuario] = useState(null);
   const [loading, setLoading] = useState(true);
+  // Solo la restauración inicial de la sesión guardada (no los envíos de formularios): mientras
+  // dura no se sabe si hay sesión, así que no corresponde mostrar el login
+  const [restaurando, setRestaurando] = useState(true);
   const [error, setError] = useState('');
   const ocupado = useRef(true);
   const [codigoPendiente, setCodigoPendiente] = useState(null);
@@ -169,12 +172,16 @@ export function AuthProvider({ children }) {
         if (activo) {
           ocupado.current = false;
           setLoading(false);
+          setRestaurando(false);
         }
       }
     }
 
     restaurarSesion().catch((e) => {
-      if (activo) setError(mensajeError(e));
+      if (activo) {
+        setError(mensajeError(e));
+        setRestaurando(false);
+      }
     });
 
     return () => {
@@ -388,6 +395,7 @@ export function AuthProvider({ children }) {
     autenticado: usuario !== null,
     sesionOffline,
     loading,
+    restaurando,
     error,
     limpiarError,
     iniciarSesion,
