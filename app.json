@@ -20,9 +20,11 @@
         "android.permission.USE_BIOMETRIC",
         "android.permission.USE_FINGERPRINT",
         "android.permission.ACCESS_COARSE_LOCATION",
-        "android.permission.ACCESS_FINE_LOCATION"
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.CAMERA"
       ],
-      "package": "com.anonymous.hallado"
+      "package": "com.uade.hallado",
+      "googleServicesFile": "./google-services.json"
     },
     "plugins": [
       [
@@ -54,10 +56,17 @@
         }
       ],
       "expo-secure-store",
-      "expo-background-task"
+      "expo-background-task",
+      "expo-notifications"
     ],
     "web": {
       "favicon": "./assets/favicon.png"
-    }
+    },
+    "extra": {
+      "eas": {
+        "projectId": "aa3549aa-11e4-42c6-be6e-7dd9ec8f63dc"
+      }
+    },
+    "owner": "grupo-desarrollo-hallado"
   }
 }

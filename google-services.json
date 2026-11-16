@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "303885121403",
+    "project_id": "hallado-636d8",
+    "storage_bucket": "hallado-636d8.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:303885121403:android:d68f2277115a8e41d4afde",
+        "android_client_info": {
+          "package_name": "com.uade.hallado"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBMpeW-IZ6X78lXe5bKJVbwZsyEb3u4M5Q"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
