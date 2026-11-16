@@ -51,6 +51,7 @@ import useRegistroPush from './hooks/useRegistroPush';
 import useRespaldoSegundoPlano from './hooks/useRespaldoSegundoPlano';
 import {
   Boton,
+  Cargando,
   Icono,
   RUTA_PESTANAS,
   Texto,
@@ -279,7 +280,7 @@ export default function App() {
 }
 
 function AppContenido() {
-  const { autenticado, loading, usuario } = useAuth();
+  const { autenticado, loading, restaurando, usuario } = useAuth();
   const sesion = useRef({ autenticado, loading });
   useEffect(() => {
     sesion.current = { autenticado, loading };
@@ -319,6 +320,11 @@ function AppContenido() {
       <ConexionProvider>
       <ColaPublicacionesProvider>
       <SearchProvider>
+        {/* Mientras se lee la sesión guardada no se sabe si hay sesión: se espera en vez de
+            mostrar el login un instante (al abrir la app o al tocar una notificación) */}
+        {restaurando ? (
+          <Cargando pantalla etiqueta="Abriendo Hallado…" />
+        ) : (
         <NavigationContainer
           ref={navigationRef}
           theme={temaNavegacion}
@@ -433,6 +439,7 @@ function AppContenido() {
           )}
           <BloqueoBiometrico />
         </NavigationContainer>
+        )}
       </SearchProvider>
       </ColaPublicacionesProvider>
       </ConexionProvider>

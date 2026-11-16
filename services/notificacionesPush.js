@@ -1,4 +1,5 @@
 import * as Notifications from 'expo-notifications';
+import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 import { isAxiosError } from 'axios';
 import { api } from './api';
@@ -206,7 +207,9 @@ async function registrar(cuenta, gen, { pedirPermiso }) {
 
   let token = null;
   try {
-    const respuesta = await Notifications.getExpoPushTokenAsync();
+    // projectId de EAS (app.json → extra.eas.projectId): Expo lo exige para emitir el token
+    const projectId = Constants?.expoConfig?.extra?.eas?.projectId ?? Constants?.easConfig?.projectId;
+    const respuesta = await Notifications.getExpoPushTokenAsync(projectId ? { projectId } : undefined);
     token = respuesta?.data ?? null;
   } catch (error) {
     // Sin projectId de EAS, sin credenciales FCM o en Expo Go (Android) no hay token remoto

@@ -30,6 +30,11 @@ yarn-error.*
 .DS_Store
 *.pem
 
+# Firebase: clave privada de la cuenta de servicio (FCM V1). Nunca se commitea.
+# google-services.json sí se commitea: solo tiene identificadores públicos.
+*firebase-adminsdk*.json
+service-account*.json
+
 # local env files
 .env
 .env*.local
